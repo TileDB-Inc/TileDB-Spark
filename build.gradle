@@ -1,14 +1,34 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath 'org.ysb33r.gradle:doxygen:0.3.2'
+        classpath "gradle.plugin.com.github.maiflai:gradle-scalatest:0.22"
+    }
+}
+
+plugins {
+    id "com.github.maiflai.scalatest" version "0.22"
+}
+
 group 'io.tiledb'
-version '1.0-SNAPSHOT'
+version '0.1.0'
 
 apply plugin: 'java'
 apply plugin: 'scala'
 apply plugin: 'idea'
+apply plugin : 'org.ysb33r.doxygen'
+apply plugin: "com.github.maiflai.scalatest"
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 repositories {
+    mavenLocal()
     jcenter()
     mavenCentral()
     maven {
@@ -16,32 +36,22 @@ repositories {
     }
 }
 
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath 'org.ysb33r.gradle:doxygen:0.3.2'
-    }
-}
-
-apply plugin : 'org.ysb33r.doxygen'
-
 doxygen {
     generate_html true
 
     source new File(projectDir,'src/main/java/io/tiledb/java')
 }
 
+
 sourceSets {
     main {
         java {
-            srcDir 'src/java'
+            srcDir 'main/java'
         }
     }
     test {
-        java {
-            srcDir 'test/java'
+        scala {
+            srcDir 'test/scala'
         }
     }
 }
@@ -55,7 +65,8 @@ dependencies {
     compile 'org.apache.spark:spark-sql_2.11:2.3.0'
     compile 'org.apache.spark:spark-core_2.11:2.3.0'
 
-    testCompile group: 'junit', name: 'junit', version: '4.11'
+    compile 'io.tiledb:tiledb-java:0.1.0'
 
-    compile project(':java-api')
+    testCompile 'org.scalatest:scalatest_2.11:3.0.1'
+    testRuntime 'org.pegdown:pegdown:1.4.2'
 }
