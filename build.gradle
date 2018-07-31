@@ -71,11 +71,17 @@ dependencies {
     testRuntime 'org.pegdown:pegdown:1.4.2'
 }
 
+task preInstall(type: Exec) {
+    workingDir = projectDir
+    executable = "ls"
+    args "-l"
+}
+
 task installTileDBJava(type: Exec) {
     def generatedFileDir = file("$buildDir/TileDB-Java")
     outputs.dir generatedFileDir
     workingDir = buildDir
-    executable = "../installTileDBJava"
+    executable = new File(projectDir, "installTileDBJava")
     args ""
 }
 
