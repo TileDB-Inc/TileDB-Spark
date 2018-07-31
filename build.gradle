@@ -75,8 +75,7 @@ task installTileDBJava(type: Exec) {
     def generatedFileDir = file("$buildDir/TileDB-Java")
     outputs.dir generatedFileDir
     workingDir = buildDir
-    executable = "../installTileDBJava.sh"
-    args ""
+    executable = "../installTileDBJava"
 }
 
 assemble.dependsOn(installTileDBJava)
