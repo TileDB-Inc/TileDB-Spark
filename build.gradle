@@ -86,6 +86,8 @@ task installTileDBJava(type: Exec) {
 }
 
 assemble.dependsOn(installTileDBJava)
+installTileDBJava.dependsOn(preInstall)
+
 
 test {
     systemProperty "java.library.path", new File(buildDir, "TileDB-Java/build/tiledb_jni")
