@@ -5,4 +5,4 @@ git clone https://github.com/TileDB-Inc/TileDB-Java.git
 cd TileDB-Java
 git checkout npapa/fixVersion
 git pull
-./gradlew assemble publishToMavenLocal
+gradle assemble publishToMavenLocal
