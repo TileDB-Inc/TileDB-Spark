@@ -8,5 +8,6 @@ notifications:
   email: false
 
 script:
-  - gradle assemble --stacktrace --debug --info
-  - gradle test
+  - gradle wrapper
+  - ./gradlew assemble --stacktrace --debug --info
+  - ./gradlew test
