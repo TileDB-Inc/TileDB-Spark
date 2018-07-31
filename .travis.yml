@@ -1,5 +1,4 @@
 dist: trusty
-sudo: required
 
 language: java
 jdk:
@@ -8,8 +7,6 @@ jdk:
 notifications:
   email: false
 
-install:
-  - gradle assemble --stacktrace --debug --info
-
 script:
+  - gradle assemble --stacktrace --debug --info
   - gradle test
