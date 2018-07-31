@@ -9,7 +9,7 @@ notifications:
 
 install:
   # Build and install extension module
-  - ./gradlew assemble
+  - gradle assemble
 
 script:
-  - ./gradlew test
+  - gradle test

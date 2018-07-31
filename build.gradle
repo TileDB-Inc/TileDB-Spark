@@ -80,3 +80,10 @@ task installTileDBJava(type: Exec) {
 }
 
 assemble.dependsOn(installTileDBJava)
+
+test {
+    systemProperty "java.library.path", new File(buildDir, "TileDB-Java/build/tiledb_jni")
+    testLogging {
+        showStandardStreams = true
+    }
+}
