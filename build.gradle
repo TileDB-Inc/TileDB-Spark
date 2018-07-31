@@ -75,7 +75,7 @@ task installTileDBJava(type: Exec) {
     def generatedFileDir = file("$buildDir/TileDB-Java")
     outputs.dir generatedFileDir
     workingDir = buildDir
-    executable = new File(projectDir, "src/main/scripts/installTileDBJava")
+    executable = "../installTileDBJava"
     args ""
 }
 
