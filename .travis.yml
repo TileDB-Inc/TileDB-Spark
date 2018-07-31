@@ -8,8 +8,7 @@ notifications:
   email: false
 
 install:
-  # Build and install extension module
-  - gradle assemble
+  - gradle assemble --stacktrace --debug --info
 
 script:
   - gradle test
