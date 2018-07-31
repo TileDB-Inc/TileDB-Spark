@@ -1,5 +1,3 @@
-#!/bin/bash
-
 cd build
 rm -r TileDB-Java
 git clone https://github.com/TileDB-Inc/TileDB-Java.git
