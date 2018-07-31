@@ -8,8 +8,7 @@ notifications:
   email: false
 
 install:
-  - gradle wrapper
-  - ./gradlew assemble --stacktrace --debug --info
+  - gradle assemble --stacktrace --debug --info
 
 script:
-  - ./gradlew test
+  - gradle test
