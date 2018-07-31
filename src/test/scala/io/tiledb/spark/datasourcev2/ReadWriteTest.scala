@@ -43,17 +43,6 @@ class ReadWriteTest extends FlatSpec {
       .appName("Test")
       .getOrCreate()
 
-//    var df = sparkSession.read
-//      .format("io.tiledb.spark.datasourcev2")
-//      .option("arrayURI", "my_dense_array")
-//      .option("batchSize", "10000")
-//      .option("partitionSize", "10000")
-//      //add subarray filter
-//      //      .option("subarray.d1.min", 1)
-//      //      .option("subarray.d1.max", 2)
-//      //      .option("subarray.d2.min", 1)
-//      //      .option("subarray.d2.max", 4)
-//      .load()
     val df = sparkSession.createDataFrame(
         Seq(Record(1,1,0,"a",Array(0.1f,0.2f)),
             Record(1,2,1,"bb",Array(1.1f,1.2f)),
@@ -73,8 +62,6 @@ class ReadWriteTest extends FlatSpec {
             Record(4,4,15,"pppp",Array(16.1f,16.2f))
                     ))
 
-    //select columns
-    //      .select("d1","d2","a1","a3")
 
     //print df schema
     df.schema.printTreeString()
@@ -105,6 +92,15 @@ class ReadWriteTest extends FlatSpec {
     sparkSession.read
       .format("io.tiledb.spark.datasourcev2")
       .option("arrayURI", "my_dense_array")
+//        .option("batchSize", "10000")
+//        .option("partitionSize", "10000")
+      //add subarray filter
+//      .option("subarray.d1.min", 1)
+//      .option("subarray.d1.max", 2)
+//      .option("subarray.d2.min", 1)
+//      .option("subarray.d2.max", 4)
+      // select columns
+//      .select("d1","d2","a1","a3")
       .load()
       .show()
 

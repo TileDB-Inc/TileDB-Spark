@@ -70,3 +70,13 @@ dependencies {
     testCompile 'org.scalatest:scalatest_2.11:3.0.1'
     testRuntime 'org.pegdown:pegdown:1.4.2'
 }
+
+task installTileDBJava(type: Exec) {
+    def generatedFileDir = file("$buildDir/TileDB-Java")
+    outputs.dir generatedFileDir
+    workingDir = buildDir
+    executable = "../installTileDBJava.sh"
+    args ""
+}
+
+assemble.dependsOn(installTileDBJava)
