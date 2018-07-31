@@ -7,7 +7,8 @@ jdk:
 notifications:
   email: false
 
-script:
+install:
   - gradle wrapper
-  - ./gradlew assemble --stacktrace --debug --info
-  - ./gradlew test
+
+script:
+  - ./gradlew assemble test --stacktrace --debug --info
