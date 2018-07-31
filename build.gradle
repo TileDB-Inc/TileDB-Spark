@@ -76,6 +76,7 @@ task installTileDBJava(type: Exec) {
     outputs.dir generatedFileDir
     workingDir = buildDir
     executable = new File(projectDir, "src/main/scripts/installTileDBJava")
+    args ""
 }
 
 assemble.dependsOn(installTileDBJava)
