@@ -22,6 +22,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
+import static io.tiledb.java.api.Layout.TILEDB_UNORDERED;
+import static io.tiledb.java.api.QueryType.TILEDB_WRITE;
+
 public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter {
   private transient Context ctx;
   private String jobId;
@@ -60,7 +63,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
     try {
       ctx = new Context();
       tileDBOptions = new TileDBOptions(options);
-      Array array = new Array(ctx, tileDBOptions.ARRAY_URI);
+      Array array = new Array(ctx, tileDBOptions.ARRAY_URI, TILEDB_WRITE);
       array.close();
     } catch (Exception tileDBError) {
         createTable = true;
@@ -117,8 +120,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
   private void createTable() throws Exception {
     TileDBSchemaConverter tileDBSchemaConverter = new TileDBSchemaConverter(ctx, tileDBOptions);
     ArraySchema arraySchema = tileDBSchemaConverter.toTileDBSchema(schema);
-    Array array = new Array(ctx, tileDBOptions.ARRAY_URI, arraySchema);
-    array.close();
+    Array.create(tileDBOptions.ARRAY_URI, arraySchema);
   }
 
 
@@ -148,7 +150,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
     private void init() throws Exception {
       ctx = new Context();
       subarrayBuilder = new SubarrayBuilder(ctx, options);
-      array = new Array(ctx, tileDBOptions.ARRAY_URI);
+      array = new Array(ctx, tileDBOptions.ARRAY_URI, TILEDB_WRITE);
       arraySchema = array.getSchema();
       attributeNames = new ArrayList<>();
       for(Attribute attribute : arraySchema.getAttributes().values()) {
@@ -230,8 +232,8 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
 //      System.out.println("Flushing: "+batch);
 
       // Create query
-      query = new Query(array, tiledb_query_type_t.TILEDB_WRITE);
-      query.setLayout(tiledb_layout_t.TILEDB_UNORDERED);
+      query = new Query(array, TILEDB_WRITE);
+      query.setLayout(TILEDB_UNORDERED);
       NativeArray nsubarray = new NativeArray(ctx, subarrayBuilder.getSubArray(), arraySchema.getDomain().getType());
       query.setSubarray(nsubarray);
       nativeArrays = new HashMap<>();
@@ -267,7 +269,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
           long cellValNum = arraySchema.getAttribute(name).getCellValNum();
           Pair<NativeArray, NativeArray> pair = nativeArrays.get(name);
           if(cellValNum == tiledb.tiledb_var_num()){
-            int typeSize = tiledb.tiledb_datatype_size(arraySchema.getAttribute(name).getType()).intValue();
+            int typeSize = arraySchema.getAttribute(name).getType().getNativeSize();
             try {
               Seq array = (Seq) record.getAs(name);
               for (int index = 0; index < array.size(); index++) {

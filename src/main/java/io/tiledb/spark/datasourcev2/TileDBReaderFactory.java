@@ -39,6 +39,8 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import java.io.IOException;
 import java.util.*;
 
+import static io.tiledb.java.api.QueryType.TILEDB_READ;
+
 
 public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, DataReader<ColumnarBatch> {
   private StructField[] attributes;
@@ -92,7 +94,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
         HashMap<String, Pair<Long,Long>> max_sizes = array.maxBufferElements(nsubarray);
 
         // Create query
-        query = new Query(array, tiledb_query_type_t.TILEDB_READ);
+        query = new Query(array, TILEDB_READ);
 //        query.setLayout(tiledb_layout_t.TILEDB_GLOBAL_ORDER);
         query.setSubarray(nsubarray);
 
@@ -128,7 +130,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
     try {
       query.submit();
       boolean ret = hasNext;
-      hasNext = query.getQueryStatus() == Status.INCOMPLETE;
+      hasNext = query.getQueryStatus() == QueryStatus.TILEDB_INCOMPLETE;
       return ret;
     } catch (TileDBError tileDBError) {
       tileDBError.printStackTrace();
@@ -314,7 +316,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
     if(attribute.getCellValNum()==tiledb.tiledb_var_num()) {
       //add var length offsets
       long[] offsets = (long[]) query.getVarBuffer(name);
-      int typeSize = tiledb.tiledb_datatype_size(attribute.getType()).intValue();
+      int typeSize = attribute.getType().getNativeSize();
       for (int j = 0; j < offsets.length; j++) {
         int length = (j == offsets.length - 1) ? bufferLength*typeSize - (int) offsets[j] : (int) offsets[j + 1] - (int) offsets[j];
         vectors[index].putArray(j, ((int) offsets[j])/typeSize, length/typeSize);
@@ -458,6 +460,6 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
   }
 
   public List<Object> getPartitions() throws TileDBError {
-    return query.getPartitions();
+    return new ArrayList<>();//query.getPartitions();
   }
 }

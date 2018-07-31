@@ -1,0 +1,89 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath 'org.ysb33r.gradle:doxygen:0.3.2'
+        classpath "gradle.plugin.com.github.maiflai:gradle-scalatest:0.22"
+    }
+}
+
+plugins {
+    id "com.github.maiflai.scalatest" version "0.22"
+}
+
+group 'io.tiledb'
+version '0.1.0'
+
+apply plugin: 'java'
+apply plugin: 'scala'
+apply plugin: 'idea'
+apply plugin : 'org.ysb33r.doxygen'
+apply plugin: "com.github.maiflai.scalatest"
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenLocal()
+    jcenter()
+    mavenCentral()
+    maven {
+        url "https://oss.sonatype.org/content/repositories/snapshots"
+    }
+}
+
+doxygen {
+    generate_html true
+
+    source new File(projectDir,'src/main/java/io/tiledb/java')
+}
+
+
+sourceSets {
+    main {
+        java {
+            srcDir 'main/java'
+        }
+    }
+    test {
+        scala {
+            srcDir 'test/scala'
+        }
+    }
+}
+
+dependencies {
+    compile "org.scala-lang:scala-library:"+2.11
+    compile "org.scala-lang:scala-reflect:"+2.11
+    compile "org.scala-lang:scala-compiler:"+2.11
+
+    compile 'org.apache.spark:spark-mllib_2.11:2.3.0'
+    compile 'org.apache.spark:spark-sql_2.11:2.3.0'
+    compile 'org.apache.spark:spark-core_2.11:2.3.0'
+
+    compile 'io.tiledb:tiledb-java:0.1.0'
+
+    testCompile 'org.scalatest:scalatest_2.11:3.0.1'
+    testRuntime 'org.pegdown:pegdown:1.4.2'
+}
+
+task installTileDBJava(type: Exec) {
+    def generatedFileDir = file("$buildDir/TileDB-Java")
+    outputs.dir generatedFileDir
+    workingDir = buildDir
+    executable = "../installTileDBJava.sh"
+    args ""
+}
+
+assemble.dependsOn(installTileDBJava)
+
+test {
+    systemProperty "java.library.path", new File(buildDir, "TileDB-Java/build/tiledb_jni")
+    testLogging {
+        showStandardStreams = true
+    }
+}
