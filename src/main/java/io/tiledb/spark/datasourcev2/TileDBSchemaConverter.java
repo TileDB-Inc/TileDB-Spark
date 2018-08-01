@@ -28,6 +28,8 @@ import io.tiledb.java.api.*;
 import io.tiledb.libtiledb.*;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.types.*;
+import org.apache.spark.sql.types.ArrayType;
+
 import java.util.ArrayList;
 
 import static org.apache.spark.sql.types.DataTypes.*;
@@ -70,7 +72,7 @@ public class TileDBSchemaConverter {
     return schema;
   }
 
-  private StructField toStructField(tiledb_datatype_t type, long cellValNum, String name) throws TileDBError {
+  private StructField toStructField(Datatype type, long cellValNum, String name) throws TileDBError {
     StructField field = null;
     switch (type) {
       case TILEDB_FLOAT32: {
@@ -155,7 +157,7 @@ public class TileDBSchemaConverter {
   }
 
   public ArraySchema toTileDBSchema(StructType schema) throws Exception {
-    ArraySchema arraySchema = new ArraySchema(ctx, tiledb_array_type_t.TILEDB_SPARSE);
+    ArraySchema arraySchema = new ArraySchema(ctx, io.tiledb.java.api.ArrayType.TILEDB_SPARSE);
     Domain domain = new Domain(ctx);
     ArrayList<Attribute> attributes = new ArrayList<Attribute>();
     for(StructField field : schema.fields()){
