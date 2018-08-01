@@ -9,4 +9,5 @@ notifications:
 
 script:
   - installTileDB
+script:
   - gradle assemble test --stacktrace --debug --info
