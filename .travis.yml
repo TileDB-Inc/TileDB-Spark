@@ -7,8 +7,6 @@ jdk:
 notifications:
   email: false
 
-install:
-  - gradle wrapper
-
 script:
-  - ./gradlew assemble test --stacktrace --debug --info
+  - installTileDB
+  - gradle assemble test --stacktrace --debug --info
