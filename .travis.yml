@@ -7,7 +7,9 @@ jdk:
 notifications:
   email: false
 
-script:
+install:
   - installTileDB
+  - gradle assemble --stacktrace --debug --info
+
 script:
-  - gradle assemble test --stacktrace --debug --info
+  - gradle test
