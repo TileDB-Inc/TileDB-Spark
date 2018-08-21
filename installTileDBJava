@@ -6,5 +6,5 @@ git clone https://github.com/TileDB-Inc/TileDB-Java.git
 cd TileDB-Java
 git checkout master
 git pull
-gradle assemble publishToMavenLocal --stacktrace --debug --info
+./gradlew assemble publishToMavenLocal --stacktrace --debug --info
 cd ../..
