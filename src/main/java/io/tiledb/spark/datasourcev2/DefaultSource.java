@@ -100,7 +100,6 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport {
 
     private List<Object> getSubarrayPartitions(Object subarray, StructType requiredSchema, DataSourceOptions options) throws Exception {
       TileDBReaderFactory readerFactory = new TileDBReaderFactory(subarray, requiredSchema, options, true);
-      readerFactory.next();
       List<Object> ret = readerFactory.getPartitions();
       readerFactory.close();
       return ret;

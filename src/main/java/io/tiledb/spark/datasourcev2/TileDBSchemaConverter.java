@@ -158,6 +158,20 @@ public class TileDBSchemaConverter {
 
   public ArraySchema toTileDBSchema(StructType schema) throws Exception {
     ArraySchema arraySchema = new ArraySchema(ctx, io.tiledb.java.api.ArrayType.TILEDB_SPARSE);
+    Compressor compressor = null;
+    switch (options.COMPRESSION){
+      case "none" :
+        compressor = new Compressor(CompressorType.TILEDB_NO_COMPRESSION,-1);
+        break;
+      case "snappy" :
+        compressor = new Compressor(CompressorType.TILEDB_BLOSC_SNAPPY,-1);
+        break;
+      case "gzip" :
+        compressor = new Compressor(CompressorType.TILEDB_GZIP,-1);
+        break;
+      default:
+        compressor = new Compressor(CompressorType.TILEDB_NO_COMPRESSION,-1);
+    }
     Domain domain = new Domain(ctx);
     ArrayList<Attribute> attributes = new ArrayList<Attribute>();
     for(StructField field : schema.fields()){
@@ -167,15 +181,14 @@ public class TileDBSchemaConverter {
       }
       else {
         Attribute attribute = toAttribute(field);
+        attribute.setCompressor(compressor);
         attributes.add(attribute);
       }
     }
-
     arraySchema.setDomain(domain);
     for(Attribute attribute : attributes){
       arraySchema.addAttribute(attribute);
     }
-
     // Check array schema
     arraySchema.check();
 

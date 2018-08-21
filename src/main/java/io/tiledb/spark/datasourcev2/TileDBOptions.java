@@ -34,16 +34,19 @@ public class TileDBOptions implements Serializable {
   public static final String DIMENSIONS_KEY = "dimensions";
   public static final String BATCH_SIZE_KEY = "batchSize";
   public static final String PARTITION_SIZE_KEY = "partitionSize";
+  public static final String COMPRESSION_KEY = "compression";
   public static final String SUBARRAY_MIN_KEY = "subarray.{}.min";
   public static final String SUBARRAY_MAX_KEY = "subarray.{}.max";
   public static final String SUBARRAY_EXTENT_KEY = "subarray.{}.extent";
 
   public static final String DEFAULT_ARRAY_URI = "";
   public static final String DEFAULT_DIMENSIONS = "";
-  public static final String DEFAULT_BATCH_SIZE = "10000";
-  public static final String DEFAULT_PARTITION_SIZE = "100000";
+  public static final String DEFAULT_BATCH_SIZE = "1000000";
+  public static final String DEFAULT_PARTITION_SIZE = "10000000";
+  public static final String DEFAULT_COMPRESSION = "none";
 
   public String ARRAY_URI;
+  public String COMPRESSION;
   public List<String> DIMENSIONS;
   public int BATCH_SIZE;
   public int PARTITION_SIZE;
@@ -53,6 +56,7 @@ public class TileDBOptions implements Serializable {
   public TileDBOptions(DataSourceOptions options){
     this.options = options.asMap();
     ARRAY_URI = options.get(ARRAY_URI_KEY).orElse(DEFAULT_ARRAY_URI);
+    COMPRESSION = options.get(COMPRESSION_KEY).orElse(DEFAULT_COMPRESSION);
     DIMENSIONS = Arrays.asList(options.get(DIMENSIONS_KEY).orElse(DEFAULT_DIMENSIONS).split(","));
     BATCH_SIZE = Integer.parseInt(options.get(BATCH_SIZE_KEY).orElse(DEFAULT_BATCH_SIZE));
     PARTITION_SIZE = Integer.parseInt(options.get(PARTITION_SIZE_KEY).orElse(DEFAULT_PARTITION_SIZE));
