@@ -28,8 +28,8 @@ class PerformanceTest extends FlatSpec {
   sparkSession.read.parquet("test.parquet").filter("_1>1000").count()
 
   val million =1000000;
-  val sizes = List( 100000, million, 10*million)
-  var randomness = List(100, 10000, million, 100*million)
+  val sizes = List( 100000, million, 10* million)
+  var randomness = List(100, 10000, million)
   val compressionCodecs = List("none", "gzip", "snappy")
 
   System.out.println("Random ints as values")
@@ -64,24 +64,21 @@ class PerformanceTest extends FlatSpec {
         val parquetDiskSize = ("du -hs test.parquet " !!).split("\t"){0}
         df.write
           .format("io.tiledb.spark.datasourcev2")
-          .option("arrayURI", "my_dense_array")
+          .option("arrayURI", "my_array")
           .option("dimensions", "_1")
           .option("subarray._1.min", 1)
           .option("subarray._1.max", size)
           .option("subarray._1.extent", size/10)
           .option("compression", compression)
-          .option("batchSize", size+"")
-          .option("partitionSize", size+"")
           .mode(SaveMode.Overwrite)
           .save()
 
         val write2 = System.currentTimeMillis()
-        val tiledbDiskSize = ("du -hs my_dense_array " !!).split("\t"){0}
+        val tiledbDiskSize = ("du -hs my_array " !!).split("\t"){0}
         sparkSession.read
           .format("io.tiledb.spark.datasourcev2")
-          .option("arrayURI", "my_dense_array")
-          .option("batchSize", size/10+"")
-          .option("partitionSize", size/10+"")
+          .option("arrayURI", "my_array")
+          .option("batchSize", million+"")
           .load().filter("_1>1000").count()
         val read2 = System.currentTimeMillis()
 
@@ -131,24 +128,21 @@ class PerformanceTest extends FlatSpec {
 
       df.write
         .format("io.tiledb.spark.datasourcev2")
-        .option("arrayURI", "my_dense_array")
+        .option("arrayURI", "my_array")
         .option("dimensions", "_1")
         .option("subarray._1.min", 1)
         .option("subarray._1.max", size)
         .option("subarray._1.extent", size/10)
         .option("compression", compression)
-        .option("batchSize", size+"")
-        .option("partitionSize", size+"")
         .mode(SaveMode.Overwrite)
         .save()
 
       val write2 = System.currentTimeMillis()
-      val tiledbDiskSize = ("du -hs my_dense_array " !!).split("\t"){0}
+      val tiledbDiskSize = ("du -hs my_array " !!).split("\t"){0}
       sparkSession.read
         .format("io.tiledb.spark.datasourcev2")
-        .option("arrayURI", "my_dense_array")
-        .option("batchSize", size/10+"")
-        .option("partitionSize", size/10+"")
+        .option("arrayURI", "my_array")
+        .option("batchSize", million+"")
         .load().filter("_1>1000").count()
       val read2 = System.currentTimeMillis()
 

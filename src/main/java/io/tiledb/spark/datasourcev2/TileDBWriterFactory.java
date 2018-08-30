@@ -2,8 +2,6 @@ package io.tiledb.spark.datasourcev2;
 
 import io.tiledb.java.api.*;
 import io.tiledb.libtiledb.tiledb;
-import io.tiledb.libtiledb.tiledb_layout_t;
-import io.tiledb.libtiledb.tiledb_query_type_t;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
@@ -11,16 +9,11 @@ import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
 import scala.collection.Seq;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static io.tiledb.java.api.Layout.TILEDB_UNORDERED;
 import static io.tiledb.java.api.QueryType.TILEDB_WRITE;
@@ -31,6 +24,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
   private StructType schema;
   private boolean createTable, deleteTable;
   private TileDBOptions tileDBOptions;
+  private static long start;
 
   public TileDBWriterFactory(String jobId, StructType schema, boolean createTable, boolean deleteTable, TileDBOptions tileDBOptions) {
     this.jobId = jobId;
@@ -57,6 +51,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
   }
 
   public static Optional<DataSourceWriter> getWriter(String jobId, StructType schema, SaveMode mode, DataSourceOptions options) {
+    start = System.currentTimeMillis();
     boolean createTable = false, deleteTable = false;
     TileDBOptions tileDBOptions = null;
     Context ctx = null;
@@ -135,7 +130,9 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
     private ArraySchema arraySchema;
     private SubarrayBuilder subarrayBuilder;
     private Query query;
-    private List<String> dimensionNames, attributeNames;
+    private List<String> dimensionNames;
+    private HashMap<String,Long> attributeCellValnums;
+    private boolean test =false;
 
     public TileDBWriter(StructType schema, TileDBOptions tileDBOptions)  {
       this.schema = schema;
@@ -152,10 +149,10 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
       subarrayBuilder = new SubarrayBuilder(ctx, options);
       array = new Array(ctx, tileDBOptions.ARRAY_URI, TILEDB_WRITE);
       arraySchema = array.getSchema();
-      attributeNames = new ArrayList<>();
+      attributeCellValnums = new HashMap<>();
       for(Attribute attribute : arraySchema.getAttributes().values()) {
         String name = attribute.getName();
-        attributeNames.add(name);
+        attributeCellValnums.put(name, arraySchema.getAttribute(name).getCellValNum());
       }
       dimensionNames = new ArrayList<>();
       for(Dimension dimension : arraySchema.getDomain().getDimensions()){
@@ -167,21 +164,25 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
 
     @Override
     public void write(Row record) throws IOException {
+//      if(!test){
+//        test=true;
+//        System.out.println("Init time(ms): "+(System.currentTimeMillis()-start));
+//        start = System.currentTimeMillis();
+//      }
       try {
         batch.add(record);
-        for(String name : attributeNames){
-          long cellValNum = arraySchema.getAttribute(name).getCellValNum();
-          if(cellValNum != 1){ //array
+        for(Map.Entry<String, Long> attr : attributeCellValnums.entrySet()){
+          if(attr.getValue() != 1){ //array
             try {
-              Seq seq = (Seq) record.getAs(name);
-              increaseRowIndex(name,seq.size());
+              Seq seq = (Seq) record.getAs(attr.getKey());
+              increaseRowIndex(attr.getKey(),seq.size());
             } catch (ClassCastException e){
-              byte[] seq = ((String) record.getAs(name)).getBytes();
-              increaseRowIndex(name,seq.length);
+              byte[] seq = ((String) record.getAs(attr.getKey())).getBytes();
+              increaseRowIndex(attr.getKey(),seq.length);
             }
           }
           else{
-            increaseRowIndex(name,1);
+            increaseRowIndex(attr.getKey(),1);
           }
         }
 
@@ -229,12 +230,13 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
       if(batch.size()==0)
         return;
 
-//      System.out.println("Flushing: "+batch);
+//      System.out.println("Iterate time(ms): "+(System.currentTimeMillis()-start));
+//      start = System.currentTimeMillis();
 
       // Create query
       query = new Query(array, TILEDB_WRITE);
       query.setLayout(TILEDB_UNORDERED);
-      NativeArray nsubarray = new NativeArray(ctx, subarrayBuilder.getSubArray(), arraySchema.getDomain().getType());
+//      NativeArray nsubarray = new NativeArray(ctx, subarrayBuilder.getSubArray(), arraySchema.getDomain().getType());
 //      query.setSubarray(nsubarray);
       nativeArrays = new HashMap<>();
       for(Attribute attribute : arraySchema.getAttributes().values()) {
@@ -265,10 +267,12 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
           coords.setItem(rowIndex*dimensionNames.size()+dimIndex, record.getAs(dimension));
           dimIndex++;
         }
-        for(String name : attributeNames){
-          long cellValNum = arraySchema.getAttribute(name).getCellValNum();
+        long varNum = tiledb.tiledb_var_num();
+        for(Map.Entry<String, Long> attr : attributeCellValnums.entrySet()){
+          String name = attr.getKey();
+          long cellValNum = attr.getValue();
           Pair<NativeArray, NativeArray> pair = nativeArrays.get(name);
-          if(cellValNum == tiledb.tiledb_var_num()){
+          if(cellValNum == varNum){
             int typeSize = arraySchema.getAttribute(name).getType().getNativeSize();
             try {
               Seq array = (Seq) record.getAs(name);
@@ -308,6 +312,8 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
       query.close();
       batch.clear();
       varLengthIndex = new HashMap<>();
+//      System.out.println("Flush time(ms): "+(System.currentTimeMillis()-start));
+//      start = System.currentTimeMillis();
     }
 
 
