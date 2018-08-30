@@ -127,6 +127,8 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
         tileDBError.printStackTrace();
       }
     }
+    if(!hasNext)
+      return false;
     try {
       query.submit();
       boolean ret = hasNext;
@@ -142,9 +144,16 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
   public ColumnarBatch get() {
     try {
       int i = 0, currentSize=0;
-      for(StructField field : attributes) {
-        currentSize = getColumnBatch(field, i);
-        i++;
+      if(attributes.length == 0){
+        //count
+        arraySchema.dump();
+        currentSize = getDimensionColumn(arraySchema.getDomain().getDimensions().get(0).getName(), 0);
+      }
+      else {
+        for (StructField field : attributes) {
+          currentSize = getColumnBatch(field, i);
+          i++;
+        }
       }
       batch.setNumRows(currentSize);
     } catch (TileDBError tileDBError) {
@@ -448,12 +457,14 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
   @Override
   public void close() throws IOException {
     try {
-      batch.close();
-      if(query!=null) {
+      if(batch!=null)
+        batch.close();
+      if(query!=null)
         query.close();
+      if(array!=null)
         array.close();
+      if(ctx!=null)
         ctx.close();
-      }
     } catch (TileDBError tileDBError) {
       tileDBError.printStackTrace();
     }

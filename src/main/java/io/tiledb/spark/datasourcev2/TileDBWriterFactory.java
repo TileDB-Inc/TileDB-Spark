@@ -235,7 +235,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
       query = new Query(array, TILEDB_WRITE);
       query.setLayout(TILEDB_UNORDERED);
       NativeArray nsubarray = new NativeArray(ctx, subarrayBuilder.getSubArray(), arraySchema.getDomain().getType());
-      query.setSubarray(nsubarray);
+//      query.setSubarray(nsubarray);
       nativeArrays = new HashMap<>();
       for(Attribute attribute : arraySchema.getAttributes().values()) {
         String name = attribute.getName();

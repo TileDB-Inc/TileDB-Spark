@@ -74,9 +74,9 @@ public class SubarrayBuilder {
   }
 
   private void addFilter(Filter filter) {
-    System.out.println("Filter: " + filter);
-    for(String ref : filter.references())
-      System.out.println("!!! "+ref);
+//    System.out.println("Filter: " + filter);
+//    for(String ref : filter.references())
+//      System.out.println("!!! "+ref);
     notPushedFilters.add(filter);
 //    if (filter instanceof GreaterThan) {
 //      GreaterThanOrEqual gt = (GreaterThanOrEqual) filter;
