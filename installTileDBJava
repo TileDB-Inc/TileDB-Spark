@@ -4,7 +4,7 @@ cd build
 rm -r TileDB-Java
 git clone https://github.com/TileDB-Inc/TileDB-Java.git
 cd TileDB-Java
-git checkout dev
+git checkout npapa/dev
 git pull
 ./gradlew assemble publishToMavenLocal --stacktrace --debug --info
 cd ../..
