@@ -1,10 +1,11 @@
 #!/bin/bash
-mkdir build
-cd build
-rm -r TileDB-Java
+mkdir build && pushd build
+if [ -d "TileDB-Java" ]; then
+  rm -r ./TileDB-Java
+fi
 git clone https://github.com/TileDB-Inc/TileDB-Java.git
-cd TileDB-Java
+pushd TileDB-Java
 git checkout master
-git pull
 ./gradlew assemble publishToMavenLocal --stacktrace --debug --info
-cd ../..
+popd
+popd

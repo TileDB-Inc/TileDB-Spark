@@ -24,20 +24,26 @@
 
 package io.tiledb.spark.datasourcev2;
 
-import io.tiledb.java.api.*;
-import org.apache.spark.sql.sources.*;
+import io.tiledb.java.api.Array;
+import io.tiledb.java.api.ArraySchema;
+import io.tiledb.java.api.Context;
+import io.tiledb.java.api.Dimension;
+import io.tiledb.java.api.Datatype;
+import io.tiledb.java.api.Pair;
+import io.tiledb.java.api.TileDBError;
+
+import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.types.StructField;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class SubarrayBuilder {
   public Filter[] filters;
-  public ArrayList<Filter> pushedFilters;
-  public ArrayList<Filter> notPushedFilters;
+  public ArrayList<org.apache.spark.sql.sources.Filter> pushedFilters;
+  public ArrayList<org.apache.spark.sql.sources.Filter> notPushedFilters;
   private TileDBOptions options;
   private List<Dimension> dimensions;
   private Object subarray;
@@ -51,8 +57,8 @@ public class SubarrayBuilder {
     Array array = new Array(ctx, arrayURI);
     subarray = initSubarray(array.getSchema());
     dimensions = array.getSchema().getDomain().getDimensions();
-    pushedFilters = new ArrayList<Filter>(1);
-    notPushedFilters = new ArrayList<Filter>(1);
+    pushedFilters = new ArrayList<>(1);
+    notPushedFilters = new ArrayList<>(1);
   }
 
   public SubarrayBuilder(Context ctx, DataSourceOptions dataSourceOptions) throws Exception {
@@ -62,8 +68,8 @@ public class SubarrayBuilder {
     Array array = new Array(ctx, arrayURI);
     subarray = initSubarray(array.getSchema());
     dimensions = array.getSchema().getDomain().getDimensions();
-    pushedFilters = new ArrayList<Filter>(1);
-    notPushedFilters = new ArrayList<Filter>(1);
+    pushedFilters = new ArrayList<>(1);
+    notPushedFilters = new ArrayList<>(1);
   }
 
   public void pushFilters(Filter[] filters) {

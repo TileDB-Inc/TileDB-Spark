@@ -73,7 +73,7 @@ public class TileDBSchemaConverter {
   }
 
   private StructField toStructField(Datatype type, long cellValNum, String name) throws TileDBError {
-    StructField field = null;
+    StructField field;
     switch (type) {
       case TILEDB_FLOAT32: {
         if (cellValNum > 1)
@@ -150,7 +150,7 @@ public class TileDBSchemaConverter {
         break;
       }
       default: {
-        throw new TileDBError("Not supported getDomain getType " + type);
+        throw new TileDBError("Unsupported getDomain getType " + type);
       }
     }
     return field;
@@ -162,9 +162,6 @@ public class TileDBSchemaConverter {
     switch (options.COMPRESSION){
       case "none" :
         compressor = new Compressor(CompressorType.TILEDB_NO_COMPRESSION,-1);
-        break;
-      case "snappy" :
-        compressor = new Compressor(CompressorType.TILEDB_BLOSC_SNAPPY,-1);
         break;
       case "gzip" :
         compressor = new Compressor(CompressorType.TILEDB_GZIP,-1);
@@ -191,7 +188,6 @@ public class TileDBSchemaConverter {
     }
     // Check array schema
     arraySchema.check();
-
     return arraySchema;
   }
 

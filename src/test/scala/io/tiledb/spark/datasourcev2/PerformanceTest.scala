@@ -6,7 +6,7 @@ import org.scalatest._
 import sys.process._
 
 class PerformanceTest extends FlatSpec {
-  val sparkSession = SparkSession
+ /* val sparkSession = SparkSession
     .builder
     .master("local")
     .appName("PerformanceTest")
@@ -162,5 +162,5 @@ class PerformanceTest extends FlatSpec {
           String.format("%20s", (read2-write2)+"")+
           String.format("%20s", tiledbDiskSize+""))
     }
-  }
+  }*/
 }
