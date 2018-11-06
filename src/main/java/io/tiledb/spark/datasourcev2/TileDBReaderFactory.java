@@ -25,9 +25,6 @@
 package io.tiledb.spark.datasourcev2;
 
 import io.tiledb.java.api.*;
-import io.tiledb.libtiledb.tiledb;
-import io.tiledb.libtiledb.tiledb_layout_t;
-import io.tiledb.libtiledb.tiledb_query_type_t;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.reader.DataReader;
@@ -36,11 +33,9 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-import java.io.IOException;
-import java.util.*;
-
-import static io.tiledb.java.api.QueryType.TILEDB_READ;
-
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, DataReader<ColumnarBatch> {
   private StructField[] attributes;
@@ -98,7 +93,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
           HashMap<String, Pair<Long, Long>> max_sizes = array.maxBufferElements(nativeSubarray);
 
           // Create query
-          query = new Query(array, TILEDB_READ);
+          query = new Query(array, QueryType.TILEDB_READ);
           // query.setLayout(tiledb_layout_t.TILEDB_GLOBAL_ORDER);
           query.setSubarray(nativeSubarray);
 
@@ -112,8 +107,8 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
             }
             try (Attribute attr = arraySchema.getAttribute(name)) {
               long cellValNum = attr.getCellValNum();
-              int valPerRow = (int) ((cellValNum == tiledb.tiledb_var_num()) ? max_sizes.get(name).getFirst() : cellValNum);
-              if (cellValNum == tiledb.tiledb_var_num()) {
+              int valPerRow = (int) ((cellValNum == Constants.TILEDB_VAR_NUM) ? max_sizes.get(name).getFirst() : cellValNum);
+              if (cellValNum == Constants.TILEDB_VAR_NUM) {
                 query.setBuffer(name,
                         new NativeArray(ctx, buffSize, Datatype.TILEDB_UINT64),
                         new NativeArray(ctx, buffSize * max_sizes.get(name).getSecond().intValue(), attr.getType()));
@@ -148,11 +143,13 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
   @Override
   public ColumnarBatch get() {
     try {
-      int i = 0, currentSize=0;
+      int i = 0, currentSize = 0;
       if(attributes.length == 0){
         //count
-        arraySchema.dump();
-        currentSize = getDimensionColumn(arraySchema.getDomain().getDimensions().get(0).getName(), 0);
+        try (Domain domain = arraySchema.getDomain();
+             Dimension dim  = domain.getDimension(0)) {
+          currentSize = getDimensionColumn(dim.getName(), 0);
+        }
       }
       else {
         for (StructField field : attributes) {
@@ -180,16 +177,14 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
   }
 
   private int getAttributeColumn(String name, int index) throws TileDBError {
-    int numValues = 0;
-    int bufferLength = 0;
-    Attribute attribute = arraySchema.getAttribute(name);
-    if(attribute.getCellValNum()>1){
-      //variable length values added as arrays
-      return getVarLengthAttributeColumn(name, attribute, index);
-    }
-    else{
-      //one value per cell
-      return getSingleValueAttributeColumn(name, attribute, index);
+    try (Attribute attribute = arraySchema.getAttribute(name)) {
+      if (attribute.getCellValNum() > 1) {
+        //variable length values added as arrays
+        return getVarLengthAttributeColumn(name, attribute, index);
+      } else {
+        //one value per cell
+        return getSingleValueAttributeColumn(name, attribute, index);
+      }
     }
   }
 
@@ -327,13 +322,13 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
         throw new TileDBError("Not supported getDomain getType " + attribute.getType());
       }
     }
-    if(attribute.getCellValNum()==tiledb.tiledb_var_num()) {
+    if (attribute.isVar()) {
       //add var length offsets
       long[] offsets = (long[]) query.getVarBuffer(name);
       int typeSize = attribute.getType().getNativeSize();
       for (int j = 0; j < offsets.length; j++) {
-        int length = (j == offsets.length - 1) ? bufferLength*typeSize - (int) offsets[j] : (int) offsets[j + 1] - (int) offsets[j];
-        vectors[index].putArray(j, ((int) offsets[j])/typeSize, length/typeSize);
+        int length = (j == offsets.length - 1) ? bufferLength * typeSize - (int) offsets[j] : (int) offsets[j + 1] - (int) offsets[j];
+        vectors[index].putArray(j, ((int) offsets[j]) / typeSize, length/typeSize);
       }
       numValues = offsets.length;
     }
@@ -353,7 +348,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
     try (Domain domain = arraySchema.getDomain()) {
         switch (domain.getType()) {
           case TILEDB_FLOAT32: {
-            float[] coords = (float[]) query.getBuffer(tiledb.tiledb_coords());
+            float[] coords = (float[]) query.getCoordinates();
             int dimIdx = 0;
             for (; dimIdx < domain.getRank(); dimIdx++) {
               try (Dimension dim = domain.getDimension(dimIdx)) {
@@ -371,7 +366,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
             break;
           }
           case TILEDB_FLOAT64: {
-            double[] coords = (double[]) query.getBuffer(tiledb.tiledb_coords());
+            double[] coords = (double[]) query.getCoordinates();
             int dimIdx = 0;
             for (; dimIdx < domain.getRank(); dimIdx++) {
               try (Dimension dim = domain.getDimension(dimIdx)) {
@@ -389,7 +384,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
             break;
           }
           case TILEDB_INT8: {
-            byte[] coords = (byte[]) query.getBuffer(tiledb.tiledb_coords());
+            byte[] coords = (byte[]) query.getCoordinates();
             int dimIdx = 0;
             for (; dimIdx < domain.getRank(); dimIdx++) {
               try (Dimension dim = domain.getDimension(dimIdx)) {
@@ -408,7 +403,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
           }
           case TILEDB_INT16:
           case TILEDB_UINT8: {
-            short[] coords = (short[]) query.getBuffer(tiledb.tiledb_coords());
+            short[] coords = (short[]) query.getCoordinates();
             int dimIdx = 0;
             for (; dimIdx < domain.getRank(); dimIdx++) {
               try (Dimension dim = domain.getDimension(dimIdx)) {
@@ -427,7 +422,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
           }
           case TILEDB_UINT16:
           case TILEDB_INT32: {
-            int[] coords = (int[]) query.getBuffer(tiledb.tiledb_coords());
+            int[] coords = (int[]) query.getCoordinates();
             int dimIdx = 0;
             for (; dimIdx < domain.getRank(); dimIdx++) {
               try (Dimension dim = domain.getDimension(dimIdx)) {
@@ -447,7 +442,7 @@ public class TileDBReaderFactory implements DataReaderFactory<ColumnarBatch>, Da
           case TILEDB_INT64:
           case TILEDB_UINT32:
           case TILEDB_UINT64: {
-            long[] coords = (long[]) query.getBuffer(tiledb.tiledb_coords());
+            long[] coords = (long[]) query.getCoordinates();
             int dimIdx = 0;
             for (; dimIdx < domain.getRank(); dimIdx++) {
               try (Dimension dim = domain.getDimension(dimIdx)) {
