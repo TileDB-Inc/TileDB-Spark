@@ -6,7 +6,6 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'org.ysb33r.gradle:doxygen:0.3.2'
         classpath "gradle.plugin.com.github.maiflai:gradle-scalatest:0.22"
     }
 }
@@ -21,7 +20,6 @@ version '0.1.0'
 apply plugin: 'java'
 apply plugin: 'scala'
 apply plugin: 'idea'
-apply plugin : 'org.ysb33r.doxygen'
 apply plugin: "com.github.maiflai.scalatest"
 
 sourceCompatibility = 1.8
@@ -35,13 +33,6 @@ repositories {
         url "https://oss.sonatype.org/content/repositories/snapshots"
     }
 }
-
-doxygen {
-    generate_html true
-
-    source new File(projectDir,'src/main/java/io/tiledb/java')
-}
-
 
 sourceSets {
     main {
@@ -65,10 +56,17 @@ dependencies {
     compile 'org.apache.spark:spark-sql_2.11:2.3.0'
     compile 'org.apache.spark:spark-core_2.11:2.3.0'
 
-    compile 'io.tiledb:tiledb-java:0.1.0'
+    compile 'io.tiledb:tiledb-java:0.1.2'
 
     testCompile 'org.scalatest:scalatest_2.11:3.0.1'
     testRuntime 'org.pegdown:pegdown:1.4.2'
+}
+
+test {
+    systemProperty "java.library.path", new File(buildDir, "TileDB-Java/build/tiledb_jni")
+    testLogging {
+        showStandardStreams = true
+    }
 }
 
 task installTileDBJava(type: Exec) {
@@ -78,10 +76,8 @@ task installTileDBJava(type: Exec) {
     executable = "../installTileDBJava"
 }
 
-
-test {
-    systemProperty "java.library.path", new File(buildDir, "TileDB-Java/build/tiledb_jni")
-    testLogging {
-        showStandardStreams = true
+task getHomeDir {
+    doLast {
+        println gradle.gradleHomeDir
     }
 }

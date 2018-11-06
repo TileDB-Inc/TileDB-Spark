@@ -24,13 +24,13 @@ class PerformanceTest extends FlatSpec {
     }
   ))
   df.cache()
-  df.write.option("compression", "snappy").mode(SaveMode.Overwrite).parquet("test.parquet")
+  df.write.option("compression", "gzip").mode(SaveMode.Overwrite).parquet("test.parquet")
   sparkSession.read.parquet("test.parquet").filter("_1>1000").count()
 
-  val million =1000000;
-  val sizes = List( 100000, million, 10*million)
-  var randomness = List(100, 10000, million, 100*million)
-  val compressionCodecs = List("none", "gzip", "snappy")
+  val million = 1000000;
+  val sizes = List( 100000, million)
+  var randomness = List(100, million)
+  val compressionCodecs = List("none", "gzip")
 
   System.out.println("Random ints as values")
   System.out.println(

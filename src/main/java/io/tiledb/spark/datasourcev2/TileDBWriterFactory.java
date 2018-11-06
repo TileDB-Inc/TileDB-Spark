@@ -59,7 +59,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
   public static Optional<DataSourceWriter> getWriter(String jobId, StructType schema, SaveMode mode, DataSourceOptions options) {
     boolean createTable = false, deleteTable = false;
     TileDBOptions tileDBOptions = null;
-    Context ctx = null;
+    Context ctx;
     try {
       ctx = new Context();
       tileDBOptions = new TileDBOptions(options);
@@ -122,7 +122,6 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
     ArraySchema arraySchema = tileDBSchemaConverter.toTileDBSchema(schema);
     Array.create(tileDBOptions.ARRAY_URI, arraySchema);
   }
-
 
   class TileDBWriter implements DataWriter<Row> {
     private HashMap<String,Pair<NativeArray,NativeArray>> nativeArrays;
@@ -241,8 +240,8 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
         String name = attribute.getName();
         long cellValNum = arraySchema.getAttribute(name).getCellValNum();
         if (cellValNum == tiledb.tiledb_var_num()) {
-          NativeArray first = new NativeArray(ctx, (int) batch.size(), Long.class);
-          NativeArray second = new NativeArray(ctx, (int)  varLengthIndex.get(name).getFirst(), arraySchema.getAttribute(name).getType());
+          NativeArray first = new NativeArray(ctx, batch.size(), Datatype.TILEDB_UINT64);
+          NativeArray second = new NativeArray(ctx, (int) varLengthIndex.get(name).getFirst(), arraySchema.getAttribute(name).getType());
           Pair<NativeArray, NativeArray> pair = new Pair<NativeArray, NativeArray>(first, second);
           nativeArrays.put(name, pair);
           query.setBuffer(name, first, second);
@@ -255,7 +254,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
       }
       NativeArray coords = new NativeArray(ctx,
           batch.size() * arraySchema.getDomain().getDimensions().size(), arraySchema.getDomain().getType());
-      nativeArrays.put(tiledb.tiledb_coords(),new Pair<NativeArray, NativeArray>(null, coords));
+      nativeArrays.put(tiledb.tiledb_coords(), new Pair<NativeArray, NativeArray>(null, coords));
       query.setCoordinates(coords);
       rowIndex=0;
       varLengthIndex = new HashMap<>();
@@ -276,13 +275,13 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
                 pair.getSecond().setItem(getIndex(name).getSecond(), array.apply(index));
                 increaseValueIndex(name);
               }
-              pair.getFirst().setItem(rowIndex, getIndex(name).getFirst());
+              pair.getFirst().setItem(rowIndex, (long) getIndex(name).getFirst());
               increaseRowIndex(name,array.size()*typeSize);
-            } catch (ClassCastException e){
+            } catch (ClassCastException e) {
               String s = (String) record.getAs(name);
               pair.getSecond().setItem(getIndex(name).getSecond(), s);
               increaseValueIndex(name, s.getBytes().length);
-              pair.getFirst().setItem(rowIndex, getIndex(name).getFirst());
+              pair.getFirst().setItem(rowIndex, (long) getIndex(name).getFirst());
               increaseRowIndex(name,s.getBytes().length * typeSize);
             }
           } else {
@@ -310,12 +309,11 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
       varLengthIndex = new HashMap<>();
     }
 
-
     @Override
     public WriterCommitMessage commit() throws IOException {
       try {
         flush();
-        if(ctx!=null) {
+        if (ctx != null) {
           array.close();
           ctx.close();
         }

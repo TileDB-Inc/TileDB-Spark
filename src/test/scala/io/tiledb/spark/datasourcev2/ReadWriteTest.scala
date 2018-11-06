@@ -59,9 +59,7 @@ class ReadWriteTest extends FlatSpec {
             Record(4,1,12,"m",Array(13.1f,13.2f)),
             Record(4,2,13,"nn",Array(14.1f,14.2f)),
             Record(4,3,14,"ooo",Array(15.1f,15.2f)),
-            Record(4,4,15,"pppp",Array(16.1f,16.2f))
-                    ))
-
+            Record(4,4,15,"pppp",Array(16.1f,16.2f))))
 
     //print df schema
     df.schema.printTreeString()
