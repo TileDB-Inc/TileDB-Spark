@@ -12,6 +12,7 @@ buildscript {
 
 plugins {
     id "com.github.maiflai.scalatest" version "0.22"
+    id 'com.github.sherter.google-java-format' version '0.7.1'
 }
 
 group 'io.tiledb'
@@ -80,4 +81,18 @@ task getHomeDir {
     doLast {
         println gradle.gradleHomeDir
     }
+}
+
+import com.github.sherter.googlejavaformatgradleplugin.GoogleJavaFormat
+import com.github.sherter.googlejavaformatgradleplugin.VerifyGoogleJavaFormat
+
+task format(type: GoogleJavaFormat) {
+    source = sourceSets*.allJava
+    include '**/*.java'
+}
+
+task checkFormat(type: VerifyGoogleJavaFormat) {
+    source = sourceSets*.allJava
+    include '**/*.java'
+    ignoreFailures false
 }
