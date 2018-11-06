@@ -25,31 +25,25 @@
 package io.tiledb.spark.datasourcev2;
 
 import io.tiledb.java.api.*;
-import io.tiledb.libtiledb.tiledb;
-import io.tiledb.libtiledb.tiledb_query_type_t;
-import org.apache.spark.sql.Row;
+import java.util.*;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.sources.GreaterThan;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.DataSourceV2;
 import org.apache.spark.sql.sources.v2.ReadSupport;
 import org.apache.spark.sql.sources.v2.WriteSupport;
 import org.apache.spark.sql.sources.v2.reader.*;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
-import org.apache.spark.sql.sources.v2.writer.DataWriter;
-import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
-import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.sql.types.*;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-import java.io.IOException;
-import java.util.*;
-
-
 public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport {
 
-  class Reader implements DataSourceReader, SupportsPushDownRequiredColumns, SupportsScanColumnarBatch, SupportsPushDownFilters {
+  class Reader
+      implements DataSourceReader,
+          SupportsPushDownRequiredColumns,
+          SupportsScanColumnarBatch,
+          SupportsPushDownFilters {
     private Context ctx;
     private DataSourceOptions options;
     private StructType requiredSchema;
@@ -85,21 +79,22 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport {
       } catch (Exception e) {
         e.printStackTrace();
       }
-      if(partitions.isEmpty()) {
+      if (partitions.isEmpty()) {
         return java.util.Arrays.asList(
             new TileDBReaderFactory(subarrayBuilder.getSubArray(), requiredSchema, options));
-      }
-      else{
+      } else {
         List<DataReaderFactory<ColumnarBatch>> ret = new ArrayList<>(partitions.size());
-        for(Object partition : partitions){
+        for (Object partition : partitions) {
           ret.add(new TileDBReaderFactory(partition, requiredSchema, options));
         }
         return ret;
       }
     }
 
-    private List<Object> getSubarrayPartitions(Object subarray, StructType requiredSchema, DataSourceOptions options) throws Exception {
-      TileDBReaderFactory readerFactory = new TileDBReaderFactory(subarray, requiredSchema, options, true);
+    private List<Object> getSubarrayPartitions(
+        Object subarray, StructType requiredSchema, DataSourceOptions options) throws Exception {
+      TileDBReaderFactory readerFactory =
+          new TileDBReaderFactory(subarray, requiredSchema, options, true);
       List<Object> ret = readerFactory.getPartitions();
       readerFactory.close();
       return ret;
@@ -128,8 +123,8 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport {
   }
 
   @Override
-  public Optional<DataSourceWriter> createWriter(String jobId, StructType schema, SaveMode mode, DataSourceOptions options) {
+  public Optional<DataSourceWriter> createWriter(
+      String jobId, StructType schema, SaveMode mode, DataSourceOptions options) {
     return TileDBWriterFactory.getWriter(jobId, schema, mode, options);
   }
-
 }
