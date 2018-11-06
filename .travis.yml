@@ -12,4 +12,5 @@ install:
   - gradle assemble --stacktrace --debug --info
 
 script:
+  - gradle checkFormat
   - gradle test
