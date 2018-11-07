@@ -24,10 +24,9 @@
 
 package io.tiledb.spark.datasourcev2;
 
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
-
 import java.io.Serializable;
 import java.util.*;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TileDBOptions implements Serializable {
   public static final String ARRAY_URI_KEY = "arrayURI";
@@ -53,13 +52,14 @@ public class TileDBOptions implements Serializable {
 
   private final Map<String, String> options;
 
-  public TileDBOptions(DataSourceOptions options){
+  public TileDBOptions(DataSourceOptions options) {
     this.options = options.asMap();
     ARRAY_URI = options.get(ARRAY_URI_KEY).orElse(DEFAULT_ARRAY_URI);
     COMPRESSION = options.get(COMPRESSION_KEY).orElse(DEFAULT_COMPRESSION);
     DIMENSIONS = Arrays.asList(options.get(DIMENSIONS_KEY).orElse(DEFAULT_DIMENSIONS).split(","));
     BATCH_SIZE = Integer.parseInt(options.get(BATCH_SIZE_KEY).orElse(DEFAULT_BATCH_SIZE));
-    PARTITION_SIZE = Integer.parseInt(options.get(PARTITION_SIZE_KEY).orElse(DEFAULT_PARTITION_SIZE));
+    PARTITION_SIZE =
+        Integer.parseInt(options.get(PARTITION_SIZE_KEY).orElse(DEFAULT_PARTITION_SIZE));
   }
 
   public Optional<String> get(String key) {

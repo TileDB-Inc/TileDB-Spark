@@ -24,13 +24,12 @@
 
 package io.tiledb.spark.datasourcev2;
 
-import io.tiledb.java.api.*;
-
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
-import org.apache.spark.sql.types.ArrayType;
-import org.apache.spark.sql.types.*;
-
 import static org.apache.spark.sql.types.DataTypes.*;
+
+import io.tiledb.java.api.*;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
+import org.apache.spark.sql.types.*;
+import org.apache.spark.sql.types.ArrayType;
 
 public class TileDBSchemaConverter {
 
@@ -56,7 +55,7 @@ public class TileDBSchemaConverter {
     String arrayURI = options.ARRAY_URI;
     StructType sparkSchema = new StructType();
     try (ArraySchema arraySchema = new ArraySchema(ctx, arrayURI);
-         Domain arrayDomain = arraySchema.getDomain()) {
+        Domain arrayDomain = arraySchema.getDomain()) {
       for (int i = 0; i < arrayDomain.getRank(); i++) {
         try (Dimension dim = arrayDomain.getDimension(i)) {
           String dimName = dim.getName();
@@ -69,7 +68,9 @@ public class TileDBSchemaConverter {
         try (Attribute attr = arraySchema.getAttribute(i)) {
           String attrName = attr.getName();
           if (requiredSchema == null || requiredSchema.getFieldIndex(attrName).isDefined()) {
-            sparkSchema = sparkSchema.add(toStructField(attrName, attr.getType(), attr.getCellValNum(),false));
+            sparkSchema =
+                sparkSchema.add(
+                    toStructField(attrName, attr.getType(), attr.getCellValNum(), false));
           }
         }
       }
@@ -77,7 +78,8 @@ public class TileDBSchemaConverter {
     return sparkSchema;
   }
 
-  private StructField toStructField(String name, Datatype tiledbType, long cellValNum, boolean isDim) throws TileDBError {
+  private StructField toStructField(
+      String name, Datatype tiledbType, long cellValNum, boolean isDim) throws TileDBError {
     StructField field;
     MetadataBuilder metadataBuilder = new MetadataBuilder();
     if (isDim) {
@@ -87,84 +89,88 @@ public class TileDBSchemaConverter {
     }
     Metadata metadata = metadataBuilder.build();
     switch (tiledbType) {
-      case TILEDB_FLOAT32: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(FloatType), false, metadata);
-        else
-          field = new StructField(name, FloatType, false, metadata);
-        break;
-      }
-      case TILEDB_FLOAT64: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(DoubleType), false, metadata);
-        else
-          field = new StructField(name, DoubleType, false, Metadata.empty());
-        break;
-      }
-      case TILEDB_INT8: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(ByteType), false, metadata);
-        else
-          field = new StructField(name, ByteType, false, metadata);
-        break;
-      }
-      case TILEDB_INT16: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(ShortType), false, metadata);
-        else
-          field = new StructField(name, ShortType, false, Metadata.empty());
-        break;
-      }
-      case TILEDB_INT32: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(IntegerType), false, metadata);
-        else
-          field = new StructField(name, IntegerType, false, metadata);
-        break;
-      }
-      case TILEDB_INT64: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(LongType), false, metadata);
-        else
-          field = new StructField(name, LongType, false, Metadata.empty());
-        break;
-      }
-      case TILEDB_UINT8: {
-        if (cellValNum > 1) {
-          field = new StructField(name, DataTypes.createArrayType(ShortType), false, metadata);
-        } else {
-          field = new StructField(name, ShortType, false, metadata);
+      case TILEDB_FLOAT32:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(FloatType), false, metadata);
+          else field = new StructField(name, FloatType, false, metadata);
+          break;
         }
-        break;
-      }
-      case TILEDB_UINT16: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(IntegerType), false, metadata);
-        else
-          field = new StructField(name, IntegerType, false, metadata);
-        break;
-      }
-      case TILEDB_UINT32: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(LongType), false, metadata);
-        else
-          field = new StructField(name, LongType, false, metadata);
-        break;
-      }
-      case TILEDB_UINT64: {
-        if (cellValNum > 1)
-          field = new StructField(name, DataTypes.createArrayType(LongType), false, metadata);
-        else
-          field = new StructField(name, LongType, false, metadata);
-        break;
-      }
-      case TILEDB_CHAR: {
-        field = new StructField(name, StringType, false, metadata);
-        break;
-      }
-      default: {
-        throw new TileDBError("Unsupported TileDB <-> Spark DataFrame type: " + tiledbType.name());
-      }
+      case TILEDB_FLOAT64:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(DoubleType), false, metadata);
+          else field = new StructField(name, DoubleType, false, Metadata.empty());
+          break;
+        }
+      case TILEDB_INT8:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(ByteType), false, metadata);
+          else field = new StructField(name, ByteType, false, metadata);
+          break;
+        }
+      case TILEDB_INT16:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(ShortType), false, metadata);
+          else field = new StructField(name, ShortType, false, Metadata.empty());
+          break;
+        }
+      case TILEDB_INT32:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(IntegerType), false, metadata);
+          else field = new StructField(name, IntegerType, false, metadata);
+          break;
+        }
+      case TILEDB_INT64:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(LongType), false, metadata);
+          else field = new StructField(name, LongType, false, Metadata.empty());
+          break;
+        }
+      case TILEDB_UINT8:
+        {
+          if (cellValNum > 1) {
+            field = new StructField(name, DataTypes.createArrayType(ShortType), false, metadata);
+          } else {
+            field = new StructField(name, ShortType, false, metadata);
+          }
+          break;
+        }
+      case TILEDB_UINT16:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(IntegerType), false, metadata);
+          else field = new StructField(name, IntegerType, false, metadata);
+          break;
+        }
+      case TILEDB_UINT32:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(LongType), false, metadata);
+          else field = new StructField(name, LongType, false, metadata);
+          break;
+        }
+      case TILEDB_UINT64:
+        {
+          if (cellValNum > 1)
+            field = new StructField(name, DataTypes.createArrayType(LongType), false, metadata);
+          else field = new StructField(name, LongType, false, metadata);
+          break;
+        }
+      case TILEDB_CHAR:
+        {
+          field = new StructField(name, StringType, false, metadata);
+          break;
+        }
+      default:
+        {
+          throw new TileDBError(
+              "Unsupported TileDB <-> Spark DataFrame type: " + tiledbType.name());
+        }
     }
     return field;
   }
@@ -208,37 +214,81 @@ public class TileDBSchemaConverter {
   private Dimension toDimension(StructField field) throws Exception {
     DataType dataType = field.dataType();
     if (dataType instanceof IntegerType) {
-      int min = Integer.parseInt(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",field.name()))
-          .orElse(Integer.MIN_VALUE + ""));
-      int max = Integer.parseInt(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",field.name()))
-          .orElse(Integer.MAX_VALUE + ""));
-      int extent = Integer.parseInt(options.get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}",field.name()))
-          .orElse("1"));
-      return new Dimension<Integer>(ctx,field.name(),Integer.class, new Pair<Integer, Integer>(min,max),extent);
+      int min =
+          Integer.parseInt(
+              options
+                  .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", field.name()))
+                  .orElse(Integer.MIN_VALUE + ""));
+      int max =
+          Integer.parseInt(
+              options
+                  .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", field.name()))
+                  .orElse(Integer.MAX_VALUE + ""));
+      int extent =
+          Integer.parseInt(
+              options
+                  .get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}", field.name()))
+                  .orElse("1"));
+      return new Dimension<Integer>(
+          ctx, field.name(), Integer.class, new Pair<Integer, Integer>(min, max), extent);
     } else if (dataType instanceof LongType) {
-      long min = Long.parseLong(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",field.name()))
-              .orElse(Long.MIN_VALUE + ""));
-      long max = Long.parseLong(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",field.name()))
-              .orElse(Long.MAX_VALUE + ""));
-      long extent = Long.parseLong(options.get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}",field.name()))
-          .orElse("1"));
-      return new Dimension<Long>(ctx,field.name(),Long.class, new Pair<Long, Long>(min,max),extent);
+      long min =
+          Long.parseLong(
+              options
+                  .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", field.name()))
+                  .orElse(Long.MIN_VALUE + ""));
+      long max =
+          Long.parseLong(
+              options
+                  .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", field.name()))
+                  .orElse(Long.MAX_VALUE + ""));
+      long extent =
+          Long.parseLong(
+              options
+                  .get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}", field.name()))
+                  .orElse("1"));
+      return new Dimension<Long>(
+          ctx, field.name(), Long.class, new Pair<Long, Long>(min, max), extent);
     } else if (dataType instanceof ShortType) {
-      int min = Short.parseShort(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",field.name()))
-              .orElse(Short.MIN_VALUE + ""));
-      int max = Short.parseShort(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",field.name()))
-              .orElse(Short.MAX_VALUE + ""));
-      short extent = Short.parseShort(options.get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}",field.name()))
-          .orElse("1"));
-      return new Dimension<Short>(ctx,field.name(),Short.class, new Pair<Short, Short>((short)min,(short)max),extent);
+      int min =
+          Short.parseShort(
+              options
+                  .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", field.name()))
+                  .orElse(Short.MIN_VALUE + ""));
+      int max =
+          Short.parseShort(
+              options
+                  .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", field.name()))
+                  .orElse(Short.MAX_VALUE + ""));
+      short extent =
+          Short.parseShort(
+              options
+                  .get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}", field.name()))
+                  .orElse("1"));
+      return new Dimension<Short>(
+          ctx, field.name(), Short.class, new Pair<Short, Short>((short) min, (short) max), extent);
     } else if (dataType instanceof ByteType) {
-      int min = Integer.parseInt(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",field.name()))
-              .orElse("-128"));
-      int max = Integer.parseInt(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",field.name()))
-              .orElse("128"));
-      short extent = Short.parseShort(options.get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}",field.name()))
-          .orElse("1"));
-      return new Dimension<Byte>(ctx,field.name(),Byte.class, new Pair<Byte, Byte>((byte)min,(byte)max),(byte) extent);
+      int min =
+          Integer.parseInt(
+              options
+                  .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", field.name()))
+                  .orElse("-128"));
+      int max =
+          Integer.parseInt(
+              options
+                  .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", field.name()))
+                  .orElse("128"));
+      short extent =
+          Short.parseShort(
+              options
+                  .get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}", field.name()))
+                  .orElse("1"));
+      return new Dimension<Byte>(
+          ctx,
+          field.name(),
+          Byte.class,
+          new Pair<Byte, Byte>((byte) min, (byte) max),
+          (byte) extent);
     } else {
       throw new Exception("Datatype not supported for dimension: " + dataType);
     }
@@ -263,7 +313,7 @@ public class TileDBSchemaConverter {
     } else if (dataType instanceof DoubleType) {
       return new Attribute(ctx, field.name(), Double.class);
     } else if (dataType instanceof ArrayType) {
-      ArrayType at = (ArrayType)dataType;
+      ArrayType at = (ArrayType) dataType;
       DataType type = at.elementType();
       if (type instanceof IntegerType) {
         Attribute attribute = new Attribute(ctx, field.name(), Integer.class);
@@ -290,10 +340,12 @@ public class TileDBSchemaConverter {
         attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
         return attribute;
       } else {
-        throw new Exception("Spark DataType not supported for TileDB schema conversion: " + dataType.toString());
+        throw new Exception(
+            "Spark DataType not supported for TileDB schema conversion: " + dataType.toString());
       }
     } else {
-      throw new Exception("Spark DataType not supported for TileDB schema conversion: " + dataType.toString());
+      throw new Exception(
+          "Spark DataType not supported for TileDB schema conversion: " + dataType.toString());
     }
   }
 }

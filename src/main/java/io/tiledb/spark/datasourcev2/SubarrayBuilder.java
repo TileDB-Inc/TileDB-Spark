@@ -28,17 +28,13 @@ import io.tiledb.java.api.Array;
 import io.tiledb.java.api.ArraySchema;
 import io.tiledb.java.api.Context;
 import io.tiledb.java.api.Dimension;
-import io.tiledb.java.api.Datatype;
 import io.tiledb.java.api.Pair;
 import io.tiledb.java.api.TileDBError;
-
-import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
-import org.apache.spark.sql.types.StructField;
-
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class SubarrayBuilder {
   public Filter[] filters;
@@ -48,7 +44,6 @@ public class SubarrayBuilder {
   private List<Dimension> dimensions;
   private Object subarray;
   private Context ctx;
-
 
   public SubarrayBuilder(Context ctx, TileDBOptions options) throws Exception {
     this.ctx = ctx;
@@ -74,181 +69,225 @@ public class SubarrayBuilder {
 
   public void pushFilters(Filter[] filters) {
     this.filters = filters;
-    for(Filter filter : filters){
+    for (Filter filter : filters) {
       addFilter(filter);
     }
   }
 
   private void addFilter(Filter filter) {
-//    System.out.println("Filter: " + filter);
-//    for(String ref : filter.references())
-//      System.out.println("!!! "+ref);
+    //    System.out.println("Filter: " + filter);
+    //    for(String ref : filter.references())
+    //      System.out.println("!!! "+ref);
     notPushedFilters.add(filter);
-//    if (filter instanceof GreaterThan) {
-//      GreaterThanOrEqual gt = (GreaterThanOrEqual) filter;
-//      return gt.attribute().equals("i") && gt.value() instanceof Integer;
-//    }
+    //    if (filter instanceof GreaterThan) {
+    //      GreaterThanOrEqual gt = (GreaterThanOrEqual) filter;
+    //      return gt.attribute().equals("i") && gt.value() instanceof Integer;
+    //    }
 
-//      for(Filter filter : filters){
-//        if (filter instanceof GreaterThan) {
-//          GreaterThan gt = (GreaterThan) filter;
-//          return gt.attribute().equals("i") && gt.value() instanceof Integer;
-//        } else {
-//          return false;
-//        }
-//      }
-//      Filter[] supported = Arrays.stream(filters).filter(f -> {
-//        if (f instanceof GreaterThan) {
-//          GreaterThan gt = (GreaterThan) f;
-//          return gt.attribute().equals("i") && gt.value() instanceof Integer;
-//        } else {
-//          return false;
-//        }
-//      }).toArray(Filter[]::new);
-//
-//      Filter[] unsupported = Arrays.stream(filters).filter(f -> {
-//        if (f instanceof GreaterThan) {
-//          GreaterThan gt = (GreaterThan) f;
-//          return !gt.attribute().equals("i") || !(gt.value() instanceof Integer);
-//        } else {
-//          return true;
-//        }
-//      }).toArray(Filter[]::new);
-//
-//      this.filters = supported;
-//      return unsupported;
+    //      for(Filter filter : filters){
+    //        if (filter instanceof GreaterThan) {
+    //          GreaterThan gt = (GreaterThan) filter;
+    //          return gt.attribute().equals("i") && gt.value() instanceof Integer;
+    //        } else {
+    //          return false;
+    //        }
+    //      }
+    //      Filter[] supported = Arrays.stream(filters).filter(f -> {
+    //        if (f instanceof GreaterThan) {
+    //          GreaterThan gt = (GreaterThan) f;
+    //          return gt.attribute().equals("i") && gt.value() instanceof Integer;
+    //        } else {
+    //          return false;
+    //        }
+    //      }).toArray(Filter[]::new);
+    //
+    //      Filter[] unsupported = Arrays.stream(filters).filter(f -> {
+    //        if (f instanceof GreaterThan) {
+    //          GreaterThan gt = (GreaterThan) f;
+    //          return !gt.attribute().equals("i") || !(gt.value() instanceof Integer);
+    //        } else {
+    //          return true;
+    //        }
+    //      }).toArray(Filter[]::new);
+    //
+    //      this.filters = supported;
+    //      return unsupported;
   }
 
   private Object initSubarray(ArraySchema arraySchema) throws Exception {
     List<Dimension> dimensions = arraySchema.getDomain().getDimensions();
     switch (arraySchema.getDomain().getType()) {
-      case TILEDB_FLOAT32: {
-        float[] subarrayTmp = new float[dimensions.size()*2];
-        int i = 0;
-        for(Dimension dimension : dimensions){
-          String name = dimension.getName();
-          Pair domain = dimension.getDomain();
-          float min = Math.max(
-              Float.parseFloat(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",name))
-                  .orElse(Float.MIN_VALUE + ""))
-              ,(float) domain.getFirst());
-          float max = Math.min(
-              Float.parseFloat(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",name))
-              .orElse(Float.MAX_VALUE + ""))
-              ,(float) domain.getSecond());
-          subarrayTmp[i] = min;
-          subarrayTmp[i+1] = max;
-          i+=2;
+      case TILEDB_FLOAT32:
+        {
+          float[] subarrayTmp = new float[dimensions.size() * 2];
+          int i = 0;
+          for (Dimension dimension : dimensions) {
+            String name = dimension.getName();
+            Pair domain = dimension.getDomain();
+            float min =
+                Math.max(
+                    Float.parseFloat(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", name))
+                            .orElse(Float.MIN_VALUE + "")),
+                    (float) domain.getFirst());
+            float max =
+                Math.min(
+                    Float.parseFloat(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", name))
+                            .orElse(Float.MAX_VALUE + "")),
+                    (float) domain.getSecond());
+            subarrayTmp[i] = min;
+            subarrayTmp[i + 1] = max;
+            i += 2;
+          }
+          return subarrayTmp;
         }
-        return subarrayTmp;
-      }
-      case TILEDB_FLOAT64: {
-        double[] subarrayTmp = new double[dimensions.size()*2];
-        int i = 0;
-        for(Dimension dimension : dimensions){
-          String name = dimension.getName();
-          Pair domain = dimension.getDomain();
-          double min = Math.max(
-              Double.parseDouble(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",name))
-                  .orElse(Double.MIN_VALUE + ""))
-              ,(double) domain.getFirst());
-          double max = Math.min(
-              Double.parseDouble(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",name))
-                  .orElse(Double.MAX_VALUE + ""))
-              ,(double) domain.getSecond());
-          subarrayTmp[i] = min;
-          subarrayTmp[i+1] = max;
-          i+=2;
+      case TILEDB_FLOAT64:
+        {
+          double[] subarrayTmp = new double[dimensions.size() * 2];
+          int i = 0;
+          for (Dimension dimension : dimensions) {
+            String name = dimension.getName();
+            Pair domain = dimension.getDomain();
+            double min =
+                Math.max(
+                    Double.parseDouble(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", name))
+                            .orElse(Double.MIN_VALUE + "")),
+                    (double) domain.getFirst());
+            double max =
+                Math.min(
+                    Double.parseDouble(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", name))
+                            .orElse(Double.MAX_VALUE + "")),
+                    (double) domain.getSecond());
+            subarrayTmp[i] = min;
+            subarrayTmp[i + 1] = max;
+            i += 2;
+          }
+          return subarrayTmp;
         }
-        return subarrayTmp;
-      }
-      case TILEDB_INT8:{
-        byte[] subarrayTmp = new byte[dimensions.size()*2];
-        int i = 0;
-        for(Dimension dimension : dimensions){
-          String name = dimension.getName();
-          Pair domain = dimension.getDomain();
-          int min = Math.max(
-              Integer.parseInt(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",name))
-                  .orElse("-128"))
-              ,((Byte) domain.getFirst()).intValue());
-          int max = Math.min(
-              Integer.parseInt(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",name))
-                  .orElse("128"))
-              ,((Byte) domain.getSecond()).intValue());
-          subarrayTmp[i] = (byte) min;
-          subarrayTmp[i+1] = (byte) max;
-          i+=2;
+      case TILEDB_INT8:
+        {
+          byte[] subarrayTmp = new byte[dimensions.size() * 2];
+          int i = 0;
+          for (Dimension dimension : dimensions) {
+            String name = dimension.getName();
+            Pair domain = dimension.getDomain();
+            int min =
+                Math.max(
+                    Integer.parseInt(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", name))
+                            .orElse("-128")),
+                    ((Byte) domain.getFirst()).intValue());
+            int max =
+                Math.min(
+                    Integer.parseInt(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", name))
+                            .orElse("128")),
+                    ((Byte) domain.getSecond()).intValue());
+            subarrayTmp[i] = (byte) min;
+            subarrayTmp[i + 1] = (byte) max;
+            i += 2;
+          }
+          return subarrayTmp;
         }
-        return subarrayTmp;
-      }
       case TILEDB_UINT8:
-      case TILEDB_INT16: {
-        short[] subarrayTmp = new short[dimensions.size()*2];
-        int i = 0;
-        for(Dimension dimension : dimensions){
-          String name = dimension.getName();
-          Pair domain = dimension.getDomain();
-          int min = Math.max(
-              Short.parseShort(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",name))
-                  .orElse(Short.MIN_VALUE + ""))
-              ,(short) domain.getFirst());
-          int max = Math.min(
-              Short.parseShort(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",name))
-                  .orElse(Short.MAX_VALUE + ""))
-              ,(short) domain.getSecond());
-          subarrayTmp[i] = (short) min;
-          subarrayTmp[i+1] = (short) max;
-          i+=2;
+      case TILEDB_INT16:
+        {
+          short[] subarrayTmp = new short[dimensions.size() * 2];
+          int i = 0;
+          for (Dimension dimension : dimensions) {
+            String name = dimension.getName();
+            Pair domain = dimension.getDomain();
+            int min =
+                Math.max(
+                    Short.parseShort(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", name))
+                            .orElse(Short.MIN_VALUE + "")),
+                    (short) domain.getFirst());
+            int max =
+                Math.min(
+                    Short.parseShort(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", name))
+                            .orElse(Short.MAX_VALUE + "")),
+                    (short) domain.getSecond());
+            subarrayTmp[i] = (short) min;
+            subarrayTmp[i + 1] = (short) max;
+            i += 2;
+          }
+          return subarrayTmp;
         }
-        return subarrayTmp;
-      }
       case TILEDB_UINT16:
-      case TILEDB_INT32: {
-        int[] subarrayTmp = new int[dimensions.size()*2];
-        int i = 0;
-        for(Dimension dimension : dimensions){
-          String name = dimension.getName();
-          Pair domain = dimension.getDomain();
-          int min = Math.max(
-              Integer.parseInt(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",name))
-                  .orElse(Integer.MIN_VALUE + ""))
-              ,(int) domain.getFirst());
-          int max = Math.min(
-              Integer.parseInt(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",name))
-                  .orElse(Integer.MAX_VALUE + ""))
-              ,(int) domain.getSecond());
-          subarrayTmp[i] = min;
-          subarrayTmp[i+1] = max;
-          i+=2;
+      case TILEDB_INT32:
+        {
+          int[] subarrayTmp = new int[dimensions.size() * 2];
+          int i = 0;
+          for (Dimension dimension : dimensions) {
+            String name = dimension.getName();
+            Pair domain = dimension.getDomain();
+            int min =
+                Math.max(
+                    Integer.parseInt(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", name))
+                            .orElse(Integer.MIN_VALUE + "")),
+                    (int) domain.getFirst());
+            int max =
+                Math.min(
+                    Integer.parseInt(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", name))
+                            .orElse(Integer.MAX_VALUE + "")),
+                    (int) domain.getSecond());
+            subarrayTmp[i] = min;
+            subarrayTmp[i + 1] = max;
+            i += 2;
+          }
+          return subarrayTmp;
         }
-        return subarrayTmp;
-      }
       case TILEDB_INT64:
       case TILEDB_UINT32:
-      case TILEDB_UINT64: {
-        long[] subarrayTmp = new long[dimensions.size()*2];
-        int i = 0;
-        for(Dimension dimension : dimensions){
-          String name = dimension.getName();
-          Pair domain = dimension.getDomain();
-          long min = Math.max(
-              Long.parseLong(options.get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}",name))
-                  .orElse(Long.MIN_VALUE + ""))
-              ,((BigInteger) domain.getFirst()).longValue());
-          long max = Math.min(
-              Long.parseLong(options.get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}",name))
-                  .orElse(Long.MAX_VALUE + ""))
-              ,((BigInteger) domain.getSecond()).longValue());
-          subarrayTmp[i] = min;
-          subarrayTmp[i+1] = max;
-          i+=2;
+      case TILEDB_UINT64:
+        {
+          long[] subarrayTmp = new long[dimensions.size() * 2];
+          int i = 0;
+          for (Dimension dimension : dimensions) {
+            String name = dimension.getName();
+            Pair domain = dimension.getDomain();
+            long min =
+                Math.max(
+                    Long.parseLong(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", name))
+                            .orElse(Long.MIN_VALUE + "")),
+                    ((BigInteger) domain.getFirst()).longValue());
+            long max =
+                Math.min(
+                    Long.parseLong(
+                        options
+                            .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", name))
+                            .orElse(Long.MAX_VALUE + "")),
+                    ((BigInteger) domain.getSecond()).longValue());
+            subarrayTmp[i] = min;
+            subarrayTmp[i + 1] = max;
+            i += 2;
+          }
+          return subarrayTmp;
         }
-        return subarrayTmp;
-      }
-      default: {
-        throw new TileDBError("Not supported getDomain getType " + arraySchema.getDomain().getType());
-      }
+      default:
+        {
+          throw new TileDBError(
+              "Not supported getDomain getType " + arraySchema.getDomain().getType());
+        }
     }
   }
 
