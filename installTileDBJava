@@ -1,5 +1,6 @@
 #!/bin/bash
-mkdir build && pushd build
+mkdir build
+pushd build
 if [ -d "TileDB-Java" ]; then
   rm -r ./TileDB-Java
 fi
