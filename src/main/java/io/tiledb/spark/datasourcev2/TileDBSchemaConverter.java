@@ -298,10 +298,6 @@ public class TileDBSchemaConverter {
     DataType dataType = field.dataType();
     if (dataType instanceof IntegerType) {
       return new Attribute(ctx, field.name(), Integer.class);
-    } else if (dataType instanceof StringType) {
-      Attribute attribute = new Attribute(ctx, field.name(), String.class);
-      attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-      return attribute;
     } else if (dataType instanceof ShortType) {
       return new Attribute(ctx, field.name(), Short.class);
     } else if (dataType instanceof ByteType) {
@@ -312,36 +308,27 @@ public class TileDBSchemaConverter {
       return new Attribute(ctx, field.name(), Float.class);
     } else if (dataType instanceof DoubleType) {
       return new Attribute(ctx, field.name(), Double.class);
+    } else if (dataType instanceof StringType) {
+      return new Attribute(ctx, field.name(), String.class).setCellVar();
     } else if (dataType instanceof ArrayType) {
-      ArrayType at = (ArrayType) dataType;
-      DataType type = at.elementType();
-      if (type instanceof IntegerType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Integer.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof ShortType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Short.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof ByteType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Byte.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof LongType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Long.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof FloatType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Float.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof DoubleType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Double.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
+      ArrayType arrayType = ((ArrayType) dataType);
+      DataType elementType = arrayType.elementType();
+      if (elementType instanceof IntegerType) {
+        return new Attribute(ctx, field.name(), Integer.class).setCellVar();
+      } else if (elementType instanceof ShortType) {
+        return new Attribute(ctx, field.name(), Short.class).setCellVar();
+      } else if (elementType instanceof ByteType) {
+        return new Attribute(ctx, field.name(), Byte.class).setCellVar();
+      } else if (elementType instanceof LongType) {
+        return new Attribute(ctx, field.name(), Long.class).setCellVar();
+      } else if (elementType instanceof FloatType) {
+        return new Attribute(ctx, field.name(), Float.class).setCellVar();
+      } else if (elementType instanceof DoubleType) {
+        return new Attribute(ctx, field.name(), Double.class).setCellVar();
       } else {
         throw new Exception(
-            "Spark DataType not supported for TileDB schema conversion: " + dataType.toString());
+            "Spark Array DataType not supported for TileDB schema conversion: "
+                + arrayType.toString());
       }
     } else {
       throw new Exception(
