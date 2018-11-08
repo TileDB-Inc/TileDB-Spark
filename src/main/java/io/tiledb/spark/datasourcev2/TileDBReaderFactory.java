@@ -502,13 +502,17 @@ public class TileDBReaderFactory
 
   @Override
   public void close() {
-    try {
-      if (batch != null) batch.close();
-      if (query != null) query.close();
-      if (array != null) array.close();
-      if (ctx != null) ctx.close();
-    } catch (TileDBError tileDBError) {
-      tileDBError.printStackTrace();
+    if (batch != null) {
+      batch.close();
+    }
+    if (query != null) {
+      query.close();
+    }
+    if (array != null) {
+      array.close();
+    }
+    if (ctx != null) {
+      ctx.close();
     }
   }
 

@@ -329,6 +329,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
         rowIndex++;
       }
       query.submit();
+      query.finalizeQuery();
       query.close();
       batch.clear();
       varLengthIndex = new HashMap<>();
