@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package io.tiledb.spark.datasourcev2;
+package io.tiledb.spark;
 
 import io.tiledb.java.api.*;
 import java.util.ArrayList;
@@ -88,14 +88,14 @@ public class TileDBReaderFactory
         array = new Array(ctx, options.ARRAY_URI);
         arraySchema = array.getSchema();
         try (Domain domain = arraySchema.getDomain();
-            NativeArray nativeSubarray = new NativeArray(ctx, subarray, domain.getType())) {
+            NativeArray nativeSubArray = new NativeArray(ctx, subarray, domain.getType())) {
           // Compute maximum buffer elements for the query results per attribute
-          HashMap<String, Pair<Long, Long>> max_sizes = array.maxBufferElements(nativeSubarray);
+          HashMap<String, Pair<Long, Long>> max_sizes = array.maxBufferElements(nativeSubArray);
 
           // Create query
           query = new Query(array, QueryType.TILEDB_READ);
           // query.setLayout(tiledb_layout_t.TILEDB_GLOBAL_ORDER);
-          query.setSubarray(nativeSubarray);
+          query.setSubarray(nativeSubArray);
 
           int buffSize = (partitioning) ? options.PARTITION_SIZE : options.BATCH_SIZE;
           vectors = OnHeapColumnVector.allocateColumns(options.BATCH_SIZE, attributes);
@@ -173,12 +173,11 @@ public class TileDBReaderFactory
 
   private int getColumnBatch(StructField field, int index) throws TileDBError {
     String name = field.name();
-    if (!arraySchema.getAttributes().containsKey(name)) {
+    if (arraySchema.hasAttribute(name)) {
+      return getAttributeColumn(name, index);
+    } else {
       // dimension column
       return getDimensionColumn(name, index);
-    } else {
-      // attribute column
-      return getAttributeColumn(name, index);
     }
   }
 
