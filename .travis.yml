@@ -8,7 +8,6 @@ notifications:
   email: false
 
 install:
-  - ./installTileDBJava
   - gradle assemble --stacktrace --debug --info
 
 script:
