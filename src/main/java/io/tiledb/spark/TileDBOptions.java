@@ -22,14 +22,14 @@
  * SOFTWARE.
  */
 
-package io.tiledb.spark.datasourcev2;
+package io.tiledb.spark;
 
 import java.io.Serializable;
 import java.util.*;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TileDBOptions implements Serializable {
-  public static final String ARRAY_URI_KEY = "arrayURI";
+  public static final String ARRAY_URI_KEY = "uri";
   public static final String DIMENSIONS_KEY = "dimensions";
   public static final String BATCH_SIZE_KEY = "batchSize";
   public static final String PARTITION_SIZE_KEY = "partitionSize";

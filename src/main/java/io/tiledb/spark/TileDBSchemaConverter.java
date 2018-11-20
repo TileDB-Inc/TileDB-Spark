@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package io.tiledb.spark.datasourcev2;
+package io.tiledb.spark;
 
 import static org.apache.spark.sql.types.DataTypes.*;
 
@@ -51,7 +51,7 @@ public class TileDBSchemaConverter {
     this.requiredSchema = requiredSchema;
   }
 
-  public StructType getSchema() throws TileDBError {
+  public StructType getSparkSchema() throws TileDBError {
     String arrayURI = options.ARRAY_URI;
     StructType sparkSchema = new StructType();
     try (ArraySchema arraySchema = new ArraySchema(ctx, arrayURI);
@@ -176,6 +176,36 @@ public class TileDBSchemaConverter {
   }
 
   public ArraySchema toTileDBSchema(StructType schema) throws Exception {
+    if (options.DIMENSIONS.size() == 1 && options.DIMENSIONS.get(0).isEmpty()) {
+      return createDenseDefaultSchema(schema);
+    } else {
+      return createSparseSchema(schema);
+    }
+  }
+
+  private ArraySchema createDenseDefaultSchema(StructType schema) throws Exception {
+    ArraySchema arraySchema = new ArraySchema(ctx, io.tiledb.java.api.ArrayType.TILEDB_DENSE);
+    try (Domain domain = new Domain(ctx)) {
+      // by default, create a dense domain spanning typemax long rows
+      try (Dimension<Long> dimension =
+          new Dimension<>(ctx, "", Long.class, new Pair<>(0l, Long.MAX_VALUE), 1024l)) {
+        domain.addDimension(dimension);
+      }
+      for (StructField field : schema.fields()) {
+        try (Attribute attribute = toAttribute(field)) {
+          arraySchema.addAttribute(attribute);
+        }
+      }
+      arraySchema.setDomain(domain);
+      arraySchema.check();
+    } catch (TileDBError err) {
+      arraySchema.close();
+      throw err;
+    }
+    return arraySchema;
+  }
+
+  private ArraySchema createSparseSchema(StructType schema) throws Exception {
     ArraySchema arraySchema = new ArraySchema(ctx, io.tiledb.java.api.ArrayType.TILEDB_SPARSE);
     try (Domain domain = new Domain(ctx)) {
       Compressor compressor;
@@ -236,17 +266,17 @@ public class TileDBSchemaConverter {
           Long.parseLong(
               options
                   .get(TileDBOptions.SUBARRAY_MIN_KEY.replace("{}", field.name()))
-                  .orElse(Long.MIN_VALUE + ""));
+                  .orElse(new Long(0l).toString()));
       long max =
           Long.parseLong(
               options
                   .get(TileDBOptions.SUBARRAY_MAX_KEY.replace("{}", field.name()))
-                  .orElse(Long.MAX_VALUE + ""));
+                  .orElse(new Long(Long.MAX_VALUE).toString()));
       long extent =
           Long.parseLong(
               options
                   .get(TileDBOptions.SUBARRAY_EXTENT_KEY.replace("{}", field.name()))
-                  .orElse("1"));
+                  .orElse(new Long(1024l).toString()));
       return new Dimension<Long>(
           ctx, field.name(), Long.class, new Pair<Long, Long>(min, max), extent);
     } else if (dataType instanceof ShortType) {
@@ -298,10 +328,6 @@ public class TileDBSchemaConverter {
     DataType dataType = field.dataType();
     if (dataType instanceof IntegerType) {
       return new Attribute(ctx, field.name(), Integer.class);
-    } else if (dataType instanceof StringType) {
-      Attribute attribute = new Attribute(ctx, field.name(), String.class);
-      attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-      return attribute;
     } else if (dataType instanceof ShortType) {
       return new Attribute(ctx, field.name(), Short.class);
     } else if (dataType instanceof ByteType) {
@@ -312,36 +338,27 @@ public class TileDBSchemaConverter {
       return new Attribute(ctx, field.name(), Float.class);
     } else if (dataType instanceof DoubleType) {
       return new Attribute(ctx, field.name(), Double.class);
+    } else if (dataType instanceof StringType) {
+      return new Attribute(ctx, field.name(), String.class).setCellVar();
     } else if (dataType instanceof ArrayType) {
-      ArrayType at = (ArrayType) dataType;
-      DataType type = at.elementType();
-      if (type instanceof IntegerType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Integer.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof ShortType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Short.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof ByteType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Byte.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof LongType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Long.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof FloatType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Float.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
-      } else if (type instanceof DoubleType) {
-        Attribute attribute = new Attribute(ctx, field.name(), Double.class);
-        attribute.setCellValNum(Constants.TILEDB_VAR_NUM);
-        return attribute;
+      ArrayType arrayType = ((ArrayType) dataType);
+      DataType elementType = arrayType.elementType();
+      if (elementType instanceof IntegerType) {
+        return new Attribute(ctx, field.name(), Integer.class).setCellVar();
+      } else if (elementType instanceof ShortType) {
+        return new Attribute(ctx, field.name(), Short.class).setCellVar();
+      } else if (elementType instanceof ByteType) {
+        return new Attribute(ctx, field.name(), Byte.class).setCellVar();
+      } else if (elementType instanceof LongType) {
+        return new Attribute(ctx, field.name(), Long.class).setCellVar();
+      } else if (elementType instanceof FloatType) {
+        return new Attribute(ctx, field.name(), Float.class).setCellVar();
+      } else if (elementType instanceof DoubleType) {
+        return new Attribute(ctx, field.name(), Double.class).setCellVar();
       } else {
         throw new Exception(
-            "Spark DataType not supported for TileDB schema conversion: " + dataType.toString());
+            "Spark Array DataType not supported for TileDB schema conversion: "
+                + arrayType.toString());
       }
     } else {
       throw new Exception(

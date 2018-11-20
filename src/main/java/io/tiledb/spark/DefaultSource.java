@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package io.tiledb.spark.datasourcev2;
+package io.tiledb.spark;
 
 import io.tiledb.java.api.*;
 import java.util.*;
@@ -44,6 +44,7 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport {
           SupportsPushDownRequiredColumns,
           SupportsScanColumnarBatch,
           SupportsPushDownFilters {
+
     private Context ctx;
     private DataSourceOptions options;
     private StructType requiredSchema;
@@ -64,7 +65,7 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport {
       try {
         TileDBSchemaConverter tileDBSchemaConverter = new TileDBSchemaConverter(ctx, options);
         tileDBSchemaConverter.setRequiredSchema(requiredSchema);
-        return tileDBSchemaConverter.getSchema();
+        return tileDBSchemaConverter.getSparkSchema();
       } catch (TileDBError tileDBError) {
         tileDBError.printStackTrace();
         return null;
@@ -75,13 +76,19 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport {
     public List<DataReaderFactory<ColumnarBatch>> createBatchDataReaderFactories() {
       List<Object> partitions = new ArrayList<>();
       try {
-        partitions = getSubarrayPartitions(subarrayBuilder.getSubArray(), requiredSchema, options);
+        partitions =
+            getSubarrayPartitions(subarrayBuilder.nonEmptySubArray(), requiredSchema, options);
       } catch (Exception e) {
         e.printStackTrace();
       }
       if (partitions.isEmpty()) {
-        return java.util.Arrays.asList(
-            new TileDBReaderFactory(subarrayBuilder.getSubArray(), requiredSchema, options));
+        try {
+          return java.util.Arrays.asList(
+              new TileDBReaderFactory(subarrayBuilder.nonEmptySubArray(), requiredSchema, options));
+        } catch (Exception err) {
+          err.printStackTrace();
+          return new ArrayList<DataReaderFactory<ColumnarBatch>>();
+        }
       } else {
         List<DataReaderFactory<ColumnarBatch>> ret = new ArrayList<>(partitions.size());
         for (Object partition : partitions) {

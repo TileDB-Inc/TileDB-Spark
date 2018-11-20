@@ -1,7 +1,4 @@
-package io.tiledb.spark.datasourcev2;
-
-import static io.tiledb.java.api.Layout.TILEDB_UNORDERED;
-import static io.tiledb.java.api.QueryType.TILEDB_WRITE;
+package io.tiledb.spark;
 
 import io.tiledb.java.api.*;
 import java.io.IOException;
@@ -62,13 +59,14 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
 
   public static Optional<DataSourceWriter> getWriter(
       String jobId, StructType schema, SaveMode mode, DataSourceOptions options) {
-    boolean createTable = false, deleteTable = false;
+    boolean createTable = false;
+    boolean deleteTable = false;
     TileDBOptions tileDBOptions = null;
     Context ctx;
     try {
       ctx = new Context();
       tileDBOptions = new TileDBOptions(options);
-      Array array = new Array(ctx, tileDBOptions.ARRAY_URI, TILEDB_WRITE);
+      Array array = new Array(ctx, tileDBOptions.ARRAY_URI, QueryType.TILEDB_WRITE);
       array.close();
     } catch (Exception tileDBError) {
       createTable = true;
@@ -135,20 +133,15 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
     private HashMap<String, Pair<NativeArray, NativeArray>> nativeArrays;
     private List<Row> batch;
     private HashMap<String, Pair<Integer, Integer>> varLengthIndex;
-    private int rowIndex;
     private TileDBOptions options;
-    private StructType schema;
     private Array array;
     private ArraySchema arraySchema;
-    private SubarrayBuilder subarrayBuilder;
-    private Query query;
     private ArrayList<String> dimensionNames;
     private ArrayList<String> attributeNames;
     private ArrayList<Long> attributeCellValNum;
     private ArrayList<Datatype> attributeDatatype;
 
     public TileDBWriter(StructType schema, TileDBOptions tileDBOptions) {
-      this.schema = schema;
       this.options = tileDBOptions;
       try {
         init();
@@ -159,8 +152,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
 
     private void init() throws Exception {
       ctx = new Context();
-      subarrayBuilder = new SubarrayBuilder(ctx, options);
-      array = new Array(ctx, tileDBOptions.ARRAY_URI, TILEDB_WRITE);
+      array = new Array(ctx, tileDBOptions.ARRAY_URI, QueryType.TILEDB_WRITE);
       arraySchema = array.getSchema();
       attributeNames = new ArrayList<>();
       attributeCellValNum = new ArrayList<>();
@@ -193,7 +185,7 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
           long cellValNum = attributeCellValNum.get(i);
           if (cellValNum != 1) { // array
             try {
-              Seq seq = (Seq) record.getAs(name);
+              Seq seq = record.getAs(name);
               increaseRowIndex(name, seq.size());
             } catch (ClassCastException e) {
               byte[] seq = ((String) record.getAs(name)).getBytes();
@@ -206,9 +198,9 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
         if (batch.size() >= options.BATCH_SIZE) {
           flush();
         }
-      } catch (Exception tileDBError) {
-        tileDBError.printStackTrace();
-        throw new IOException(tileDBError.getMessage());
+      } catch (Exception err) {
+        err.printStackTrace();
+        throw new IOException(err.getMessage());
       }
     }
 
@@ -216,13 +208,6 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
       Pair<Integer, Integer> index = getIndex(name);
       Integer second = index.getSecond();
       second += length;
-      index.setSecond(second);
-    }
-
-    private void increaseValueIndex(String name) {
-      Pair<Integer, Integer> index = getIndex(name);
-      Integer second = index.getSecond();
-      second++;
       index.setSecond(second);
     }
 
@@ -243,94 +228,115 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
     }
 
     private void flush() throws Exception {
-      if (batch.size() == 0) return;
-
-      //      System.out.println("Flushing: "+batch);
-
-      // Create query
-      query = new Query(array, TILEDB_WRITE);
-      query.setLayout(TILEDB_UNORDERED);
-      // NativeArray nsubarray = new NativeArray(ctx, subarrayBuilder.getSubArray(),
-      // arraySchema.getDomain().getType());
-      // query.setSubarray(nsubarray);
-      nativeArrays = new HashMap<>();
-      int ndim = dimensionNames.size();
-      int nattr = attributeNames.size();
-      for (int i = 0; i < nattr; i++) {
-        String attrName = attributeNames.get(i);
-        Datatype attrType = attributeDatatype.get(i);
-        long cellValNum = attributeCellValNum.get(i);
-        if (cellValNum == Constants.TILEDB_VAR_NUM) {
-          NativeArray first = new NativeArray(ctx, batch.size(), Datatype.TILEDB_UINT64);
-          NativeArray second =
-              new NativeArray(ctx, (int) varLengthIndex.get(attrName).getFirst(), attrType);
-          Pair<NativeArray, NativeArray> pair = new Pair<>(first, second);
-          nativeArrays.put(attrName, pair);
-          query.setBuffer(attrName, first, second);
-        } else {
-          NativeArray second = new NativeArray(ctx, batch.size() * (int) cellValNum, attrType);
-          Pair<NativeArray, NativeArray> pair = new Pair<>(null, second);
-          nativeArrays.put(attrName, pair);
-          query.setBuffer(attrName, second);
-        }
+      if (!arraySchema.isSparse()) {
+        throw new TileDBError("Dense array writes are unsupported");
       }
-      NativeArray coords;
-      try (Domain domain = arraySchema.getDomain()) {
-        coords = new NativeArray(ctx, batch.size() * ndim, domain.getType());
-      }
-      nativeArrays.put(Constants.TILEDB_COORDS, new Pair<>(null, coords));
-      query.setCoordinates(coords);
+      flushSparse();
+    }
 
-      rowIndex = 0;
-      varLengthIndex = new HashMap<>();
-      for (Row record : batch) {
-        for (int dimIdx = 0; dimIdx < ndim; dimIdx++) {
-          String dimensionName = dimensionNames.get(dimIdx);
-          coords.setItem(rowIndex * ndim + dimIdx, record.getAs(dimensionName));
-        }
-        for (int attrIdx = 0; attrIdx < nattr; attrIdx++) {
-          String attrName = attributeNames.get(attrIdx);
-          long cellValNum = attributeCellValNum.get(attrIdx);
-          Pair<NativeArray, NativeArray> pair = nativeArrays.get(attrName);
+    private void flushSparse() throws Exception {
+      assert arraySchema.isSparse() == true;
+
+      int nrecords = batch.size();
+      // nothing to write for this partition
+      if (nrecords == 0) {
+        return;
+      }
+      // Create a query for every batched flush()
+      try (Query query = new Query(array, QueryType.TILEDB_WRITE)) {
+
+        // we rely on TileDB to sort to global order
+        // no way to tell if the record batch
+        // is sorted on the dimensions
+        query.setLayout(Layout.TILEDB_UNORDERED);
+
+        // Allocate and set Query write buffers
+        nativeArrays = new HashMap<>();
+        int ndim = dimensionNames.size();
+        int nattr = attributeNames.size();
+        for (int i = 0; i < nattr; i++) {
+          String attrName = attributeNames.get(i);
+          Datatype attrType = attributeDatatype.get(i);
+          long cellValNum = attributeCellValNum.get(i);
+          // var length cell
           if (cellValNum == Constants.TILEDB_VAR_NUM) {
-            int datatypeBytes = attributeDatatype.get(attrIdx).getNativeSize();
-            try {
-              Seq array = (Seq) record.getAs(attrName);
-              for (int index = 0; index < array.size(); index++) {
-                pair.getSecond().setItem(getIndex(attrName).getSecond(), array.apply(index));
-                increaseValueIndex(attrName);
-              }
-              pair.getFirst().setItem(rowIndex, (long) getIndex(attrName).getFirst());
-              increaseRowIndex(attrName, array.size() * datatypeBytes);
-            } catch (ClassCastException e) {
-              String s = (String) record.getAs(attrName);
-              int nbytes = s.getBytes().length;
-              pair.getSecond().setItem(getIndex(attrName).getSecond(), s);
-              increaseValueIndex(attrName, nbytes);
-              pair.getFirst().setItem(rowIndex, (long) getIndex(attrName).getFirst());
-              increaseRowIndex(attrName, nbytes * datatypeBytes);
-            }
+            NativeArray first = new NativeArray(ctx, batch.size(), Datatype.TILEDB_UINT64);
+            NativeArray second =
+                new NativeArray(ctx, (int) varLengthIndex.get(attrName).getFirst(), attrType);
+            Pair<NativeArray, NativeArray> pair = new Pair<>(first, second);
+            nativeArrays.put(attrName, pair);
+            query.setBuffer(attrName, first, second);
+            // scalar cell
           } else {
-            if (cellValNum == 1) {
-              pair.getSecond().setItem(rowIndex, record.getAs(attrName));
-            } else {
+            NativeArray second = new NativeArray(ctx, batch.size() * (int) cellValNum, attrType);
+            Pair<NativeArray, NativeArray> pair = new Pair<>(null, second);
+            nativeArrays.put(attrName, pair);
+            query.setBuffer(attrName, second);
+          }
+        }
+
+        // Allocate and set Query coordinate buffer
+        NativeArray coords;
+        try (Domain domain = arraySchema.getDomain()) {
+          coords = new NativeArray(ctx, batch.size() * ndim, domain.getType());
+        }
+        nativeArrays.put(Constants.TILEDB_COORDS, new Pair<>(null, coords));
+        query.setCoordinates(coords);
+
+        int rowIndex = 0;
+        varLengthIndex = new HashMap<>();
+        for (Row record : batch) {
+          for (int dimIdx = 0; dimIdx < ndim; dimIdx++) {
+            String dimensionName = dimensionNames.get(dimIdx);
+            coords.setItem(rowIndex * ndim + dimIdx, record.getAs(dimensionName));
+          }
+          for (int attrIdx = 0; attrIdx < nattr; attrIdx++) {
+            String attrName = attributeNames.get(attrIdx);
+            long cellValNum = attributeCellValNum.get(attrIdx);
+            Pair<NativeArray, NativeArray> pair = nativeArrays.get(attrName);
+            // var length cell
+            if (cellValNum == Constants.TILEDB_VAR_NUM) {
+              int datatypeBytes = attributeDatatype.get(attrIdx).getNativeSize();
               try {
-                Seq array = (Seq) record.getAs(attrName);
-                for (int index = 0; index < cellValNum; index++) {
-                  pair.getSecond().setItem(rowIndex * (int) cellValNum + index, array.apply(index));
+                Seq array = record.getAs(attrName);
+                for (int index = 0; index < array.size(); index++) {
+                  pair.getSecond().setItem(getIndex(attrName).getSecond(), array.apply(index));
+                  increaseValueIndex(attrName, 1);
                 }
+                pair.getFirst().setItem(rowIndex, (long) getIndex(attrName).getFirst());
+                increaseRowIndex(attrName, array.size() * datatypeBytes);
               } catch (ClassCastException e) {
-                String s = (String) record.getAs(attrName);
-                pair.getSecond().setItem(rowIndex * (int) cellValNum, s);
+                String s = record.getAs(attrName);
+                int nbytes = s.getBytes().length;
+                pair.getSecond().setItem(getIndex(attrName).getSecond(), s);
+                increaseValueIndex(attrName, nbytes);
+                pair.getFirst().setItem(rowIndex, (long) getIndex(attrName).getFirst());
+                increaseRowIndex(attrName, nbytes * datatypeBytes);
+              }
+              // scalar cell
+            } else {
+              if (cellValNum == 1) {
+                pair.getSecond().setItem(rowIndex, record.getAs(attrName));
+              } else {
+                // fixed size scalar cell
+                try {
+                  Seq array = record.getAs(attrName);
+                  for (int index = 0; index < cellValNum; index++) {
+                    pair.getSecond()
+                        .setItem(rowIndex * (int) cellValNum + index, array.apply(index));
+                  }
+                } catch (ClassCastException e) {
+                  String s = record.getAs(attrName);
+                  pair.getSecond().setItem(rowIndex * (int) cellValNum, s);
+                }
               }
             }
           }
+          rowIndex++;
         }
-        rowIndex++;
+        query.submit();
+        query.finalizeQuery();
       }
-      query.submit();
-      query.finalizeQuery();
-      query.close();
       batch.clear();
       varLengthIndex = new HashMap<>();
     }
