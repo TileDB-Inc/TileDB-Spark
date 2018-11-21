@@ -101,7 +101,7 @@ public class TileDBReaderFactory
           vectors = OnHeapColumnVector.allocateColumns(options.BATCH_SIZE, attributes);
           for (StructField field : attributes) {
             String name = field.name();
-            if (!arraySchema.getAttributes().containsKey(name)) {
+            if (!arraySchema.hasAttribute(name)) {
               // dimension column
               continue;
             }
@@ -347,7 +347,7 @@ public class TileDBReaderFactory
     }
     if (attribute.isVar()) {
       // add var length offsets
-      long[] offsets = (long[]) query.getVarBuffer(name);
+      long[] offsets = query.getVarBuffer(name);
       int typeSize = attribute.getType().getNativeSize();
       for (int j = 0; j < offsets.length; j++) {
         int length =
