@@ -20,7 +20,8 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
   private transient Context ctx;
   private String jobId;
   private StructType schema;
-  private boolean createTable, deleteTable;
+  private boolean createTable;
+  private boolean deleteTable;
   private TileDBOptions tileDBOptions;
 
   public TileDBWriterFactory(
@@ -51,9 +52,12 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
     this.tileDBOptions = tileDBOptions;
     this.ctx = new Context();
     if (init) {
-      if (deleteTable) deleteTable();
-
-      if (createTable) createTable();
+      if (deleteTable) {
+        deleteTable();
+      }
+      if (createTable) {
+        createTable();
+      }
     }
   }
 
@@ -236,7 +240,6 @@ public class TileDBWriterFactory implements DataWriterFactory, DataSourceWriter 
 
     private void flushSparse() throws Exception {
       assert arraySchema.isSparse() == true;
-
       int nrecords = batch.size();
       // nothing to write for this partition
       if (nrecords == 0) {

@@ -70,7 +70,6 @@ public class SimpleReadWriteTest extends SharedJavaSparkSession implements Seria
         .option("subarray.d2.extent", 2)
         .mode(SaveMode.Overwrite)
         .save();
-
     Dataset<Row> dfRead =
         session().read().format("io.tiledb.spark").option("uri", "my_dense_array").load();
     dfRead.show(10);

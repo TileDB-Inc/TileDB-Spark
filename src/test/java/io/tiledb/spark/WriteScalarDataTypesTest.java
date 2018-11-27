@@ -1,10 +1,13 @@
 package io.tiledb.spark;
 
+import static io.tiledb.spark.TestDataFrame.assertDataFrameEquals;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.types.*;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -12,6 +15,23 @@ import org.junit.rules.TemporaryFolder;
 public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements Serializable {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
+
+  protected void testWriteRead(Dataset<Row> dfWrite) {
+    // write dataset
+    String arrayURI = temp.getRoot().toString();
+    dfWrite
+        .write()
+        .format("io.tiledb.spark")
+        .option("uri", arrayURI)
+        .option("dimensions", "id")
+        .mode(SaveMode.ErrorIfExists)
+        .save();
+
+    // read saved byte dataset
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", arrayURI).load();
+    Assert.assertEquals(dfWrite.count(), dfRead.count());
+    Assert.assertTrue(assertDataFrameEquals(dfWrite, dfRead));
+  }
 
   public Dataset<Row> createByteDataset(SparkSession ss) {
     StructField[] structFields =
@@ -29,15 +49,7 @@ public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements 
 
   @Test
   public void testWriteByte() {
-    Dataset<Row> dfWrite = createByteDataset(session());
-    String arrayURI = temp.getRoot().toString();
-    dfWrite
-        .write()
-        .format("io.tiledb.spark")
-        .option("uri", arrayURI)
-        .option("dimensions", "id")
-        .mode(SaveMode.ErrorIfExists)
-        .save();
+    testWriteRead(createByteDataset(session()));
   }
 
   public Dataset<Row> createShortDataset(SparkSession ss) {
@@ -56,15 +68,7 @@ public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements 
 
   @Test
   public void testWriteShort() {
-    Dataset<Row> dfWrite = createShortDataset(session());
-    String arrayURI = temp.getRoot().toString();
-    dfWrite
-        .write()
-        .format("io.tiledb.spark")
-        .option("uri", arrayURI)
-        .option("dimensions", "id")
-        .mode(SaveMode.ErrorIfExists)
-        .save();
+    testWriteRead(createShortDataset(session()));
   }
 
   public Dataset<Row> createIntegerDataset(SparkSession ss) {
@@ -83,15 +87,7 @@ public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements 
 
   @Test
   public void testWriteInteger() {
-    Dataset<Row> dfWrite = createIntegerDataset(session());
-    String arrayURI = temp.getRoot().toString();
-    dfWrite
-        .write()
-        .format("io.tiledb.spark")
-        .option("uri", arrayURI)
-        .option("dimensions", "id")
-        .mode(SaveMode.ErrorIfExists)
-        .save();
+    testWriteRead(createIntegerDataset(session()));
   }
 
   public Dataset<Row> createLongDataset(SparkSession ss) {
@@ -110,15 +106,7 @@ public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements 
 
   @Test
   public void testWriteLongDataset() {
-    Dataset<Row> dfWrite = createLongDataset(session());
-    String arrayURI = temp.getRoot().toString();
-    dfWrite
-        .write()
-        .format("io.tiledb.spark")
-        .option("uri", arrayURI)
-        .option("dimensions", "id")
-        .mode(SaveMode.ErrorIfExists)
-        .save();
+    testWriteRead(createLongDataset(session()));
   }
 
   public Dataset<Row> createFloatDataset(SparkSession ss) {
@@ -137,15 +125,7 @@ public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements 
 
   @Test
   public void testWriteFloatDataset() {
-    Dataset<Row> dfWrite = createFloatDataset(session());
-    String arrayURI = temp.getRoot().toString();
-    dfWrite
-        .write()
-        .format("io.tiledb.spark")
-        .option("uri", arrayURI)
-        .option("dimensions", "id")
-        .mode(SaveMode.ErrorIfExists)
-        .save();
+    testWriteRead(createFloatDataset(session()));
   }
 
   public Dataset<Row> createDoubleDataset(SparkSession ss) {
@@ -164,15 +144,7 @@ public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements 
 
   @Test
   public void testWriteDoubleDataset() {
-    Dataset<Row> dfWrite = createDoubleDataset(session());
-    String arrayURI = temp.getRoot().toString();
-    dfWrite
-        .write()
-        .format("io.tiledb.spark")
-        .option("uri", arrayURI)
-        .option("dimensions", "id")
-        .mode(SaveMode.ErrorIfExists)
-        .save();
+    testWriteRead(createDoubleDataset(session()));
   }
 
   public Dataset<Row> createStringDataset(SparkSession ss) {
@@ -191,14 +163,6 @@ public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements 
 
   @Test
   public void testWriteStringDataset() {
-    Dataset<Row> dfWrite = createStringDataset(session());
-    String arrayURI = temp.getRoot().toString();
-    dfWrite
-        .write()
-        .format("io.tiledb.spark")
-        .option("uri", arrayURI)
-        .option("dimensions", "id")
-        .mode(SaveMode.ErrorIfExists)
-        .save();
+    testWriteRead(createStringDataset(session()));
   }
 }
