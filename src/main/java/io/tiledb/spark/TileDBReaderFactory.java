@@ -69,7 +69,6 @@ public class TileDBReaderFactory
 
   public TileDBReaderFactory(
       Object subarray, StructType requiredSchema, DataSourceOptions options, boolean partitioning) {
-
     this(subarray, requiredSchema, options);
     this.partitioning = partitioning;
   }
@@ -94,10 +93,16 @@ public class TileDBReaderFactory
 
           // Create query
           query = new Query(array, QueryType.TILEDB_READ);
+
           // query.setLayout(tiledb_layout_t.TILEDB_GLOBAL_ORDER);
           query.setSubarray(nativeSubArray);
 
-          int buffSize = (partitioning) ? options.PARTITION_SIZE : options.BATCH_SIZE;
+          int buffSize;
+          if (partitioning) {
+            buffSize = options.PARTITION_SIZE;
+          } else {
+            buffSize = options.BATCH_SIZE;
+          }
           vectors = OnHeapColumnVector.allocateColumns(options.BATCH_SIZE, attributes);
           for (StructField field : attributes) {
             String name = field.name();
@@ -151,9 +156,10 @@ public class TileDBReaderFactory
   @Override
   public ColumnarBatch get() {
     try {
-      int i = 0, currentSize = 0;
+      int i = 0;
+      int currentSize = 0;
       if (attributes.length == 0) {
-        // count
+        // count()
         try (Domain domain = arraySchema.getDomain();
             Dimension dim = domain.getDimension(0)) {
           currentSize = getDimensionColumn(dim.getName(), 0);
@@ -371,61 +377,52 @@ public class TileDBReaderFactory
     int numValues = 0;
     int bufferLength = 0;
     try (Domain domain = arraySchema.getDomain()) {
+      int ndim = Math.toIntExact(domain.getNDim());
+      int dimIdx = 0;
+      for (; dimIdx < ndim; dimIdx++) {
+        try (Dimension dim = domain.getDimension(dimIdx)) {
+          if (dim.getName().equals(name)) {
+            break;
+          }
+        }
+      }
       switch (domain.getType()) {
         case TILEDB_FLOAT32:
           {
             float[] coords = (float[]) query.getCoordinates();
-            int dimIdx = 0;
-            for (; dimIdx < domain.getRank(); dimIdx++) {
-              try (Dimension dim = domain.getDimension(dimIdx)) {
-                if (dim.getName().equals(name)) {
-                  break;
-                }
-              }
-            }
             bufferLength = coords.length;
-            numValues = bufferLength / 2;
-            vectors[index].reset();
-            for (int i = dimIdx; i < bufferLength; i += 2) {
-              vectors[index].putFloat(i / 2, coords[i]);
+            numValues = bufferLength / ndim;
+            if (vectors.length > 0) {
+              vectors[index].reset();
+              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
+                vectors[index].putFloat(row, coords[i]);
+              }
             }
             break;
           }
         case TILEDB_FLOAT64:
           {
             double[] coords = (double[]) query.getCoordinates();
-            int dimIdx = 0;
-            for (; dimIdx < domain.getRank(); dimIdx++) {
-              try (Dimension dim = domain.getDimension(dimIdx)) {
-                if (dim.getName().equals(name)) {
-                  break;
-                }
-              }
-            }
             bufferLength = coords.length;
-            numValues = bufferLength / 2;
-            vectors[index].reset();
-            for (int i = dimIdx; i < bufferLength; i += 2) {
-              vectors[index].putDouble(i / 2, coords[i]);
+            numValues = bufferLength / ndim;
+            if (vectors.length > 0) {
+              vectors[index].reset();
+              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
+                vectors[index].putDouble(row, coords[i]);
+              }
             }
             break;
           }
         case TILEDB_INT8:
           {
             byte[] coords = (byte[]) query.getCoordinates();
-            int dimIdx = 0;
-            for (; dimIdx < domain.getRank(); dimIdx++) {
-              try (Dimension dim = domain.getDimension(dimIdx)) {
-                if (dim.getName().equals(name)) {
-                  break;
-                }
-              }
-            }
             bufferLength = coords.length;
-            numValues = bufferLength / 2;
-            vectors[index].reset();
-            for (int i = dimIdx; i < bufferLength; i += 2) {
-              vectors[index].putByte(i / 2, coords[i]);
+            numValues = bufferLength / ndim;
+            if (vectors.length > 0) {
+              vectors[index].reset();
+              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
+                vectors[index].putByte(row, coords[i]);
+              }
             }
             break;
           }
@@ -433,19 +430,13 @@ public class TileDBReaderFactory
         case TILEDB_UINT8:
           {
             short[] coords = (short[]) query.getCoordinates();
-            int dimIdx = 0;
-            for (; dimIdx < domain.getRank(); dimIdx++) {
-              try (Dimension dim = domain.getDimension(dimIdx)) {
-                if (dim.getName().equals(name)) {
-                  break;
-                }
-              }
-            }
             bufferLength = coords.length;
-            numValues = bufferLength / 2;
-            vectors[index].reset();
-            for (int i = dimIdx; i < bufferLength; i += 2) {
-              vectors[index].putShort(i / 2, coords[i]);
+            numValues = bufferLength / ndim;
+            if (vectors.length > 0) {
+              vectors[index].reset();
+              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
+                vectors[index].putShort(row, coords[i]);
+              }
             }
             break;
           }
@@ -453,19 +444,13 @@ public class TileDBReaderFactory
         case TILEDB_INT32:
           {
             int[] coords = (int[]) query.getCoordinates();
-            int dimIdx = 0;
-            for (; dimIdx < domain.getRank(); dimIdx++) {
-              try (Dimension dim = domain.getDimension(dimIdx)) {
-                if (dim.getName().equals(name)) {
-                  break;
-                }
-              }
-            }
             bufferLength = coords.length;
-            numValues = bufferLength / 2;
-            vectors[index].reset();
-            for (int i = dimIdx; i < bufferLength; i += 2) {
-              vectors[index].putInt(i / 2, coords[i]);
+            numValues = bufferLength / ndim;
+            if (vectors.length > 0) {
+              vectors[index].reset();
+              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
+                vectors[index].putInt(row, coords[i]);
+              }
             }
             break;
           }
@@ -474,19 +459,13 @@ public class TileDBReaderFactory
         case TILEDB_UINT64:
           {
             long[] coords = (long[]) query.getCoordinates();
-            int dimIdx = 0;
-            for (; dimIdx < domain.getRank(); dimIdx++) {
-              try (Dimension dim = domain.getDimension(dimIdx)) {
-                if (dim.getName().equals(name)) {
-                  break;
-                }
-              }
-            }
             bufferLength = coords.length;
-            numValues = bufferLength / 2;
-            vectors[index].reset();
-            for (int i = dimIdx; i < bufferLength; i += 2) {
-              vectors[index].putLong(i / 2, coords[i]);
+            numValues = bufferLength / ndim;
+            if (vectors.length > 0) {
+              vectors[index].reset();
+              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
+                vectors[index].putLong(row, coords[i]);
+              }
             }
             break;
           }
