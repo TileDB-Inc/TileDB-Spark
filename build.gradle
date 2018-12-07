@@ -8,15 +8,15 @@ buildscript {
 }
 
 plugins {
+    id 'java'
+    id 'idea'
+    id 'maven-publish'
+    id 'signing'
     id 'com.github.sherter.google-java-format' version '0.7.1'
 }
 
 group 'io.tiledb'
-version '0.1.0'
-
-apply plugin: 'java'
-apply plugin: 'scala'
-apply plugin: 'idea'
+version '0.0.1'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -37,8 +37,8 @@ sourceSets {
         }
     }
     test {
-        scala {
-            srcDir 'test/scala'
+        java {
+            srcDir 'test/java'
         }
     }
 }
@@ -92,4 +92,35 @@ task checkFormat(type: VerifyGoogleJavaFormat) {
     source = sourceSets*.allJava
     include '**/*.java'
     ignoreFailures false
+}
+
+import org.gradle.plugins.signing.Sign
+gradle.taskGraph.whenReady { taskGraph ->
+    if (taskGraph.allTasks.any { it instanceof Sign }) {
+        allprojects { ext."signing.keyId" = System.getenv('GPG_KEY_ID') }
+        allprojects { ext."signing.secretKeyRingFile" = System.getenv('GPG_KEY_LOCATION') }
+        allprojects { ext."signing.password" = System.getenv('GPG_PASSPHRASE') }
+    }
+    // Do not sign archives by default (a local build without gpg keyring should succeed)
+    if (taskGraph.allTasks.any { it.name == 'build' || it.name == 'assemble' }) {
+        tasks.findAll { it.name == 'signArchives' || it.name == 'signDocsJar' || it.name == 'signTestJar' }.each { task ->
+            task.enabled = false
+        }
+    }
+}
+
+task sourceJar(type: Jar) {
+    classifier "sources"
+    from sourceSets.main.allJava
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier "javadoc"
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives jar
+    archives sourceJar
+    archives javadocJar
 }

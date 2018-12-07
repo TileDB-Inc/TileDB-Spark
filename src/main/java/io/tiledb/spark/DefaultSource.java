@@ -66,9 +66,8 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport {
         TileDBSchemaConverter tileDBSchemaConverter = new TileDBSchemaConverter(ctx, options);
         tileDBSchemaConverter.setRequiredSchema(requiredSchema);
         return tileDBSchemaConverter.getSparkSchema();
-      } catch (TileDBError tileDBError) {
-        tileDBError.printStackTrace();
-        return null;
+      } catch (TileDBError err) {
+        throw new RuntimeException(err.getMessage());
       }
     }
 

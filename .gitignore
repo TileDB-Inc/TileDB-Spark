@@ -23,6 +23,8 @@
 hs_err_pid*
 
 # intellij artifacts
+*.ipr
+*.iws
 *.iml
 .idea/
 

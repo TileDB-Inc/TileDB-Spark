@@ -38,6 +38,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 public class TileDBReaderFactory
     implements DataReaderFactory<ColumnarBatch>, DataReader<ColumnarBatch> {
+
   private StructField[] attributes;
   private Object subarray;
   private boolean initilized;
@@ -81,62 +82,69 @@ public class TileDBReaderFactory
   @Override
   public boolean next() {
     if (query == null) {
-      // initialize
+      // initialize Query
       try {
         ctx = new Context();
         array = new Array(ctx, options.ARRAY_URI);
         arraySchema = array.getSchema();
         try (Domain domain = arraySchema.getDomain();
             NativeArray nativeSubArray = new NativeArray(ctx, subarray, domain.getType())) {
-          // Compute maximum buffer elements for the query results per attribute
-          HashMap<String, Pair<Long, Long>> max_sizes = array.maxBufferElements(nativeSubArray);
+
+          // Compute estimate for the max number of buffer elements for the subarray query
+          HashMap<String, Pair<Long, Long>> maxBufferElements =
+              array.maxBufferElements(nativeSubArray);
+
+          // Compute an upper bound on the number of results in the subarray
+          Long estNumRows =
+              maxBufferElements.get(Constants.TILEDB_COORDS).getSecond() / domain.getNDim();
 
           // Create query
           query = new Query(array, QueryType.TILEDB_READ);
-
-          // query.setLayout(tiledb_layout_t.TILEDB_GLOBAL_ORDER);
+          query.setLayout(Layout.TILEDB_GLOBAL_ORDER);
           query.setSubarray(nativeSubArray);
 
-          int buffSize;
-          if (partitioning) {
-            buffSize = options.PARTITION_SIZE;
-          } else {
-            buffSize = options.BATCH_SIZE;
-          }
-          vectors = OnHeapColumnVector.allocateColumns(options.BATCH_SIZE, attributes);
+          // Allocate result set batch based on the estimated (upper bound) number of rows
+          vectors = OnHeapColumnVector.allocateColumns(estNumRows.intValue(), attributes);
+
+          // loop over all attributes and set the query buffers based on the result size estimate
           for (StructField field : attributes) {
+            // get the spark column name and match to array schema
             String name = field.name();
-            if (!arraySchema.hasAttribute(name)) {
-              // dimension column
+            if (domain.hasDimension(name)) {
+              // dimension column (coordinate buffer allocation handled at the end)
               continue;
             }
             try (Attribute attr = arraySchema.getAttribute(name)) {
-              long cellValNum = attr.getCellValNum();
-              int valPerRow =
-                  (int)
-                      ((cellValNum == Constants.TILEDB_VAR_NUM)
-                          ? max_sizes.get(name).getFirst()
-                          : cellValNum);
-              if (cellValNum == Constants.TILEDB_VAR_NUM) {
+              // attribute is variable length, init the varlen result buffers
+              if (attr.isVar()) {
                 query.setBuffer(
                     name,
-                    new NativeArray(ctx, buffSize, Datatype.TILEDB_UINT64),
                     new NativeArray(
                         ctx,
-                        buffSize * max_sizes.get(name).getSecond().intValue(),
-                        attr.getType()));
+                        maxBufferElements.get(name).getFirst().intValue(),
+                        Datatype.TILEDB_UINT64),
+                    new NativeArray(
+                        ctx, maxBufferElements.get(name).getSecond().intValue(), attr.getType()));
               } else {
-                query.setBuffer(name, new NativeArray(ctx, buffSize * valPerRow, attr.getType()));
+                // attribute is fixed length, use the result size estimate for allocation
+                query.setBuffer(
+                    name,
+                    new NativeArray(
+                        ctx, maxBufferElements.get(name).getSecond().intValue(), attr.getType()));
               }
             }
           }
+          // set the coordinate buffer result buffer
           query.setCoordinates(
-              new NativeArray(ctx, (buffSize * (int) domain.getRank()), domain.getType()));
+              new NativeArray(
+                  ctx,
+                  maxBufferElements.get(Constants.TILEDB_COORDS).getSecond().intValue(),
+                  domain.getType()));
           batch = new ColumnarBatch(vectors);
           hasNext = true;
         }
-      } catch (Exception tileDBError) {
-        tileDBError.printStackTrace();
+      } catch (Exception err) {
+        throw new RuntimeException(err.getMessage());
       }
     }
     if (!hasNext) {
@@ -147,32 +155,32 @@ public class TileDBReaderFactory
       boolean ret = hasNext;
       hasNext = query.getQueryStatus() == QueryStatus.TILEDB_INCOMPLETE;
       return ret;
-    } catch (TileDBError tileDBError) {
-      tileDBError.printStackTrace();
+    } catch (TileDBError err) {
+      throw new RuntimeException(err.getMessage());
     }
-    return false;
   }
 
   @Override
   public ColumnarBatch get() {
     try {
       int i = 0;
-      int currentSize = 0;
+      int nRows = -1;
       if (attributes.length == 0) {
-        // count()
+        // TODO: materialize the first dimension and count the result set size
         try (Domain domain = arraySchema.getDomain();
             Dimension dim = domain.getDimension(0)) {
-          currentSize = getDimensionColumn(dim.getName(), 0);
+          nRows = getDimensionColumn(dim.getName(), 0);
         }
       } else {
+        // loop over all Spark attributes (Dataframe columns) and copy the query result set
         for (StructField field : attributes) {
-          currentSize = getColumnBatch(field, i);
+          nRows = getColumnBatch(field, i);
           i++;
         }
       }
-      batch.setNumRows(currentSize);
-    } catch (TileDBError tileDBError) {
-      tileDBError.printStackTrace();
+      batch.setNumRows(nRows);
+    } catch (TileDBError err) {
+      throw new RuntimeException(err.getMessage());
     }
     return batch;
   }
