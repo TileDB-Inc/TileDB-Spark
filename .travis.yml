@@ -1,8 +1,8 @@
-dist: xenial
+dist: trusty
 
 language: java
 jdk:
-  - oraclejdk11
+  - oraclejdk8
 
 notifications:
   email: false
