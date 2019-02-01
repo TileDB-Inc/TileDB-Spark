@@ -37,6 +37,7 @@ public class SharedJavaSparkContext {
   public SparkContext setup(SparkContext sc) {
     sc.setCheckpointDir(
         Utils.createTempDir(System.getProperty("java.io.tmpdir"), "spark").toPath().toString());
+    sc.setLogLevel("ERROR");
     return sc;
   }
 
