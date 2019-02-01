@@ -1,4 +1,4 @@
-dist: trusty
+dist: xenial
 
 language: java
 jdk:
@@ -8,8 +8,8 @@ notifications:
   email: false
 
 install:
-  - gradle assemble --stacktrace --debug --info
+  - ./gradlew assemble --info
 
 script:
-  - gradle checkFormat
-  - gradle test
+  - ./gradlew checkFormat
+  - ./gradlew test
