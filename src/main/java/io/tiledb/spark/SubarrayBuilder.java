@@ -38,7 +38,7 @@ public class SubarrayBuilder {
   private Object subarray;
   private Context ctx;
 
-  public SubarrayBuilder(Context ctx, TileDBOptions options) throws Exception {
+  public SubarrayBuilder(Context ctx, TileDBOptions options) throws TileDBError {
     this.ctx = ctx;
     this.options = options;
     String arrayURI = options.ARRAY_URI;
@@ -48,7 +48,7 @@ public class SubarrayBuilder {
     notPushedFilters = new ArrayList<>(1);
   }
 
-  public SubarrayBuilder(Context ctx, DataSourceOptions dataSourceOptions) throws Exception {
+  public SubarrayBuilder(Context ctx, DataSourceOptions dataSourceOptions) throws TileDBError {
     this.ctx = ctx;
     this.options = new TileDBOptions(dataSourceOptions);
     String arrayURI = options.ARRAY_URI;
@@ -130,7 +130,7 @@ public class SubarrayBuilder {
     return subArray;
   }
 
-  private Object initSubarray(ArraySchema arraySchema) throws Exception {
+  private Object initSubarray(ArraySchema arraySchema) throws TileDBError {
     try (Domain arrayDomain = arraySchema.getDomain()) {
       int ndim = (int) arrayDomain.getRank();
       switch (arrayDomain.getType()) {

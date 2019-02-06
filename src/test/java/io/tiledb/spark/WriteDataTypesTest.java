@@ -12,7 +12,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements Serializable {
+public class WriteDataTypesTest extends SharedJavaSparkSession implements Serializable {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
@@ -37,6 +37,8 @@ public class WriteScalarDataTypesTest extends SharedJavaSparkSession implements 
     StructField[] structFields =
         new StructField[] {
           new StructField("a1", DataTypes.ByteType, false, Metadata.empty()),
+          new StructField(
+              "a2", DataTypes.createArrayType(DataTypes.ByteType, false), false, Metadata.empty()),
         };
     List<Row> rows = new ArrayList<>();
     rows.add(RowFactory.create((byte) 1));
