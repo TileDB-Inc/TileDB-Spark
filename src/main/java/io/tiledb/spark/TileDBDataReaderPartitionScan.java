@@ -88,8 +88,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           colIdx++;
         }
       }
-      // set the number of rows for the batch result set this enables sharing the columnar batch columns
-      // across iterations and the total number of rows allocated will be the high water number of rows over all batches
+      // set the number of rows for the batch result set this enables sharing the columnar batch
+      // columns
+      // across iterations and the total number of rows allocated will be the high water number of
+      // rows over all batches
       resultBatch.setNumRows(nRows);
     } catch (TileDBError err) {
       throw new RuntimeException(err.getMessage());
@@ -143,7 +145,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       HashMap<String, Pair<Long, Long>> maxBufferElements = array.maxBufferElements(nativeSubArray);
 
       // Compute an upper bound on the number of results in the subarray
-      Long estNumRows = maxBufferElements.get(Constants.TILEDB_COORDS).getSecond() / domain.getNDim();
+      Long estNumRows =
+          maxBufferElements.get(Constants.TILEDB_COORDS).getSecond() / domain.getNDim();
 
       // For this subarray for this partition there are no results
       if (estNumRows == 0) {
@@ -183,9 +186,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           } else {
             // attribute is fixed length, use the result size estimate for allocation
             int nvalues = maxBufferElements.get(name).getSecond().intValue();
-            query.setBuffer(
-                name,
-                new NativeArray(ctx, nvalues, attr.getType()));
+            query.setBuffer(name, new NativeArray(ctx, nvalues, attr.getType()));
           }
         }
       }
@@ -337,7 +338,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         }
       case TILEDB_INT8:
       case TILEDB_CHAR:
-        // string types that don't require any re-encoding to Spark UTF-8 representation supported for now
+        // string types that don't require any re-encoding to Spark UTF-8 representation supported
+        // for now
       case TILEDB_STRING_ASCII:
       case TILEDB_STRING_UTF8:
         {
@@ -386,7 +388,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       // number of bytes per (scalar) element in
       int typeSize = attribute.getType().getNativeSize();
       for (int j = 0; j < offsets.length; j++) {
-        // for every variable elgnth value, compute the Spark offset location from the number of bytes / varlen cell
+        // for every variable elgnth value, compute the Spark offset location from the number of
+        // bytes / varlen cell
         int length =
             (j == offsets.length - 1)
                 ? bufferLength * typeSize - (int) offsets[j]

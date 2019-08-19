@@ -22,7 +22,7 @@ public class TileDBReadSchema implements Serializable {
     return this;
   }
 
-  /** @return StructType spark schema given by the array schema and projected columns **/
+  /** @return StructType spark schema given by the array schema and projected columns * */
   public StructType getSparkSchema() {
     // for pushdown Spark first loads the entire schema and then does validation
     // if pushdown succeeds it means that Spark has already loaded the schema and verified

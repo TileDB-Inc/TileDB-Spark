@@ -1,5 +1,6 @@
 package io.tiledb.spark;
 
+import io.tiledb.java.api.TileDBError;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -7,9 +8,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
-
-import io.tiledb.java.api.Config;
-import io.tiledb.java.api.TileDBError;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TileDBDataSourceOptions implements Serializable {
@@ -28,9 +26,7 @@ public class TileDBDataSourceOptions implements Serializable {
     optionMap = new HashMap<>(options.asMap());
   }
 
-  /**
-   * @return Array resource URI *
-   */
+  /** @return Array resource URI * */
   public Optional<URI> getArrayURI() throws URISyntaxException {
     if (optionMap.containsKey("uri")) {
       return Optional.of(new URI(optionMap.get("uri")));
@@ -38,9 +34,9 @@ public class TileDBDataSourceOptions implements Serializable {
     return Optional.empty();
   }
 
-  /** @return A String HashMap of tiledb config options and values **/
-  public Map<String,String> getTileDBConfigMap() throws TileDBError {
-    HashMap<String,String> configMap = new HashMap<>();
+  /** @return A String HashMap of tiledb config options and values * */
+  public Map<String, String> getTileDBConfigMap() throws TileDBError {
+    HashMap<String, String> configMap = new HashMap<>();
     if (optionMap.isEmpty()) {
       return configMap;
     }
