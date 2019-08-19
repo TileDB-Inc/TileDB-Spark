@@ -5,5 +5,6 @@ fi
 git clone https://github.com/TileDB-Inc/TileDB-Java.git
 pushd TileDB-Java
 git checkout master
-./gradlew assemble publishToMavenLocal --stacktrace --debug --info
+./gradlew assemble --info
+./gradlew publishToMavenLocal --info
 popd

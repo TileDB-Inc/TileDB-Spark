@@ -1,0 +1,73 @@
+package io.tiledb.spark;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.junit.Assert;
+import org.junit.Test;
+
+public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
+
+  private String testArrayURIString(String arrayName) {
+    Path arraysPath = Paths.get("src", "test", "resources", "data", arrayName);
+    return "file://".concat(arraysPath.toAbsolutePath().toString());
+  }
+
+  @Test
+  public void testQuickStartSparse() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
+    Assert.assertEquals(3, rows.size());
+    // A[1, 1] == 1
+    Row row = rows.get(0);
+    Assert.assertEquals(1, row.getInt(0));
+    Assert.assertEquals(1, row.getInt(1));
+    Assert.assertEquals(1, row.getInt(2));
+    // A[2, 3] == 3
+    row = rows.get(1);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(3, row.getInt(1));
+    Assert.assertEquals(3, row.getInt(2));
+    // A[2, 4] == 2
+    row = rows.get(2);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(4, row.getInt(1));
+    Assert.assertEquals(2, row.getInt(2));
+    return;
+  }
+
+  @Test
+  public void testQuickStartDense() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("writing_dense_global_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
+    int[] expectedRows = new int[] {1, 1, 2, 2, 3, 3, 4, 4};
+    Assert.assertEquals(expectedRows.length, rows.size());
+    for (int i = 0; i < rows.size(); i++) {
+      Assert.assertEquals(expectedRows[i], rows.get(i).getInt(0));
+    }
+    int[] expectedCols = new int[] {1, 2, 1, 2, 1, 2, 1, 2};
+    Assert.assertEquals(expectedCols.length, rows.size());
+    for (int i = 0; i < rows.size(); i++) {
+      Assert.assertEquals(expectedCols[i], rows.get(i).getInt(1));
+    }
+    int[] expectedVals = new int[] {1, 2, 3, 4, 5, 6, 7, 8};
+    for (int i = 0; i < rows.size(); i++) {
+      Assert.assertEquals(expectedVals[i], rows.get(i).getInt(2));
+    }
+    return;
+  }
+}
