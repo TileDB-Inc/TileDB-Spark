@@ -1,0 +1,16 @@
+jobs:
+- job:
+  strategy:
+    matrix:
+      linux:
+        imageName: 'ubuntu-16.04'
+        CXX: g++
+      macOS:
+        imageName: 'macOS-10.13'
+        CXX: clang++
+  pool:
+    vmImage: $(imageName)
+  steps:
+  - task: Gradle@2
+    tasks: 'assemble checkFormat test'
+    gradleOptions: '--info' 
