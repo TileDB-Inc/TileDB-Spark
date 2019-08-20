@@ -3,6 +3,7 @@ package io.tiledb.spark;
 import io.tiledb.java.api.*;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.Optional;
 import java.util.logging.Logger;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
@@ -156,14 +157,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       // Create query and set the subarray for this partition
       query = new Query(array, QueryType.TILEDB_READ).setSubarray(nativeSubArray);
 
-      // TODO: allow option to override result layout
-      if (arraySchema.isSparse()) {
-        // sparse, set to array unordered (fastest)
-        query.setLayout(Layout.TILEDB_UNORDERED);
-      } else {
-        // dense, set to array cell order (fastest)
-        query.setLayout(arraySchema.getCellOrder());
-      }
+      // set query read layout
+      setOptionQueryLayout(options.getArrayLayout());
 
       // loop over all attributes and set the query buffers based on the result size estimate
       // the query object handles the lifetime of the allocated (offheap) NativeArrays
@@ -200,6 +195,32 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     }
     // est that there are resuts, so perform a read for this partition
     return true;
+  }
+
+  private void setOptionQueryLayout(Optional<Layout> layoutOption) throws TileDBError {
+    if (arraySchema.isSparse()) {
+      // sparse, set to array unordered (fastest) if not defined
+      Layout defaultLayout = Layout.TILEDB_UNORDERED;
+      if (layoutOption.isPresent()) {
+        query.setLayout(layoutOption.get());
+      } else {
+        query.setLayout(defaultLayout);
+      }
+    } else {
+      // dense, set default layout to array cell order (fastest)
+      Layout defaultLayout = arraySchema.getCellOrder();
+      if (layoutOption.isPresent()) {
+        Layout layout = layoutOption.get();
+        if (layout != Layout.TILEDB_UNORDERED) {
+          query.setLayout(layoutOption.get());
+        } else {
+          query.setLayout(defaultLayout);
+        }
+      } else {
+        query.setLayout(defaultLayout);
+      }
+    }
+    return;
   }
 
   /**

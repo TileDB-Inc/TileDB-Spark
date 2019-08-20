@@ -45,29 +45,60 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
   }
 
   @Test
-  public void testQuickStartDense() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("writing_dense_global_array"))
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
-    int[] expectedRows = new int[] {1, 1, 2, 2, 3, 3, 4, 4};
-    Assert.assertEquals(expectedRows.length, rows.size());
-    for (int i = 0; i < rows.size(); i++) {
-      Assert.assertEquals(expectedRows[i], rows.get(i).getInt(0));
+  public void testQuickStartDenseRowMajor() {
+    for (String order : new String[] {"row-major", "TILEDB_ROW_MAJOR"}) {
+      Dataset<Row> dfRead =
+          session()
+              .read()
+              .format("io.tiledb.spark")
+              .option("uri", testArrayURIString("writing_dense_global_array"))
+              .option("order", order)
+              .load();
+      dfRead.createOrReplaceTempView("tmp");
+      List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
+      int[] expectedRows = new int[] {1, 1, 2, 2, 3, 3, 4, 4};
+      Assert.assertEquals(expectedRows.length, rows.size());
+      for (int i = 0; i < rows.size(); i++) {
+        Assert.assertEquals(expectedRows[i], rows.get(i).getInt(0));
+      }
+      int[] expectedCols = new int[] {1, 2, 1, 2, 1, 2, 1, 2};
+      Assert.assertEquals(expectedCols.length, rows.size());
+      for (int i = 0; i < rows.size(); i++) {
+        Assert.assertEquals(expectedCols[i], rows.get(i).getInt(1));
+      }
+      int[] expectedVals = new int[] {1, 2, 3, 4, 5, 6, 7, 8};
+      for (int i = 0; i < rows.size(); i++) {
+        Assert.assertEquals(expectedVals[i], rows.get(i).getInt(2));
+      }
     }
-    int[] expectedCols = new int[] {1, 2, 1, 2, 1, 2, 1, 2};
-    Assert.assertEquals(expectedCols.length, rows.size());
-    for (int i = 0; i < rows.size(); i++) {
-      Assert.assertEquals(expectedCols[i], rows.get(i).getInt(1));
+  }
+
+  @Test
+  public void testQuickStartDenseColMajor() {
+    for (String order : new String[] {"col-major", "TILEDB_COL_MAJOR"}) {
+      Dataset<Row> dfRead =
+          session()
+              .read()
+              .format("io.tiledb.spark")
+              .option("uri", testArrayURIString("writing_dense_global_array"))
+              .option("order", order)
+              .load();
+      dfRead.createOrReplaceTempView("tmp");
+      List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
+      int[] expectedRows = new int[] {1, 2, 3, 4, 1, 2, 3, 4};
+      Assert.assertEquals(expectedRows.length, rows.size());
+      for (int i = 0; i < rows.size(); i++) {
+        Assert.assertEquals(expectedRows[i], rows.get(i).getInt(0));
+      }
+      int[] expectedCols = new int[] {1, 1, 1, 1, 2, 2, 2, 2};
+      Assert.assertEquals(expectedCols.length, rows.size());
+      for (int i = 0; i < rows.size(); i++) {
+        Assert.assertEquals(expectedCols[i], rows.get(i).getInt(1));
+      }
+      int[] expectedVals = new int[] {1, 3, 5, 7, 2, 4, 6, 8};
+      for (int i = 0; i < rows.size(); i++) {
+        Assert.assertEquals(expectedVals[i], rows.get(i).getInt(2));
+      }
     }
-    int[] expectedVals = new int[] {1, 2, 3, 4, 5, 6, 7, 8};
-    for (int i = 0; i < rows.size(); i++) {
-      Assert.assertEquals(expectedVals[i], rows.get(i).getInt(2));
-    }
-    return;
   }
 }

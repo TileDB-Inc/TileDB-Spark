@@ -1,5 +1,6 @@
 package io.tiledb.spark;
 
+import io.tiledb.java.api.Layout;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -36,6 +37,52 @@ public class TileDBDataSourceOptionsTest {
     Optional<URI> uri = options.getArrayURI();
     Assert.assertTrue(uri.isPresent());
     Assert.assertEquals(URI.create("s3://foo/bar"), uri.get());
+  }
+
+  @Test
+  public void testNoArrayLayoutOption() throws Exception {
+    HashMap<String, String> optionMap = new HashMap<>();
+    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+    Assert.assertFalse(options.getArrayLayout().isPresent());
+  }
+
+  @Test
+  public void testValidArrayLayoutOptions() throws Exception {
+    String[] validLayoutStrings =
+        new String[] {
+          "row-major",
+          "TILEDB_ROW_MAJOR",
+          "col-major",
+          "TILEDB_COL_MAJOR",
+          "unordered",
+          "TILEDB_UNORDERED"
+        };
+    Layout[] expectedLayouts =
+        new Layout[] {
+          Layout.TILEDB_ROW_MAJOR,
+          Layout.TILEDB_ROW_MAJOR,
+          Layout.TILEDB_COL_MAJOR,
+          Layout.TILEDB_COL_MAJOR,
+          Layout.TILEDB_UNORDERED,
+          Layout.TILEDB_UNORDERED
+        };
+    for (int i = 0; i < validLayoutStrings.length; i++) {
+      HashMap<String, String> optionMap = new HashMap<>();
+      optionMap.put("order", validLayoutStrings[i]);
+      TileDBDataSourceOptions options =
+          new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+      Optional<Layout> layout = options.getArrayLayout();
+      Assert.assertTrue(layout.isPresent());
+      Assert.assertEquals(expectedLayouts[i], layout.get());
+    }
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testInvalidLayoutOptions() throws Exception {
+    HashMap<String, String> optionMap = new HashMap<>();
+    optionMap.put("order", "bad-layout-option");
+    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+    Optional<Layout> layout = options.getArrayLayout();
   }
 
   @Test
