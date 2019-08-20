@@ -64,16 +64,6 @@ test {
     }
 }
 
-task installTileDBJava(type: Exec) {
-    doFirst {
-        mkdir project.buildDir
-    }
-    workingDir = project.buildDir
-    executable = "../installTileDBJava"
-}
-
-assemble.dependsOn(installTileDBJava)
-
 // metrics.jar
 task metricsJar(type: Jar) {
     baseName = "tiledb-spark-metrics"
