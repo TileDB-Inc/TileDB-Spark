@@ -7,13 +7,16 @@ Currently works for the latest Spark stable release (v2.4).
 
 ## Build / Test
 
-To build and install 
+To build and install
+
+```
     git clone git@github.com:TileDB-Inc/TileDB-Spark.git
     cd TileDB-Spark
     ./gradlew assemble
     ./gradlew test
-    
-This will create a `build/libs/TileDB-Spark-0.1.0-SNAPSHOT.jar` JAR as well as build a TileDB-Java Jar that
+```
+
+This will create a `build/libs/TileDB-Spark-0.0.1-SNAPSHOT.jar` JAR as well as build a TileDB-Java Jar that
 
 ### Amazon-Linux / EMR
 
@@ -22,7 +25,7 @@ This will create a `build/libs/TileDB-Spark-0.1.0-SNAPSHOT.jar` JAR as well as b
 To load the TileDB Spark Datasource reader, 
 you need to specify the path to built project jar with `--jars` to upload to the Spark cluster.
 
-    $ spark-shell --jars build/libs/TileDB-Spark-0.1.0-SNAPSHOT.jar,/path/to/TileDB-Java-0.1.6.jar
+    $ spark-shell --jars build/libs/TileDB-Spark-0.0.1-SNAPSHOT.jar,/path/to/TileDB-Java-0.1.7-SNAPSHOT.jar
 
 To read TileDB data to a dataframe in the TileDB format, specify the `format` and `uri` option
  
