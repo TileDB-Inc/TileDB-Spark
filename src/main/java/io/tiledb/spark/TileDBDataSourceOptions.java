@@ -1,6 +1,6 @@
 package io.tiledb.spark;
 
-import io.tiledb.java.api.TileDBError;
+import io.tiledb.java.api.Layout;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -26,7 +26,7 @@ public class TileDBDataSourceOptions implements Serializable {
     optionMap = new HashMap<>(options.asMap());
   }
 
-  /** @return Array resource URI * */
+  /** @return Optional URI to TileDB array resource * */
   public Optional<URI> getArrayURI() throws URISyntaxException {
     if (optionMap.containsKey("uri")) {
       return Optional.of(new URI(optionMap.get("uri")));
@@ -34,8 +34,29 @@ public class TileDBDataSourceOptions implements Serializable {
     return Optional.empty();
   }
 
-  /** @return A String HashMap of tiledb config options and values * */
-  public Map<String, String> getTileDBConfigMap() throws TileDBError {
+  /** @return Optional TileDB.Layout description for overriding dataframe sorted order * */
+  public Optional<io.tiledb.java.api.Layout> getArrayLayout() {
+    if (optionMap.containsKey("order")) {
+      String val = optionMap.get("order");
+      // accept either the python string values or tiledb enum string value (uppercase) for
+      // consistency with python api
+      if (val.equalsIgnoreCase("row-major") || val.equalsIgnoreCase("TILEDB_ROW_MAJOR")) {
+        return Optional.of(Layout.TILEDB_ROW_MAJOR);
+      } else if (val.equalsIgnoreCase("col-major") || val.equalsIgnoreCase("TILEDB_COL_MAJOR")) {
+        return Optional.of(Layout.TILEDB_COL_MAJOR);
+      } else if (val.equalsIgnoreCase("unordered") || val.equalsIgnoreCase("TILEDB_UNORDERED")) {
+        return Optional.of(Layout.TILEDB_UNORDERED);
+      } else {
+        throw new IllegalArgumentException(
+            "Unknown TileDB result layout order, valid values are 'row-major', 'col-major' and 'unordered', got: "
+                + val);
+      }
+    }
+    return Optional.empty();
+  }
+
+  /** @return Optional String HashMap of tiledb config options and values * */
+  public Map<String, String> getTileDBConfigMap() {
     HashMap<String, String> configMap = new HashMap<>();
     if (optionMap.isEmpty()) {
       return configMap;
