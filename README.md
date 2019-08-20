@@ -13,6 +13,7 @@ To build and install
     git clone git@github.com:TileDB-Inc/TileDB-Spark.git
     cd TileDB-Spark
     ./gradlew assemble
+    ./gradlew shadowJar
     ./gradlew test
 ```
 

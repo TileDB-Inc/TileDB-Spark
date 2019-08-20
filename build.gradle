@@ -13,6 +13,7 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id 'com.github.sherter.google-java-format' version '0.7.1'
+    id "com.github.johnrengelman.shadow" version "4.0.4"
 }
 
 group 'io.tiledb'
@@ -68,6 +69,14 @@ task getHomeDir {
     doLast {
         println gradle.gradleHomeDir
     }
+}
+
+tasks.jar.configure {
+    classifier = 'default'
+}
+
+tasks.shadowJar.configure {
+    classifier = null
 }
 
 import com.github.sherter.googlejavaformatgradleplugin.GoogleJavaFormat
