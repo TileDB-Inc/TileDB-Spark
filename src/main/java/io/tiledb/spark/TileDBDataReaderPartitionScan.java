@@ -11,19 +11,11 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
-import org.apache.spark.sql.sources.EqualNullSafe;
-import org.apache.spark.sql.sources.EqualTo;
-import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.sources.GreaterThan;
-import org.apache.spark.sql.sources.GreaterThanOrEqual;
-import org.apache.spark.sql.sources.In;
-import org.apache.spark.sql.sources.LessThan;
-import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -36,7 +28,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   static Logger log = Logger.getLogger(TileDBDataReaderPartitionScan.class.getName());
 
   // Filter pushdown to this partition
-  private final Filter[] pushedFilters;
+  private final List<List<Pair>> pushedRanges;
 
   // HAL for getting memory details about doubling buffers
   private final HardwareAbstractionLayer hardwareAbstractionLayer;
@@ -75,12 +67,15 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private final ArrayList<Pair<NativeArray, NativeArray>> queryBuffers;
 
   public TileDBDataReaderPartitionScan(
-      URI uri, TileDBReadSchema schema, TileDBDataSourceOptions options, Filter[] pushedFilters) {
+      URI uri,
+      TileDBReadSchema schema,
+      TileDBDataSourceOptions options,
+      List<List<Pair>> pushedRanges) {
     this.arrayURI = uri;
     this.sparkSchema = schema.getSparkSchema();
     this.options = options;
     this.queryStatus = TILEDB_UNINITIALIZED;
-    this.pushedFilters = pushedFilters;
+    this.pushedRanges = pushedRanges;
 
     this.read_query_buffer_size = options.getReadBufferSizes();
 
@@ -216,9 +211,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       query = new Query(array, QueryType.TILEDB_READ);
 
       // Pushdown any ranges
-      if (pushedFilters.length > 0) {
-        for (Filter filter : pushedFilters) {
-          setRangeFromFilter(filter, domain, nonEmptyDomain);
+      if (pushedRanges.size() > 0) {
+        for (int i = 0; i < pushedRanges.size(); i++) {
+          for (Pair range : pushedRanges.get(i)) {
+            query.addRange(i, range.getFirst(), range.getSecond());
+          }
         }
       } else {
         // If there was no filter to pushdown, we must select the entire nonEmptyDomain
@@ -361,74 +358,6 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           OnHeapColumnVector.allocateColumns(
               Math.toIntExact(ncoords / domain.getNDim()), sparkSchema);
       resultBatch = new ColumnarBatch(resultVectors);
-    }
-  }
-
-  /**
-   * Sets a range from a filter that has been pushed down
-   *
-   * @param filter
-   * @param domain
-   * @param nonEmptyDomain
-   * @throws TileDBError
-   */
-  private void setRangeFromFilter(
-      Filter filter, Domain domain, HashMap<String, Pair> nonEmptyDomain) throws TileDBError {
-    Map<String, Integer> dimensionIndexing = new HashMap<>();
-    // Build mapping for dimension name to index
-    for (int i = 0; i < domain.getNDim(); i++) {
-      try (Dimension dim = domain.getDimension(i)) {
-        dimensionIndexing.put(dim.getName(), i);
-      }
-    }
-    // First handle filter that are equal so `dim = 1`
-    if (filter instanceof EqualNullSafe) {
-      EqualNullSafe f = (EqualNullSafe) filter;
-      query.addRange(dimensionIndexing.get(f.attribute()), f.value(), f.value());
-    } else if (filter instanceof EqualTo) {
-      EqualTo f = (EqualTo) filter;
-      query.addRange(dimensionIndexing.get(f.attribute()), f.value(), f.value());
-
-      // GreaterThan is ranges which are in the form of `dim > 1`
-    } else if (filter instanceof GreaterThan) {
-      GreaterThan f = (GreaterThan) filter;
-      query.addRange(
-          dimensionIndexing.get(f.attribute()),
-          addEpsilon(f.value(), domain.getType()),
-          nonEmptyDomain.get(f.attribute()).getSecond());
-      // GreaterThanOrEqual is ranges which are in the form of `dim >= 1`
-    } else if (filter instanceof GreaterThanOrEqual) {
-      GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
-      query.addRange(
-          dimensionIndexing.get(f.attribute()),
-          f.value(),
-          nonEmptyDomain.get(f.attribute()).getSecond());
-
-      // For in filters we will add every value as ranges of 1. `dim IN (1, 2, 3)`
-    } else if (filter instanceof In) {
-      In f = (In) filter;
-      int dimIndex = dimensionIndexing.get(f.attribute());
-      // Add every value as a new range, TileDB will collapse into super ranges for us
-      for (Object value : f.values()) {
-        query.addRange(dimIndex, value, value);
-      }
-
-      // LessThanl is ranges which are in the form of `dim < 1`
-    } else if (filter instanceof LessThan) {
-      LessThan f = (LessThan) filter;
-      query.addRange(
-          dimensionIndexing.get(f.attribute()),
-          nonEmptyDomain.get(f.attribute()).getFirst(),
-          subtractEpsilon(f.value(), domain.getType()));
-      // LessThanOrEqual is ranges which are in the form of `dim <= 1`
-    } else if (filter instanceof LessThanOrEqual) {
-      LessThanOrEqual f = (LessThanOrEqual) filter;
-      query.addRange(
-          dimensionIndexing.get(f.attribute()),
-          nonEmptyDomain.get(f.attribute()).getFirst(),
-          f.value());
-    } else {
-      throw new TileDBError("Unsupporter filter type");
     }
   }
 
