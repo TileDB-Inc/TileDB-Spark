@@ -27,10 +27,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   static Logger log = Logger.getLogger(TileDBDataReaderPartitionScan.class.getName());
 
-  // Query buffer size capacity in bytes (default 512mb)
-  // static final int QUERY_BUFFER_SIZE = 524288000;
-  static final int QUERY_BUFFER_SIZE = 1024 * 1024 * 10;
+  // Filter pushdown to this partition
   private final Filter[] pushedFilters;
+
+  // read buffer size
+  private long read_query_buffer_size;
 
   // array resource URI (dense or sparse)
   private URI arrayURI;
@@ -63,6 +64,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     this.options = options;
     this.hasNext = false;
     this.pushedFilters = pushedFilters;
+
+    this.read_query_buffer_size = options.getReadBufferSizes();
   }
 
   @Override
@@ -186,21 +189,24 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         try (Attribute attr = arraySchema.getAttribute(name)) {
           // attribute is variable length, init the varlen result buffers using the est num offsets
           if (attr.isVar()) {
-            int noffsets = QUERY_BUFFER_SIZE / TILEDB_UINT64.getNativeSize();
-            int nvalues = QUERY_BUFFER_SIZE / attr.getType().getNativeSize();
+            int noffsets =
+                Math.toIntExact(this.read_query_buffer_size / TILEDB_UINT64.getNativeSize());
+            int nvalues =
+                Math.toIntExact(this.read_query_buffer_size / attr.getType().getNativeSize());
             query.setBuffer(
                 name,
                 new NativeArray(ctx, noffsets, TILEDB_UINT64),
                 new NativeArray(ctx, nvalues, attr.getType()));
           } else {
             // attribute is fixed length, use the result size estimate for allocation
-            int nvalues = QUERY_BUFFER_SIZE / attr.getType().getNativeSize();
+            int nvalues =
+                Math.toIntExact(this.read_query_buffer_size / attr.getType().getNativeSize());
             query.setBuffer(name, new NativeArray(ctx, nvalues, attr.getType()));
           }
         }
       }
       // set the coordinate buffer result buffer
-      int ncoords = QUERY_BUFFER_SIZE / domain.getType().getNativeSize();
+      int ncoords = Math.toIntExact(this.read_query_buffer_size / domain.getType().getNativeSize());
       query.setCoordinates(new NativeArray(ctx, ncoords, domain.getType()));
 
       // Allocate result set batch based on the estimated (upper bound) number of rows / cells
