@@ -4,7 +4,14 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.log4j.Logger;
+import org.apache.spark.sql.sources.EqualNullSafe;
+import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.sources.GreaterThan;
+import org.apache.spark.sql.sources.GreaterThanOrEqual;
+import org.apache.spark.sql.sources.In;
+import org.apache.spark.sql.sources.LessThan;
+import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.v2.reader.*;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -20,6 +27,7 @@ public class TileDBDataSourceReader
   private URI uri;
   private TileDBReadSchema tileDBReadSchema;
   private TileDBDataSourceOptions tiledbOptions;
+  private Filter[] pushedFilters;
 
   public TileDBDataSourceReader(URI uri, TileDBDataSourceOptions options) {
     this.uri = uri;
@@ -43,12 +51,64 @@ public class TileDBDataSourceReader
 
   @Override
   public Filter[] pushFilters(Filter[] filters) {
-    return filters;
+    log.info("size of filters " + filters.length);
+    ArrayList<Filter> pushedFiltersList = new ArrayList<>();
+    ArrayList<Filter> leftOverFilters = new ArrayList<>();
+
+    // Loop through all filters and check if they are support type and on a domain. If so push them
+    // down
+    for (Filter filter : filters) {
+      if (filter instanceof EqualNullSafe) {
+        EqualNullSafe f = (EqualNullSafe) filter;
+        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+          pushedFiltersList.add(filter);
+        }
+      } else if (filter instanceof EqualTo) {
+        EqualTo f = (EqualTo) filter;
+        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+          pushedFiltersList.add(filter);
+        }
+      } else if (filter instanceof GreaterThan) {
+        GreaterThan f = (GreaterThan) filter;
+        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+          pushedFiltersList.add(filter);
+        }
+      } else if (filter instanceof GreaterThanOrEqual) {
+        GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
+        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+          pushedFiltersList.add(filter);
+        }
+      } else if (filter instanceof In) {
+        In f = (In) filter;
+        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+          pushedFiltersList.add(filter);
+        }
+      } else if (filter instanceof LessThan) {
+        LessThan f = (LessThan) filter;
+        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+          pushedFiltersList.add(filter);
+        }
+      } else if (filter instanceof LessThanOrEqual) {
+        LessThanOrEqual f = (LessThanOrEqual) filter;
+        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+          pushedFiltersList.add(filter);
+        }
+      } else {
+        leftOverFilters.add(filter);
+      }
+    }
+
+    this.pushedFilters = new Filter[pushedFiltersList.size()];
+    this.pushedFilters = pushedFiltersList.toArray(this.pushedFilters);
+
+    Filter[] leftOvers = new Filter[leftOverFilters.size()];
+    leftOvers = leftOverFilters.toArray(leftOvers);
+    return leftOvers;
   }
 
   @Override
   public Filter[] pushedFilters() {
-    return new Filter[] {};
+    return pushedFilters;
   }
 
   @Override
@@ -59,9 +119,10 @@ public class TileDBDataSourceReader
 
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
-    ArrayList readerPartitions = new ArrayList<>();
+    ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
     // TODO: multiple subarray partitioning
-    readerPartitions.add(new TileDBDataReaderPartition(uri, tileDBReadSchema, tiledbOptions));
+    readerPartitions.add(
+        new TileDBDataReaderPartition(uri, tileDBReadSchema, tiledbOptions, pushedFilters));
     // foo
     return readerPartitions;
   }

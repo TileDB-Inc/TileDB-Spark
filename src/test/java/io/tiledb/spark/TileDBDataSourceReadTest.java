@@ -101,4 +101,140 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
       }
     }
   }
+
+  @Test
+  public void testQuickStartSparseFilterEqual() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows = session().sql("SELECT * FROM tmp WHERE rows = 1 and cols = 1").collectAsList();
+    Assert.assertEquals(1, rows.size());
+    // A[1, 1] == 1
+    Row row = rows.get(0);
+    Assert.assertEquals(1, row.getInt(0));
+    Assert.assertEquals(1, row.getInt(1));
+    Assert.assertEquals(1, row.getInt(2));
+    return;
+  }
+
+  @Test
+  public void testQuickStartSparseFilterGreaterThan() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows = session().sql("SELECT * FROM tmp WHERE rows > 1").collectAsList();
+    Assert.assertEquals(2, rows.size());
+    // A[2, 3] == 3
+    Row row = rows.get(0);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(3, row.getInt(1));
+    Assert.assertEquals(3, row.getInt(2));
+    // A[2, 4] == 2
+    row = rows.get(1);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(4, row.getInt(1));
+    Assert.assertEquals(2, row.getInt(2));
+    return;
+  }
+
+  @Test
+  public void testQuickStartSparseFilterGreaterThanEqual() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows = session().sql("SELECT * FROM tmp WHERE rows >= 2").collectAsList();
+    Assert.assertEquals(2, rows.size());
+    // A[2, 3] == 3
+    Row row = rows.get(0);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(3, row.getInt(1));
+    Assert.assertEquals(3, row.getInt(2));
+    // A[2, 4] == 2
+    row = rows.get(1);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(4, row.getInt(1));
+    Assert.assertEquals(2, row.getInt(2));
+    return;
+  }
+
+  @Test
+  public void testQuickStartSparseFilterLessThan() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows = session().sql("SELECT * FROM tmp WHERE rows < 2").collectAsList();
+    Assert.assertEquals(1, rows.size());
+    // A[1, 1] == 1
+    Row row = rows.get(0);
+    Assert.assertEquals(1, row.getInt(0));
+    Assert.assertEquals(1, row.getInt(1));
+    Assert.assertEquals(1, row.getInt(2));
+    return;
+  }
+
+  @Test
+  public void testQuickStartSparseFilterLessThanEqual() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows =
+        session().sql("SELECT * FROM tmp WHERE rows <= 2 AND cols <= 3").collectAsList();
+    Assert.assertEquals(2, rows.size());
+    // A[1, 1] == 1
+    Row row = rows.get(0);
+    Assert.assertEquals(1, row.getInt(0));
+    Assert.assertEquals(1, row.getInt(1));
+    Assert.assertEquals(1, row.getInt(2));
+    // A[2, 3] == 3
+    row = rows.get(1);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(3, row.getInt(1));
+    Assert.assertEquals(3, row.getInt(2));
+    return;
+  }
+
+  @Test
+  public void testQuickStartSparseFilterIn() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows =
+        session().sql("SELECT * FROM tmp WHERE rows IN (1, 2) AND cols IN (1,3)").collectAsList();
+    Assert.assertEquals(2, rows.size());
+    // A[1, 1] == 1
+    Row row = rows.get(0);
+    Assert.assertEquals(1, row.getInt(0));
+    Assert.assertEquals(1, row.getInt(1));
+    Assert.assertEquals(1, row.getInt(2));
+    // A[2, 3] == 3
+    row = rows.get(1);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(3, row.getInt(1));
+    Assert.assertEquals(3, row.getInt(2));
+    return;
+  }
 }

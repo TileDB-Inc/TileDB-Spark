@@ -1,22 +1,36 @@
 package io.tiledb.spark;
 
+import static io.tiledb.java.api.Datatype.TILEDB_UINT64;
+
 import io.tiledb.java.api.*;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Logger;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
+import org.apache.spark.sql.sources.EqualNullSafe;
+import org.apache.spark.sql.sources.EqualTo;
+import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.sources.GreaterThan;
+import org.apache.spark.sql.sources.GreaterThanOrEqual;
+import org.apache.spark.sql.sources.In;
+import org.apache.spark.sql.sources.LessThan;
+import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import scala.annotation.meta.field;
 
 public class TileDBDataReaderPartitionScan implements InputPartitionReader<ColumnarBatch> {
 
   static Logger log = Logger.getLogger(TileDBDataReaderPartitionScan.class.getName());
 
   // Query buffer size capacity in bytes (default 512mb)
-  static final int QUERY_BUFFER_SIZE = 524288000;
+  // static final int QUERY_BUFFER_SIZE = 524288000;
+  static final int QUERY_BUFFER_SIZE = 1024 * 1024 * 10;
+  private final Filter[] pushedFilters;
 
   // array resource URI (dense or sparse)
   private URI arrayURI;
@@ -43,11 +57,12 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private boolean hasNext;
 
   public TileDBDataReaderPartitionScan(
-      URI uri, TileDBReadSchema schema, TileDBDataSourceOptions options) {
+      URI uri, TileDBReadSchema schema, TileDBDataSourceOptions options, Filter[] pushedFilters) {
     this.arrayURI = uri;
     this.sparkSchema = schema.getSparkSchema();
     this.options = options;
     this.hasNext = false;
+    this.pushedFilters = pushedFilters;
   }
 
   @Override
@@ -135,27 +150,26 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
       // TODO: Init with one subarray spanning the domain for now
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
-      for (int i = 0; i < domain.getNDim(); i++) {
-        try (Dimension dim = domain.getDimension(i)) {
-          Pair extent = nonEmptyDomain.get(dim.getName());
-          nativeSubArray.setItem(i * 2 + 0, extent.getFirst());
-          nativeSubArray.setItem(i * 2 + 1, extent.getSecond());
-        }
-      }
-      // Compute estimate for the max number of buffer elements for the subarray query
-      HashMap<String, Pair<Long, Long>> maxBufferElements = array.maxBufferElements(nativeSubArray);
-
-      // Compute an upper bound on the number of results in the subarray
-      Long estNumRows =
-          maxBufferElements.get(Constants.TILEDB_COORDS).getSecond() / domain.getNDim();
-
-      // For this subarray for this partition there are no results
-      if (estNumRows == 0) {
-        return false;
-      }
 
       // Create query and set the subarray for this partition
-      query = new Query(array, QueryType.TILEDB_READ).setSubarray(nativeSubArray);
+      query = new Query(array, QueryType.TILEDB_READ);
+
+      // Pushdown any ranges
+      if (pushedFilters.length > 0) {
+        for (Filter filter : pushedFilters) {
+          setRangeFromFilter(filter, domain, nonEmptyDomain);
+        }
+      } else {
+        // If there was no filter to pushdown, we must select the entire nonEmptyDomain
+        for (int i = 0; i < domain.getNDim(); i++) {
+          try (Dimension dim = domain.getDimension(i)) {
+            Pair extent = nonEmptyDomain.get(dim.getName());
+            nativeSubArray.setItem(i * 2, extent.getFirst());
+            nativeSubArray.setItem(i * 2 + 1, extent.getSecond());
+          }
+        }
+        query.setSubarray(nativeSubArray);
+      }
 
       // set query read layout
       setOptionQueryLayout(options.getArrayLayout());
@@ -172,29 +186,157 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         try (Attribute attr = arraySchema.getAttribute(name)) {
           // attribute is variable length, init the varlen result buffers using the est num offsets
           if (attr.isVar()) {
-            int noffsets = maxBufferElements.get(name).getFirst().intValue();
-            int nvalues = maxBufferElements.get(name).getSecond().intValue();
+            int noffsets = QUERY_BUFFER_SIZE / TILEDB_UINT64.getNativeSize();
+            int nvalues = QUERY_BUFFER_SIZE / attr.getType().getNativeSize();
             query.setBuffer(
                 name,
-                new NativeArray(ctx, noffsets, Datatype.TILEDB_UINT64),
+                new NativeArray(ctx, noffsets, TILEDB_UINT64),
                 new NativeArray(ctx, nvalues, attr.getType()));
           } else {
             // attribute is fixed length, use the result size estimate for allocation
-            int nvalues = maxBufferElements.get(name).getSecond().intValue();
+            int nvalues = QUERY_BUFFER_SIZE / attr.getType().getNativeSize();
             query.setBuffer(name, new NativeArray(ctx, nvalues, attr.getType()));
           }
         }
       }
       // set the coordinate buffer result buffer
-      int ncoords = maxBufferElements.get(Constants.TILEDB_COORDS).getSecond().intValue();
+      int ncoords = QUERY_BUFFER_SIZE / domain.getType().getNativeSize();
       query.setCoordinates(new NativeArray(ctx, ncoords, domain.getType()));
 
       // Allocate result set batch based on the estimated (upper bound) number of rows / cells
-      resultVectors = OnHeapColumnVector.allocateColumns(estNumRows.intValue(), sparkSchema);
+      resultVectors =
+          OnHeapColumnVector.allocateColumns(
+              Math.toIntExact(ncoords / domain.getNDim()), sparkSchema);
       resultBatch = new ColumnarBatch(resultVectors);
     }
     // est that there are resuts, so perform a read for this partition
     return true;
+  }
+
+  /**
+   * Sets a range from a filter that has been pushed down
+   *
+   * @param filter
+   * @param domain
+   * @param nonEmptyDomain
+   * @throws TileDBError
+   */
+  private void setRangeFromFilter(
+      Filter filter, Domain domain, HashMap<String, Pair> nonEmptyDomain) throws TileDBError {
+    Map<String, Integer> dimensionIndexing = new HashMap<>();
+    // Build mapping for dimension name to index
+    for (int i = 0; i < domain.getNDim(); i++) {
+      try (Dimension dim = domain.getDimension(i)) {
+        dimensionIndexing.put(dim.getName(), i);
+      }
+    }
+    // First handle filter that are equal so `dim = 1`
+    if (filter instanceof EqualNullSafe) {
+      EqualNullSafe f = (EqualNullSafe) filter;
+      query.addRange(dimensionIndexing.get(f.attribute()), f.value(), f.value());
+    } else if (filter instanceof EqualTo) {
+      EqualTo f = (EqualTo) filter;
+      query.addRange(dimensionIndexing.get(f.attribute()), f.value(), f.value());
+
+      // GreaterThan is ranges which are in the form of `dim > 1`
+    } else if (filter instanceof GreaterThan) {
+      GreaterThan f = (GreaterThan) filter;
+      query.addRange(
+          dimensionIndexing.get(f.attribute()),
+          addEpsilon(f.value(), domain.getType()),
+          nonEmptyDomain.get(f.attribute()).getSecond());
+      // GreaterThanOrEqual is ranges which are in the form of `dim >= 1`
+    } else if (filter instanceof GreaterThanOrEqual) {
+      GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
+      query.addRange(
+          dimensionIndexing.get(f.attribute()),
+          f.value(),
+          nonEmptyDomain.get(f.attribute()).getSecond());
+
+      // For in filters we will add every value as ranges of 1. `dim IN (1, 2, 3)`
+    } else if (filter instanceof In) {
+      In f = (In) filter;
+      int dimIndex = dimensionIndexing.get(f.attribute());
+      // Add every value as a new range, TileDB will collapse into super ranges for us
+      for (Object value : f.values()) {
+        query.addRange(dimIndex, value, value);
+      }
+
+      // LessThanl is ranges which are in the form of `dim < 1`
+    } else if (filter instanceof LessThan) {
+      LessThan f = (LessThan) filter;
+      query.addRange(
+          dimensionIndexing.get(f.attribute()),
+          nonEmptyDomain.get(f.attribute()).getFirst(),
+          subtractEpsilon(f.value(), domain.getType()));
+      // LessThanOrEqual is ranges which are in the form of `dim <= 1`
+    } else if (filter instanceof LessThanOrEqual) {
+      LessThanOrEqual f = (LessThanOrEqual) filter;
+      query.addRange(
+          dimensionIndexing.get(f.attribute()),
+          nonEmptyDomain.get(f.attribute()).getFirst(),
+          f.value());
+    } else {
+      throw new TileDBError("Unsupporter filter type");
+    }
+  }
+
+  /** Returns v + eps, where eps is the smallest value for the datatype such that v + eps > v. */
+  private static Object addEpsilon(Object value, Datatype type) throws TileDBError {
+    switch (type) {
+      case TILEDB_CHAR:
+      case TILEDB_INT8:
+        return ((byte) value) < Byte.MAX_VALUE ? ((byte) value + 1) : value;
+      case TILEDB_INT16:
+        return ((short) value) < Short.MAX_VALUE ? ((short) value + 1) : value;
+      case TILEDB_INT32:
+        return ((int) value) < Integer.MAX_VALUE ? ((int) value + 1) : value;
+      case TILEDB_INT64:
+        return ((long) value) < Long.MAX_VALUE ? ((long) value + 1) : value;
+      case TILEDB_UINT8:
+        return ((short) value) < ((short) Byte.MAX_VALUE + 1) ? ((short) value + 1) : value;
+      case TILEDB_UINT16:
+        return ((int) value) < ((int) Short.MAX_VALUE + 1) ? ((int) value + 1) : value;
+      case TILEDB_UINT32:
+        return ((long) value) < ((long) Integer.MAX_VALUE + 1) ? ((long) value + 1) : value;
+      case TILEDB_UINT64:
+        return ((long) value) < ((long) Integer.MAX_VALUE + 1) ? ((long) value + 1) : value;
+      case TILEDB_FLOAT32:
+        return ((float) value) < Float.MAX_VALUE ? Math.nextUp((float) value) : value;
+      case TILEDB_FLOAT64:
+        return ((double) value) < Double.MAX_VALUE ? Math.nextUp((double) value) : value;
+      default:
+        throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
+    }
+  }
+
+  /** Returns v - eps, where eps is the smallest value for the datatype such that v - eps < v. */
+  private static Object subtractEpsilon(Object value, Datatype type) throws TileDBError {
+    switch (type) {
+      case TILEDB_CHAR:
+      case TILEDB_INT8:
+        return ((byte) value) > Byte.MIN_VALUE ? ((byte) value - 1) : value;
+      case TILEDB_INT16:
+        return ((short) value) > Short.MIN_VALUE ? ((short) value - 1) : value;
+      case TILEDB_INT32:
+        return ((int) value) > Integer.MIN_VALUE ? ((int) value - 1) : value;
+      case TILEDB_INT64:
+        return ((long) value) > Long.MIN_VALUE ? ((long) value - 1) : value;
+      case TILEDB_UINT8:
+        return ((short) value) > ((short) Byte.MIN_VALUE - 1) ? ((short) value - 1) : value;
+      case TILEDB_UINT16:
+        return ((int) value) > ((int) Short.MIN_VALUE - 1) ? ((int) value - 1) : value;
+      case TILEDB_UINT32:
+        return ((long) value) > ((long) Integer.MIN_VALUE - 1) ? ((long) value - 1) : value;
+      case TILEDB_UINT64:
+        return ((long) value) > ((long) Integer.MIN_VALUE - 1) ? ((long) value - 1) : value;
+      case TILEDB_FLOAT32:
+        return ((float) value) > Float.MIN_VALUE ? Math.nextDown((float) value) : value;
+      case TILEDB_FLOAT64:
+        return ((double) value) > Double.MIN_VALUE ? Math.nextDown((double) value) : value;
+      default:
+        throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
+    }
   }
 
   private void setOptionQueryLayout(Optional<Layout> layoutOption) throws TileDBError {

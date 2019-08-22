@@ -3,6 +3,7 @@ package io.tiledb.spark;
 import io.tiledb.java.api.*;
 import java.io.Serializable;
 import java.net.URI;
+import java.util.HashMap;
 import org.apache.spark.sql.types.*;
 
 public class TileDBReadSchema implements Serializable {
@@ -11,10 +12,13 @@ public class TileDBReadSchema implements Serializable {
   private TileDBDataSourceOptions options;
   private StructType pushDownSparkSchema;
   private StructType tiledbSparkSchema;
+  public HashMap<String, Integer> dimensionIndexes;
 
   public TileDBReadSchema(URI uri, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.options = options;
+    this.dimensionIndexes = new HashMap<>();
+    this.getSparkSchema();
   }
 
   public TileDBReadSchema setPushDownSchema(StructType pushDownSchema) {
@@ -55,6 +59,7 @@ public class TileDBReadSchema implements Serializable {
       for (int i = 0; i < arrayDomain.getNDim(); i++) {
         try (Dimension dim = arrayDomain.getDimension(i)) {
           String dimName = dim.getName();
+          dimensionIndexes.put(dimName, i);
           // schema is immutable so to iteratively add we need to re-assign
           sparkSchema = sparkSchema.add(toStructField(dimName, true, dim.getType(), 1l, false));
         }
