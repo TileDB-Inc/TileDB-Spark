@@ -37,12 +37,20 @@ public class TileDBDataSourceOptions implements Serializable {
     return Optional.empty();
   }
 
-  /** @return Optional URI to TileDB array resource * */
+  /** @return Read buffer size * */
   public long getReadBufferSizes() {
     if (optionMap.containsKey("read_buffer_size")) {
       return Long.parseLong(optionMap.get("read_buffer_size"));
     }
     return QUERY_BUFFER_SIZE;
+  }
+
+  /** @return Allow read buffers to be reallocated if a query is incomplete due to buffer size * */
+  public boolean getAllowReadBufferReallocation() {
+    if (optionMap.containsKey("allow_read_buffer_realloc")) {
+      return Boolean.parseBoolean(optionMap.get("allow_read_buffer_realloc"));
+    }
+    return true;
   }
 
   /** @return Optional TileDB.Layout description for overriding dataframe sorted order * */
