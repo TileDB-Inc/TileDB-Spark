@@ -16,6 +16,9 @@ public class TileDBDataSourceOptions implements Serializable {
   // DataSourceOptions is not serializable so we convert to a Java HashMap
   private HashMap<String, String> optionMap;
 
+  // Query buffer size capacity in bytes (default 10mb)
+  private static final int QUERY_BUFFER_SIZE = 1024 * 1024 * 10;
+
   /**
    * Parses TileDB Spark DataSource and TileDB config options (prefixed with `tiledb.confg = value`)
    *
@@ -32,6 +35,14 @@ public class TileDBDataSourceOptions implements Serializable {
       return Optional.of(new URI(optionMap.get("uri")));
     }
     return Optional.empty();
+  }
+
+  /** @return Optional URI to TileDB array resource * */
+  public long getReadBufferSizes() {
+    if (optionMap.containsKey("read_buffer_size")) {
+      return Long.parseLong(optionMap.get("read_buffer_size"));
+    }
+    return QUERY_BUFFER_SIZE;
   }
 
   /** @return Optional TileDB.Layout description for overriding dataframe sorted order * */

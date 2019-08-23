@@ -27,11 +27,13 @@ you need to specify the path to built project jar with `--jars` to upload to the
 
     $ spark-shell --jars build/libs/TileDB-Spark-0.0.1-SNAPSHOT.jar,/path/to/TileDB-Java-0.1.7-SNAPSHOT.jar
 
-To read TileDB data to a dataframe in the TileDB format, specify the `format` and `uri` option
+To read TileDB data to a dataframe in the TileDB format, specify the `format` and `uri` option.
+Optionally include the `read_buffer_size` to set the off heap tiledb buffer sizes per attribute (include coordinates).
  
     scala> val sampleDF = spark.read
                                .format("io.tiledb.spark")
-                               .option("uri", "file:///path/to/tiledb/array") 
+                               .option("uri", "file:///path/to/tiledb/array")
+                               .option("read_buffer_size", 100*1024*1024)
                                .load()
                                
 ### Options
@@ -39,6 +41,7 @@ To read TileDB data to a dataframe in the TileDB format, specify the `format` an
 * `uri` (required): URI to TileDB sparse or dense array
 * `order` (optional): Result layout order `"row-major"`/ `"TILEDB_ROW_MAJOR"`, `"col-major"` / `"TILEDB_COL_MAJOR"`, or `"unordered"`/ `"TILEDB_UNORDERED"` (default `"unordered"`).
 * `tiledb.` (optional): Set a TileDB config option, ex: `option("tiledb.vfs.num_threads", 4)`.  Multiple tiledb config options can be specified.  See the [full list of configuration options](https://docs.tiledb.io/en/latest/tutorials/config.html?highlight=config#summary-of-parameters).
+* `read_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
 
 ## Semantics
 
