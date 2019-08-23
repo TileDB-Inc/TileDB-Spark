@@ -4,10 +4,7 @@ import io.tiledb.java.api.Layout;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TileDBDataSourceOptions implements Serializable {
@@ -72,6 +69,32 @@ public class TileDBDataSourceOptions implements Serializable {
       }
     }
     return Optional.empty();
+  }
+
+  /**
+   * @return Optional List of OptionDimPartitions describing the dimension name, index and number of
+   *     partitions *
+   */
+  public Optional<List<OptionDimPartition>> getDimPartitions() {
+    if (optionMap.isEmpty()) {
+      return Optional.empty();
+    }
+    List<OptionDimPartition> dimPartitions = new LinkedList<>();
+    Iterator<Map.Entry<String, String>> entries = optionMap.entrySet().iterator();
+    String prefix = "partition.";
+    while (entries.hasNext()) {
+      Map.Entry<String, String> entry = entries.next();
+      String key = entry.getKey();
+      String val = entry.getValue();
+      if (key.startsWith(prefix)) {
+        String strippedKey = key.substring(prefix.length());
+        dimPartitions.add(new OptionDimPartition(strippedKey, val));
+      }
+    }
+    if (dimPartitions.isEmpty()) {
+      return Optional.empty();
+    }
+    return Optional.of(dimPartitions);
   }
 
   /** @return Optional String HashMap of tiledb config options and values * */
