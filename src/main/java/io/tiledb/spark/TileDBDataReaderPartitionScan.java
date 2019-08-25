@@ -28,7 +28,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   static Logger log = Logger.getLogger(TileDBDataReaderPartitionScan.class.getName());
 
   // Filter pushdown to this partition
-  private final List<List<Pair>> pushedRanges;
+  private final List<List<Range>> pushedRanges;
 
   // HAL for getting memory details about doubling buffers
   private final HardwareAbstractionLayer hardwareAbstractionLayer;
@@ -70,7 +70,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       URI uri,
       TileDBReadSchema schema,
       TileDBDataSourceOptions options,
-      List<List<Pair>> pushedRanges) {
+      List<List<Range>> pushedRanges) {
     this.arrayURI = uri;
     this.sparkSchema = schema.getSparkSchema();
     this.options = options;
@@ -212,12 +212,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
       // Pushdown any ranges
       if (pushedRanges.size() > 0) {
-        for (int i = 0; i < pushedRanges.size(); i++) {
-          for (Pair range : pushedRanges.get(i)) {
-            query.addRange(i, range.getFirst(), range.getSecond());
+          for (List<Range> ranges : pushedRanges) {
+            for (int i = 0; i < ranges.size(); i++) {
+            query.addRange(i, ranges.get(i).getFirst(), ranges.get(i).getSecond());
           }
         }
       } else {
+        // TODO: Remove this because it should be handled in the partitioning now
         // If there was no filter to pushdown, we must select the entire nonEmptyDomain
         for (int i = 0; i < domain.getNDim(); i++) {
           try (Dimension dim = domain.getDimension(i)) {

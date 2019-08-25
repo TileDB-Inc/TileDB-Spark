@@ -237,4 +237,32 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     Assert.assertEquals(3, row.getInt(2));
     return;
   }
+
+  @Test
+  public void testQuickStartSparseFilterBetween() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows =
+        session()
+            .sql("SELECT * FROM tmp WHERE rows between 1 and 3 AND (cols = 1 OR cols = 3)")
+            .collectAsList();
+    rows.forEach(e -> System.out.println(e.toString()));
+    Assert.assertEquals(2, rows.size());
+    // A[1, 1] == 1
+    Row row = rows.get(0);
+    Assert.assertEquals(1, row.getInt(0));
+    Assert.assertEquals(1, row.getInt(1));
+    Assert.assertEquals(1, row.getInt(2));
+    // A[2, 3] == 3
+    row = rows.get(1);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(3, row.getInt(1));
+    Assert.assertEquals(3, row.getInt(2));
+    return;
+  }
 }
