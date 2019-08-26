@@ -2,41 +2,28 @@ package io.tiledb.spark;
 
 import static io.tiledb.java.api.Constants.TILEDB_COORDS;
 import static io.tiledb.java.api.Datatype.TILEDB_UINT64;
-import static io.tiledb.java.api.QueryStatus.TILEDB_COMPLETED;
-import static io.tiledb.java.api.QueryStatus.TILEDB_INCOMPLETE;
-import static io.tiledb.java.api.QueryStatus.TILEDB_UNINITIALIZED;
 
 import io.tiledb.java.api.*;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
-import org.apache.spark.sql.sources.EqualNullSafe;
-import org.apache.spark.sql.sources.EqualTo;
-import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.sources.GreaterThan;
-import org.apache.spark.sql.sources.GreaterThanOrEqual;
-import org.apache.spark.sql.sources.In;
-import org.apache.spark.sql.sources.LessThan;
-import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import oshi.hardware.HardwareAbstractionLayer;
-import scala.annotation.meta.field;
 
 public class TileDBDataReaderPartitionScan implements InputPartitionReader<ColumnarBatch> {
 
   static Logger log = Logger.getLogger(TileDBDataReaderPartitionScan.class.getName());
 
   // Filter pushdown to this partition
-  private final Filter[] pushedFilters;
+  private final DomainDimRange[] dimRanges;
 
   // HAL for getting memory details about doubling buffers
   private final HardwareAbstractionLayer hardwareAbstractionLayer;
@@ -75,12 +62,15 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private final ArrayList<Pair<NativeArray, NativeArray>> queryBuffers;
 
   public TileDBDataReaderPartitionScan(
-      URI uri, TileDBReadSchema schema, TileDBDataSourceOptions options, Filter[] pushedFilters) {
+      URI uri,
+      TileDBReadSchema schema,
+      TileDBDataSourceOptions options,
+      DomainDimRange[] dimRanges) {
     this.arrayURI = uri;
     this.sparkSchema = schema.getSparkSchema();
     this.options = options;
-    this.queryStatus = TILEDB_UNINITIALIZED;
-    this.pushedFilters = pushedFilters;
+    this.queryStatus = QueryStatus.TILEDB_UNINITIALIZED;
+    this.dimRanges = dimRanges;
 
     this.read_query_buffer_size = options.getReadBufferSizes();
 
@@ -108,14 +98,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
       // If the query was completed, and we have exhausted all records then we should close the
       // cursor
-      if (queryStatus == TILEDB_COMPLETED) {
+      if (queryStatus == QueryStatus.TILEDB_COMPLETED) {
         return false;
       }
-
       do {
-        query.submit();
-
-        queryStatus = query.getQueryStatus();
+        queryStatus = query.submit();
 
         // Compute the number of cells (records) that were returned by the query.
         HashMap<String, Pair<Long, Long>> queryResultBufferElements = query.resultBufferElements();
@@ -123,7 +110,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             queryResultBufferElements.get(TILEDB_COORDS).getSecond() / domain.getNDim();
 
         // Increase the buffer allocation and resubmit if necessary.
-        if (queryStatus == TILEDB_INCOMPLETE && currentNumRecords == 0) { // VERY IMPORTANT!!
+        if (queryStatus == QueryStatus.TILEDB_INCOMPLETE
+            && currentNumRecords == 0) { // VERY IMPORTANT!!
           if (options.getAllowReadBufferReallocation()) {
             reallocateQueryBuffers();
           } else {
@@ -134,7 +122,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           // Break out of resubmit loop as we have some results.
           return true;
         }
-      } while (queryStatus == TILEDB_INCOMPLETE);
+      } while (queryStatus == QueryStatus.TILEDB_INCOMPLETE);
     } catch (TileDBError err) {
       throw new RuntimeException(err.getMessage());
     }
@@ -209,35 +197,21 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         NativeArray nativeSubArray =
             new NativeArray(ctx, 2 * (int) domain.getNDim(), domain.getType())) {
 
-      // TODO: Init with one subarray spanning the domain for now
-      HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
-
       // Create query and set the subarray for this partition
       query = new Query(array, QueryType.TILEDB_READ);
-
-      // Pushdown any ranges
-      if (pushedFilters.length > 0) {
-        for (Filter filter : pushedFilters) {
-          setRangeFromFilter(filter, domain, nonEmptyDomain);
-        }
-      } else {
-        // If there was no filter to pushdown, we must select the entire nonEmptyDomain
-        for (int i = 0; i < domain.getNDim(); i++) {
-          try (Dimension dim = domain.getDimension(i)) {
-            Pair extent = nonEmptyDomain.get(dim.getName());
-            nativeSubArray.setItem(i * 2, extent.getFirst());
-            nativeSubArray.setItem(i * 2 + 1, extent.getSecond());
-          }
-        }
-        query.setSubarray(nativeSubArray);
-      }
-
       // set query read layout
       setOptionQueryLayout(options.getArrayLayout());
 
-      allocateQuerybuffers(this.read_query_buffer_size);
+      // Set query subarray dimension ranges
+      for (DomainDimRange dimRange : dimRanges) {
+        if (dimRange != null) {
+          query.addRange(dimRange.getIdx(), dimRange.getStart(), dimRange.getEnd());
+        }
+      }
+
+      allocateQuerybuffers(read_query_buffer_size);
     }
-    // est that there are resuts, so perform a read for this partition
+    // est that there are results, so perform a read for this partition
     return true;
   }
 
@@ -328,12 +302,12 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
       // loop over all attributes and set the query buffers based on buffer size
       // the query object handles the lifetime of the allocated (offheap) NativeArrays
-      int i = 0;
+      int bufferIdx = 0;
       for (StructField field : sparkSchema.fields()) {
         // get the spark column name and match to array schema
         String name = field.name();
         if (domain.hasDimension(name)) {
-          queryBuffers.set(i++, new Pair<>(null, coordBuffer));
+          queryBuffers.set(bufferIdx++, new Pair<>(null, coordBuffer));
           // dimension column (coordinate buffer allocation handled at the end)
           continue;
         }
@@ -345,17 +319,16 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             int noffsets = Math.toIntExact(readBufferSize / TILEDB_UINT64.getNativeSize());
             NativeArray offsets = new NativeArray(ctx, noffsets, TILEDB_UINT64);
             query.setBuffer(name, offsets, data);
-            queryBuffers.set(i++, new Pair<>(offsets, data));
+            queryBuffers.set(bufferIdx++, new Pair<>(offsets, data));
           } else {
             // attribute is fixed length, use the result size estimate for allocation
             query.setBuffer(name, new NativeArray(ctx, nvalues, attr.getType()));
-            queryBuffers.set(i++, new Pair<>(null, data));
+            queryBuffers.set(bufferIdx++, new Pair<>(null, data));
           }
         }
       }
       // set the coordinate buffer result buffer
       query.setCoordinates(coordBuffer);
-      queryBuffers.set(i++, new Pair<>(null, coordBuffer));
 
       // Allocate result set batch based on the estimated (upper bound) number of rows / cells
       resultVectors =
@@ -364,7 +337,6 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       resultBatch = new ColumnarBatch(resultVectors);
     }
   }
-
 
   private void setOptionQueryLayout(Optional<Layout> layoutOption) throws TileDBError {
     if (arraySchema.isSparse()) {

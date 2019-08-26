@@ -3,10 +3,7 @@ package io.tiledb.spark;
 import io.tiledb.java.api.*;
 import java.io.Serializable;
 import java.net.URI;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-
+import java.util.*;
 import org.apache.spark.sql.types.*;
 
 public class TileDBReadSchema implements Serializable {
@@ -15,14 +12,14 @@ public class TileDBReadSchema implements Serializable {
   private TileDBDataSourceOptions options;
   private StructType pushDownSparkSchema;
   private StructType tiledbSparkSchema;
-  private List<IntegerDimRange> nonEmptyDomain;
+  private ArrayList<DomainDimRange> nonEmptyDomain;
   private HashMap<String, Integer> dimensionNameIdxMap;
   private HashMap<String, Integer> attributeNameIdxMap;
 
   public TileDBReadSchema(URI uri, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.options = options;
-    this.nonEmptyDomain = new LinkedList<>();
+    this.nonEmptyDomain = new ArrayList<>();
     this.dimensionNameIdxMap = new HashMap<>();
     this.attributeNameIdxMap = new HashMap<>();
     this.getSparkSchema();
@@ -33,20 +30,30 @@ public class TileDBReadSchema implements Serializable {
     return this;
   }
 
-  /** @return True if the the given name is a dimension, false otherwise **/
+  /** @return True if the the given name is a dimension, false otherwise * */
   public boolean isDimensionName(String name) {
     return dimensionNameIdxMap.containsKey(name);
   };
 
-  /** @return Optional integer index
+  /** @return Optional integer index * */
   public Optional<Integer> getDimensionIdx(String name) {
     if (!isDimensionName(name)) {
       return Optional.empty();
     }
     return Optional.of(dimensionNameIdxMap.get(name));
+  };
+
+  /** @return Number of dimensions in domain * */
+  public Integer getDomainNDim() {
+    return nonEmptyDomain.size();
   }
 
-  /** @return True if the given name is an attribute, false otherwise **/
+  /** @return Non-empty domain range * */
+  public DomainDimRange[] getNonEmptyDomainRange() {
+    return nonEmptyDomain.toArray(new DomainDimRange[nonEmptyDomain.size()]);
+  };
+
+  /** @return True if the given name is an attribute, false otherwise * */
   public boolean isAttributeName(String name) {
     return dimensionNameIdxMap.containsKey(name);
   }
@@ -78,7 +85,7 @@ public class TileDBReadSchema implements Serializable {
     StructType sparkSchema = new StructType();
     try (Context ctx = new Context(options.getTileDBConfigMap());
         // fetch and load the array / schema (IO)
-         Array array = new Array(ctx, uri.toString());
+        Array array = new Array(ctx, uri.toString());
         ArraySchema arraySchema = array.getSchema();
         Domain arrayDomain = arraySchema.getDomain()) {
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
@@ -87,7 +94,9 @@ public class TileDBReadSchema implements Serializable {
         try (Dimension dim = arrayDomain.getDimension(i)) {
           String dimName = dim.getName();
           Pair dimExtent = nonEmptyDomain.get(dimName);
-          this.nonEmptyDomain.add(new IntegerDimRange(dimName, i, dim.getType(), (Long) dimExtent.getFirst(), (Long) dimExtent.getSecond()));
+          this.nonEmptyDomain.add(
+              new DomainDimRange(
+                  dimName, i, dim.getType(), dimExtent.getFirst(), dimExtent.getSecond()));
           this.dimensionNameIdxMap.put(dimName, i);
           // schema is immutable so to iteratively add we need to re-assign
           sparkSchema = sparkSchema.add(toStructField(dimName, true, dim.getType(), 1l, false));

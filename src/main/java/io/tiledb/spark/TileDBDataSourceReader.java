@@ -119,14 +119,27 @@ public class TileDBDataSourceReader
 
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
-    TileDBDomainPartitioner partitioner = new TileDBDomainPartitioner(tileDBReadSchema, tiledbOptions);
-    partitioner.setPushdownFilters(pushedFilters);
-
+    TileDBDomainPartitioner partitioner;
+    try {
+      partitioner = new TileDBDomainPartitioner(tileDBReadSchema.getNonEmptyDomainRange());
+      partitioner.setPushdownFilters(pushedFilters);
+      if (tiledbOptions.getDimPartitions().isPresent()) {
+        for (OptionDimPartition p : tiledbOptions.getDimPartitions().get()) {
+          if (p.getDimName().isPresent()) {
+            partitioner.setDimPartitions(p.getDimName().get(), p.getNPartitions());
+          } else {
+            partitioner.setDimPartitions(p.getDimIdx().get(), p.getNPartitions());
+          }
+        }
+      }
+    } catch (Exception err) {
+      err.printStackTrace();
+      throw new RuntimeException(err.getMessage());
+    }
     ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
-    // TODO: multiple subarray partitioning
+    DomainDimRange[] dimRanges = partitioner.getDomainDimRanges(0);
     readerPartitions.add(
-        new TileDBDataReaderPartition(uri, tileDBReadSchema, tiledbOptions, pushedFilters));
-    // foo
+        new TileDBDataReaderPartition(uri, tileDBReadSchema, tiledbOptions, dimRanges));
     return readerPartitions;
   }
 }

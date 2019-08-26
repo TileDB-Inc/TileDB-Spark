@@ -1,4 +1,3 @@
 package io.tiledb.spark;
 
-public class DimRangeTest {
-}
+public class DimRangeTest {}
