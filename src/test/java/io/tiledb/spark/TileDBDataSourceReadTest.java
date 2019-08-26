@@ -11,7 +11,7 @@ import org.junit.Test;
 public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
 
   private String testArrayURIString(String arrayName) {
-    Path arraysPath = Paths.get("src", "test", "resources", "data", arrayName);
+    Path arraysPath = Paths.get("src", "test", "resources", "data", "1.6", arrayName);
     return "file://".concat(arraysPath.toAbsolutePath().toString());
   }
 
@@ -252,7 +252,6 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
             .sql(
                 "SELECT * FROM tmp WHERE rows between 1 and 3 AND (cols = 1 OR cols = 3 OR cols = 4) ORDER BY rows, cols")
             .collectAsList();
-    rows.forEach(e -> System.out.println(e.toString()));
     Assert.assertEquals(3, rows.size());
     // A[1, 1] == 1
     Row row = rows.get(0);

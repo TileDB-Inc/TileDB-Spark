@@ -196,27 +196,33 @@ public class TileDBDataSourceReader
 
       int availablePartitions = tiledbOptions.getPartitionCount() - subarrays.size();
       if (availablePartitions > 1) {
-        // Sort subarrays based on volume so largest volume is first
-        subarrays.sort(Collections.reverseOrder());
-        // Find median volume of subarrays;
+        // Base case where we don't have any (or just single) pushdown per dimension
+        if (subarrays.size() == 1) {
+          // Split the single subarray into the available partitions
+          subarrays = subarrays.get(0).split(availablePartitions);
+        } else {
+          // Sort subarrays based on volume so largest volume is first
+          subarrays.sort(Collections.reverseOrder());
+          // Find median volume of subarrays;
 
-        SubArrayRanges medianSubarray = subarrays.get(subarrays.size() / 2);
-        Number medianVolume = medianSubarray.getVolume();
+          SubArrayRanges medianSubarray = subarrays.get(subarrays.size() / 2);
+          Number medianVolume = medianSubarray.getVolume();
 
-        List<Integer> neededSplitsToReduceToMedianVolume =
-            computeNeededSplitsToReduceToMedianVolume(
-                subarrays.subList(0, subarrays.size() / 2),
-                medianVolume,
-                medianSubarray.getDatatype());
+          List<Integer> neededSplitsToReduceToMedianVolume =
+              computeNeededSplitsToReduceToMedianVolume(
+                  subarrays.subList(0, subarrays.size() / 2),
+                  medianVolume,
+                  medianSubarray.getDatatype());
 
-        //        for (SubArrayRanges subArrayRanges : subarrays) {
-        for (int i = 0; i < neededSplitsToReduceToMedianVolume.size(); i++) {
-          SubArrayRanges subarray = subarrays.get(i);
-          List<SubArrayRanges> splitSubarray =
-              subarray.split(neededSplitsToReduceToMedianVolume.get(i));
+          //        for (SubArrayRanges subArrayRanges : subarrays) {
+          for (int i = 0; i < neededSplitsToReduceToMedianVolume.size(); i++) {
+            SubArrayRanges subarray = subarrays.get(i);
+            List<SubArrayRanges> splitSubarray =
+                subarray.split(neededSplitsToReduceToMedianVolume.get(i));
 
-          subarrays.remove(i);
-          subarrays.addAll(splitSubarray);
+            subarrays.remove(i);
+            subarrays.addAll(splitSubarray);
+          }
         }
       }
 
