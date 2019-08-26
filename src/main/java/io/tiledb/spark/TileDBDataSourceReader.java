@@ -18,7 +18,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.IntStream;
 import org.apache.log4j.Logger;
+import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
@@ -90,7 +92,12 @@ public class TileDBDataSourceReader
   }
 
   private boolean checkFilterIsDimensionOnly(Filter filter) {
-    if (filter instanceof Or) {
+    if (filter instanceof And) {
+      And f = (And) filter;
+      if (checkFilterIsDimensionOnly(f.left()) && checkFilterIsDimensionOnly(f.right())) {
+        return true;
+      }
+    } else if (filter instanceof Or) {
       Or f = (Or) filter;
       if (checkFilterIsDimensionOnly(f.left()) && checkFilterIsDimensionOnly(f.right())) {
         return true;
@@ -160,9 +167,11 @@ public class TileDBDataSourceReader
         ranges.add(new ArrayList<>());
       }
 
+      // Build range from all pushed filters
       for (Filter filter : pushedFilters) {
         List<List<Range>> dimRanges =
-            buildRangeFromFilter(filter, this.tileDBReadSchema.domainType, nonEmptyDomain);
+            buildRangeFromFilter(filter, this.tileDBReadSchema.domainType, nonEmptyDomain)
+                .getFirst();
 
         for (int i = 0; i < dimRanges.size(); i++) {
           ranges.get(i).addAll(dimRanges.get(i));
@@ -236,7 +245,6 @@ public class TileDBDataSourceReader
         }
       }
 
-      // TODO: multiple subarray partitioning
       for (SubArrayRanges subarray : subarrays) {
         // In the future we will be smarter about combining ranges to have partitions work on more
         // than one range
@@ -250,10 +258,17 @@ public class TileDBDataSourceReader
       log.log(ERROR, tileDBError.getMessage());
       return readerPartitions;
     }
-    // foo
     return readerPartitions;
   }
 
+  /**
+   * Computes the number of splits needed to reduce a subarray to a given size
+   *
+   * @param subArrayRanges
+   * @param medianVolume
+   * @param datatype
+   * @return
+   */
   private List<Integer> computeNeededSplitsToReduceToMedianVolume(
       List<SubArrayRanges> subArrayRanges, Number medianVolume, Class datatype) {
     List<Integer> neededSplits = new ArrayList<>();
@@ -276,6 +291,13 @@ public class TileDBDataSourceReader
     return neededSplits;
   }
 
+  /**
+   * Check and merge any and all ranges
+   *
+   * @param range
+   * @return
+   * @throws TileDBError
+   */
   private List<Range> checkAndMergeRanges(List<Range> range) throws TileDBError {
     List<Range> rangesToBeMerged = new ArrayList<>(range);
     rangesToBeMerged.sort(
@@ -359,29 +381,76 @@ public class TileDBDataSourceReader
    * @param nonEmptyDomain
    * @throws TileDBError
    */
-  private List<List<Range>> buildRangeFromFilter(
+  private Pair<List<List<Range>>, Class> buildRangeFromFilter(
       Filter filter, Datatype domainType, HashMap<String, Pair> nonEmptyDomain) throws TileDBError {
+    Class filterType = filter.getClass();
     // Map<String, Integer> dimensionIndexing = new HashMap<>();
     List<List<Range>> ranges = new ArrayList<>();
     // Build mapping for dimension name to index
     for (int i = 0; i < this.tileDBReadSchema.dimensionIndexes.size(); i++) {
       ranges.add(new ArrayList<>());
     }
-    // First handle filter that are equal so `dim = 1`
-    if (filter instanceof Or) {
-      List<List<Range>> left =
+    // First handle filter that are AND this is something like dim1 >= 1 AND dim1 <= 10
+    // Could also be dim1 between 1 and 10
+    if (filter instanceof And) {
+      Pair<List<List<Range>>, Class> left =
+          buildRangeFromFilter(((And) filter).left(), domainType, nonEmptyDomain);
+      Pair<List<List<Range>>, Class> right =
+          buildRangeFromFilter(((And) filter).right(), domainType, nonEmptyDomain);
+
+      int dimIndex =
+          IntStream.range(0, left.getFirst().size())
+              .filter(e -> left.getFirst().get(e).size() > 0)
+              .findFirst()
+              .getAsInt();
+
+      // Create return constructed ranges
+      List<List<Range>> constructedRanges = new ArrayList<>();
+      for (int i = 0; i < Math.max(left.getFirst().size(), right.getFirst().size()); i++)
+        constructedRanges.add(new ArrayList<>());
+
+      // Switch on the left side to see if it is the greater than or less than clause and set
+      // appropriate position
+      Pair<Object, Object> newPair = new Pair<>(null, null);
+      if (left.getSecond() == GreaterThan.class || left.getSecond() == GreaterThanOrEqual.class) {
+        newPair.setFirst(left.getFirst().get(dimIndex).get(0).getFirst());
+      } else if (left.getSecond() == LessThan.class || left.getSecond() == LessThanOrEqual.class) {
+        newPair.setSecond(left.getFirst().get(dimIndex).get(0).getSecond());
+      }
+
+      // Next switch on the right side to see if it is the greater than or less than clause and set
+      // appropriate position
+      if (right.getSecond() == GreaterThan.class || right.getSecond() == GreaterThanOrEqual.class) {
+        newPair.setFirst(right.getFirst().get(dimIndex).get(0).getFirst());
+      } else if (right.getSecond() == LessThan.class
+          || right.getSecond() == LessThanOrEqual.class) {
+        newPair.setSecond(right.getFirst().get(dimIndex).get(0).getSecond());
+      }
+
+      // Set the range
+      List<Range> constructedRange = new ArrayList<Range>();
+      constructedRange.add(new Range(newPair));
+
+      constructedRanges.set(dimIndex, constructedRange);
+
+      return new Pair<>(constructedRanges, filterType);
+      // Handle Or clauses as recursive calls
+    } else if (filter instanceof Or) {
+      Pair<List<List<Range>>, Class> left =
           buildRangeFromFilter(((Or) filter).left(), domainType, nonEmptyDomain);
-      List<List<Range>> right =
+      Pair<List<List<Range>>, Class> right =
           buildRangeFromFilter(((Or) filter).right(), domainType, nonEmptyDomain);
-      for (int i = 0; i < left.size(); i++) {
-        while (right.size() < i) {
-          right.add(new ArrayList<>());
+      for (int i = 0; i < left.getFirst().size(); i++) {
+        while (right.getFirst().size() < i) {
+          right.getFirst().add(new ArrayList<>());
         }
 
-        right.get(i).addAll(left.get(i));
+        right.getFirst().get(i).addAll(left.getFirst().get(i));
       }
 
       return right;
+      // Equal and EqualNullSafe are just straight dim1 = 1 fields. Set both side of range to single
+      // value
     } else if (filter instanceof EqualNullSafe) {
       EqualNullSafe f = (EqualNullSafe) filter;
       int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
@@ -440,6 +509,6 @@ public class TileDBDataSourceReader
     } else {
       throw new TileDBError("Unsupported filter type");
     }
-    return ranges;
+    return new Pair<>(ranges, filterType);
   }
 }
