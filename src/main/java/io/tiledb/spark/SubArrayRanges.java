@@ -1,5 +1,7 @@
 package io.tiledb.spark;
 
+import io.tiledb.java.api.TileDBError;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -224,5 +226,25 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     }
 
     return 0;
+  }
+
+  public List<SubArrayRanges> split(int splits) throws TileDBError {
+    // Get the index with the widest dimension
+    int dimIndex = getDimensionWithLargestWidth();
+
+    // Split the given range for a dimension into x splits
+    List<Range> newRanges = ranges.get(dimIndex).splitRange(splits);
+
+    List<SubArrayRanges> newSubarrays = new ArrayList<>();
+
+    // Create a new subArrayRanges for each split, copying all dimensions then overriding the one we
+    // split
+    for (Range newRange : newRanges) {
+      List<Range> newDimRanges = new ArrayList<>(ranges);
+      newDimRanges.set(dimIndex, newRange);
+      newSubarrays.add(new SubArrayRanges(newDimRanges, datatype));
+    }
+
+    return newSubarrays;
   }
 }

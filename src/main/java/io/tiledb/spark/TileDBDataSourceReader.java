@@ -194,54 +194,30 @@ public class TileDBDataSourceReader
 
       generateAllSubarrays(ranges, subarrays, 0, new ArrayList<>());
 
-      int partitionCount = tiledbOptions.getPartitionCount();
-      if (subarrays.size() <= partitionCount) {
-        Collections.sort(subarrays);
+      int availablePartitions = tiledbOptions.getPartitionCount() - subarrays.size();
+      if (availablePartitions > 1) {
+        // Sort subarrays based on volume so largest volume is first
+        subarrays.sort(Collections.reverseOrder());
+        // Find median volume of subarrays;
 
-        /*List<Pair> firstDimensionRanges = ranges.get(0);
-        firstDimensionRanges.sort(
-            new Comparator<Pair>() {
-              public int compare(Pair lhs, Pair rhs) {
-                if (lhs.getFirst() instanceof Integer) {
-                  return compareInt(lhs, rhs);
-                } else if (lhs.getFirst() instanceof Long) {
-                  return compareLong(lhs, rhs);
-                } else if (lhs.getFirst() instanceof Double) {
-                  return compareDouble(lhs, rhs);
-                } else if (lhs.getFirst() instanceof Float) {
-                  return compareFloat(lhs, rhs);
-                }
-                return 0;
-              }
+        SubArrayRanges medianSubarray = subarrays.get(subarrays.size() / 2);
+        Number medianVolume = medianSubarray.getVolume();
 
-              int compareInt(Pair<Integer, Integer> lhs, Pair<Integer, Integer> rhs) {
-                int lhsRange = abs(lhs.getFirst() - lhs.getSecond());
-                int rhsRange = abs(rhs.getFirst() - rhs.getSecond());
-                // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
-                return Integer.compare(rhsRange, lhsRange);
-              }
+        List<Integer> neededSplitsToReduceToMedianVolume =
+            computeNeededSplitsToReduceToMedianVolume(
+                subarrays.subList(0, subarrays.size() / 2),
+                medianVolume,
+                medianSubarray.getDatatype());
 
-              int compareLong(Pair<Long, Long> lhs, Pair<Long, Long> rhs) {
-                long lhsRange = abs(lhs.getFirst() - lhs.getSecond());
-                long rhsRange = abs(rhs.getFirst() - rhs.getSecond());
-                // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
-                return Long.compare(rhsRange, lhsRange);
-              }
+        //        for (SubArrayRanges subArrayRanges : subarrays) {
+        for (int i = 0; i < neededSplitsToReduceToMedianVolume.size(); i++) {
+          SubArrayRanges subarray = subarrays.get(i);
+          List<SubArrayRanges> splitSubarray =
+              subarray.split(neededSplitsToReduceToMedianVolume.get(i));
 
-              int compareDouble(Pair<Double, Double> lhs, Pair<Double, Double> rhs) {
-                double lhsRange = abs(lhs.getFirst() - lhs.getSecond());
-                double rhsRange = abs(rhs.getFirst() - rhs.getSecond());
-                // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
-                return Double.compare(rhsRange, lhsRange);
-              }
-
-              int compareFloat(Pair<Float, Float> lhs, Pair<Float, Float> rhs) {
-                float lhsRange = abs(lhs.getFirst() - lhs.getSecond());
-                float rhsRange = abs(rhs.getFirst() - rhs.getSecond());
-                // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
-                return Float.compare(rhsRange, lhsRange);
-              }
-            });*/
+          subarrays.remove(i);
+          subarrays.addAll(splitSubarray);
+        }
       }
 
       // TODO: multiple subarray partitioning
@@ -262,7 +238,29 @@ public class TileDBDataSourceReader
     return readerPartitions;
   }
 
-  private List<Range> checkAndMergeRanges(List<Range> range) {
+  private List<Integer> computeNeededSplitsToReduceToMedianVolume(
+      List<SubArrayRanges> subArrayRanges, Number medianVolume, Class datatype) {
+    List<Integer> neededSplits = new ArrayList<>();
+    for (SubArrayRanges subArrayRange : subArrayRanges) {
+      Number volume = subArrayRange.getVolume();
+      if (datatype == Byte.class) {
+        neededSplits.add(volume.byteValue() / medianVolume.byteValue());
+      } else if (datatype == Short.class) {
+        neededSplits.add(volume.shortValue() / medianVolume.shortValue());
+      } else if (datatype == Integer.class) {
+        neededSplits.add(volume.intValue() / medianVolume.intValue());
+      } else if (datatype == Long.class) {
+        neededSplits.add(((Long) (volume.longValue() / medianVolume.longValue())).intValue());
+      } else if (datatype == Float.class) {
+        neededSplits.add(((Float) (volume.floatValue() / medianVolume.floatValue())).intValue());
+      } else if (datatype == Double.class) {
+        neededSplits.add(((Double) (volume.doubleValue() / medianVolume.doubleValue())).intValue());
+      }
+    }
+    return neededSplits;
+  }
+
+  private List<Range> checkAndMergeRanges(List<Range> range) throws TileDBError {
     List<Range> rangesToBeMerged = new ArrayList<>(range);
     rangesToBeMerged.sort(
         new Comparator<Range>() {
@@ -272,23 +270,23 @@ public class TileDBDataSourceReader
               Pair<Byte, Byte> rangeByte = range.getRange();
               Pair<Byte, Byte> t1Byte = t1.getRange();
               return Byte.compare(rangeByte.getFirst(), t1Byte.getFirst());
-            } else if (range.dataClassType() == Byte.class) {
+            } else if (range.dataClassType() == Short.class) {
               Pair<Short, Short> rangeShort = range.getRange();
               Pair<Short, Short> t1Short = t1.getRange();
               return Short.compare(rangeShort.getFirst(), t1Short.getFirst());
-            } else if (range.dataClassType() == Byte.class) {
+            } else if (range.dataClassType() == Integer.class) {
               Pair<Integer, Integer> rangeInteger = range.getRange();
               Pair<Integer, Integer> t1Integer = t1.getRange();
               return Integer.compare(rangeInteger.getFirst(), t1Integer.getFirst());
-            } else if (range.dataClassType() == Byte.class) {
+            } else if (range.dataClassType() == Long.class) {
               Pair<Long, Long> rangeLong = range.getRange();
               Pair<Long, Long> t1Long = t1.getRange();
               return Long.compare(rangeLong.getFirst(), t1Long.getFirst());
-            } else if (range.dataClassType() == Byte.class) {
+            } else if (range.dataClassType() == Float.class) {
               Pair<Float, Float> rangeFloat = range.getRange();
               Pair<Float, Float> t1Float = t1.getRange();
               return Float.compare(rangeFloat.getFirst(), t1Float.getFirst());
-            } else if (range.dataClassType() == Byte.class) {
+            } else if (range.dataClassType() == Range.class) {
               Pair<Double, Double> rangeDouble = range.getRange();
               Pair<Double, Double> t1Double = t1.getRange();
               return Double.compare(rangeDouble.getFirst(), t1Double.getFirst());
@@ -297,10 +295,6 @@ public class TileDBDataSourceReader
             return 0;
           }
         });
-
-    for (int i = 0; i < rangesToBeMerged.size() - 1; i++) {
-      System.out.println(rangesToBeMerged.get(i).canMerge(rangesToBeMerged.get(i + 1)));
-    }
 
     boolean mergeable = true;
     while (mergeable) {
@@ -317,7 +311,6 @@ public class TileDBDataSourceReader
           break;
         }
 
-        System.out.println(rangesToBeMerged.get(i).canMerge(rangesToBeMerged.get(i + 1)));
         Range left = rangesToBeMerged.get(i);
         Range right = rangesToBeMerged.get(i + 1);
         if (left.canMerge(right)) {
@@ -340,46 +333,6 @@ public class TileDBDataSourceReader
     }
 
     return rangesToBeMerged;
-  }
-
-  private List<Pair> splitRange(Pair range, int buckets) {
-    List<Pair> ranges = new ArrayList<>();
-    // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
-    // Only long dimensions can be split with naive algorithm
-    long min = (Long) range.getFirst();
-    long max = (Long) range.getSecond();
-
-    long rangeLength = (max - min) / buckets;
-    long leftOvers = (max - min) % buckets;
-
-    long low = min;
-    for (int i = 0; i < buckets; i++) {
-      // We want to set the high of the split range to be the low value of the range + the length -
-      // 1
-      long high = low + rangeLength - 1;
-      // Handle base case where range length is 1, so we don't need to substract one to account for
-      // inclusiveness
-
-      // If this is the last split we need to set the bond to the same as the range upper bound
-      // Also make sure we don't leave any values out by setting the high to the max of the range
-      if (i == buckets - 1) {
-        high = max;
-      }
-      // If this is not the last split we should spread out any leftOver values
-      else if (leftOvers > 0) {
-        // Add one
-        high += 1;
-        leftOvers--;
-      }
-
-      // Only set the range if the values are not equal or if the low
-      // and high are the bounds must also be the same
-      ranges.add(new Pair<>(low, high));
-      // Set the low value to the high+1 for the next range split
-      low = high + 1;
-    }
-
-    return ranges;
   }
 
   /**
@@ -450,7 +403,7 @@ public class TileDBDataSourceReader
         ranges.get(dimIndex).add(new Range(new Pair<>(value, value)));
       }
 
-      // LessThanl is ranges which are in the form of `dim < 1`
+      // LessThan is ranges which are in the form of `dim < 1`
     } else if (filter instanceof LessThan) {
       LessThan f = (LessThan) filter;
       int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());

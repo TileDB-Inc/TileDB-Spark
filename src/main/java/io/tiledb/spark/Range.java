@@ -8,6 +8,9 @@ import static java.lang.Math.min;
 import io.tiledb.java.api.Datatype;
 import io.tiledb.java.api.Pair;
 import io.tiledb.java.api.TileDBError;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.commons.beanutils.ConvertUtils;
 
 public class Range implements java.io.Serializable {
   private Pair range;
@@ -449,5 +452,75 @@ public class Range implements java.io.Serializable {
     }
 
     return false;
+  }
+
+  public Datatype tileDBDatatype() {
+    if (dataClassType == Byte.class) {
+      return Datatype.TILEDB_INT8;
+    } else if (dataClassType == Short.class) {
+      return Datatype.TILEDB_INT16;
+    } else if (dataClassType == Integer.class) {
+      return Datatype.TILEDB_INT32;
+    } else if (dataClassType == Long.class) {
+      return Datatype.TILEDB_INT64;
+    } else if (dataClassType == Float.class) {
+      return Datatype.TILEDB_FLOAT32;
+    } else if (dataClassType == Double.class) {
+      return Datatype.TILEDB_FLOAT64;
+    }
+
+    return Datatype.TILEDB_ANY;
+  }
+
+  public List<Range> splitRange(int splits) throws TileDBError {
+    // Buckets is the number of splits + 1
+    int buckets = splits + 1;
+    List<Range> ranges = new ArrayList<>();
+    // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
+    // Only long dimensions can be split with naive algorithm
+    Object min = range.getFirst();
+    Object max = range.getSecond();
+
+    //    Long rangeLength = (Long)
+    // ConvertUtils.convert(util.divide_objects(util.subtract_objects(max, min, dataClassType),
+    // buckets, dataClassType), Long.class);
+    Object rangeLength =
+        util.divide_objects(util.subtract_objects(max, min, dataClassType), buckets, dataClassType);
+    Long leftOvers =
+        (Long)
+            ConvertUtils.convert(
+                util.modulo_objects(
+                    util.subtract_objects(max, min, dataClassType), buckets, dataClassType),
+                Long.class);
+
+    Object low = min;
+    for (int i = 0; i < buckets; i++) {
+      // We want to set the high of the split range to be the low value of the range + the length -
+      // 1
+      Object high =
+          util.subtractEpsilon(util.add_objects(low, rangeLength, dataClassType), tileDBDatatype());
+      // Handle base case where range length is 1, so we don't need to subtract one to account for
+      // inclusiveness
+
+      // If this is the last split we need to set the bond to the same as the range upper bound
+      // Also make sure we don't leave any values out by setting the high to the max of the range
+      if (i == buckets - 1) {
+        high = max;
+      }
+      // If this is not the last split we should spread out any leftOver values
+      else if (leftOvers > 0) {
+        // Add one
+        high = addEpsilon(high, tileDBDatatype());
+        leftOvers--;
+      }
+
+      // Only set the range if the values are not equal or if the low
+      // and high are the bounds must also be the same
+      ranges.add(new Range(new Pair<>(low, high)));
+      // Set the low value to the high+1 for the next range split
+      low = addEpsilon(high, tileDBDatatype());
+    }
+
+    return ranges;
   }
 }

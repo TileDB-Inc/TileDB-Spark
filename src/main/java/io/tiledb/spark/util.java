@@ -62,4 +62,72 @@ public class util {
         throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
     }
   }
+
+  public static Object add_objects(Object a, Object b, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return (Byte) a + (Byte) b;
+    } else if (dataClassType == Short.class) {
+      return (Short) a + (Short) b;
+    } else if (dataClassType == Integer.class) {
+      return (Integer) a + (Integer) b;
+    } else if (dataClassType == Long.class) {
+      return (Long) a + (Long) b;
+    } else if (dataClassType == Float.class) {
+      return (Float) a + (Float) b;
+    }
+
+    // Else assume double
+    return (Double) a + (Double) b;
+  }
+
+  public static Object subtract_objects(Object a, Object b, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return (Byte) a - (Byte) b;
+    } else if (dataClassType == Short.class) {
+      return (Short) a - (Short) b;
+    } else if (dataClassType == Integer.class) {
+      return (Integer) a - (Integer) b;
+    } else if (dataClassType == Long.class) {
+      return (Long) a - (Long) b;
+    } else if (dataClassType == Float.class) {
+      return (Float) a - (Float) b;
+    }
+
+    // Else assume double
+    return (Double) a - (Double) b;
+  }
+
+  public static Object divide_objects(Object a, Object b, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return (Byte) a / (Byte) b;
+    } else if (dataClassType == Short.class) {
+      return (Short) a / (Short) b;
+    } else if (dataClassType == Integer.class) {
+      return (Integer) a / (Integer) b;
+    } else if (dataClassType == Long.class) {
+      return (Long) a / (Long) b;
+    } else if (dataClassType == Float.class) {
+      return (Float) a / (Float) b;
+    }
+
+    // Else assume double
+    return (Double) a / (Double) b;
+  }
+
+  public static Object modulo_objects(Object a, Object b, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return (Byte) a % (Byte) b;
+    } else if (dataClassType == Short.class) {
+      return (Short) a % (Short) b;
+    } else if (dataClassType == Integer.class) {
+      return (Integer) a % (Integer) b;
+    } else if (dataClassType == Long.class) {
+      return (Long) a % (Long) b;
+    } else if (dataClassType == Float.class) {
+      return (Float) a % (Float) b;
+    }
+
+    // Else assume double
+    return (Double) a % (Double) b;
+  }
 }

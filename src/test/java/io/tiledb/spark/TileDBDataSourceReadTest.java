@@ -249,10 +249,11 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows =
         session()
-            .sql("SELECT * FROM tmp WHERE rows between 1 and 3 AND (cols = 1 OR cols = 3)")
+            .sql(
+                "SELECT * FROM tmp WHERE rows between 1 and 3 AND (cols = 1 OR cols = 3 OR cols = 4) ORDER BY rows, cols")
             .collectAsList();
     rows.forEach(e -> System.out.println(e.toString()));
-    Assert.assertEquals(2, rows.size());
+    Assert.assertEquals(3, rows.size());
     // A[1, 1] == 1
     Row row = rows.get(0);
     Assert.assertEquals(1, row.getInt(0));
@@ -263,6 +264,11 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     Assert.assertEquals(2, row.getInt(0));
     Assert.assertEquals(3, row.getInt(1));
     Assert.assertEquals(3, row.getInt(2));
+    // A[2, 4] == 2
+    row = rows.get(2);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(4, row.getInt(1));
+    Assert.assertEquals(2, row.getInt(2));
     return;
   }
 }
