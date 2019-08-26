@@ -29,11 +29,11 @@ public class OptionDimPartition {
         npartitions = Integer.parseInt(value);
         if (npartitions < 1) {
           throw new IllegalArgumentException(
-              "Invalid dimension N partition(s) value, must be a >= 1: " + value);
+              "Invalid dimension N partition(s) value, must be >= 1: " + value);
         }
       } catch (NumberFormatException ex) {
         throw new IllegalArgumentException(
-            "Invalid dimension N partition(s) value, must be a >= 1: " + value);
+            "Invalid dimension N partition(s) value, must be >= 1: " + value);
       }
     }
   }

@@ -51,7 +51,7 @@ public class TileDBDataSourceReader
 
   @Override
   public Filter[] pushFilters(Filter[] filters) {
-    log.info("size of filters " + filters.length);
+    log.info("Number of filters for pushdown " + filters.length);
     ArrayList<Filter> pushedFiltersList = new ArrayList<>();
     ArrayList<Filter> leftOverFilters = new ArrayList<>();
 
@@ -60,37 +60,37 @@ public class TileDBDataSourceReader
     for (Filter filter : filters) {
       if (filter instanceof EqualNullSafe) {
         EqualNullSafe f = (EqualNullSafe) filter;
-        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+        if (tileDBReadSchema.isDimensionName(f.attribute())) {
           pushedFiltersList.add(filter);
         }
       } else if (filter instanceof EqualTo) {
         EqualTo f = (EqualTo) filter;
-        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+        if (tileDBReadSchema.isDimensionName(f.attribute())) {
           pushedFiltersList.add(filter);
         }
       } else if (filter instanceof GreaterThan) {
         GreaterThan f = (GreaterThan) filter;
-        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+        if (tileDBReadSchema.isDimensionName(f.attribute())) {
           pushedFiltersList.add(filter);
         }
       } else if (filter instanceof GreaterThanOrEqual) {
         GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
-        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+        if (this.tileDBReadSchema.isDimensionName(f.attribute())) {
           pushedFiltersList.add(filter);
         }
       } else if (filter instanceof In) {
         In f = (In) filter;
-        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+        if (this.tileDBReadSchema.isDimensionName(f.attribute())) {
           pushedFiltersList.add(filter);
         }
       } else if (filter instanceof LessThan) {
         LessThan f = (LessThan) filter;
-        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+        if (this.tileDBReadSchema.isDimensionName(f.attribute())) {
           pushedFiltersList.add(filter);
         }
       } else if (filter instanceof LessThanOrEqual) {
         LessThanOrEqual f = (LessThanOrEqual) filter;
-        if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+        if (tileDBReadSchema.isDimensionName(f.attribute())) {
           pushedFiltersList.add(filter);
         }
       } else {
@@ -119,6 +119,9 @@ public class TileDBDataSourceReader
 
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
+    TileDBDomainPartitioner partitioner = new TileDBDomainPartitioner(tileDBReadSchema, tiledbOptions);
+    partitioner.setPushdownFilters(pushedFilters);
+
     ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
     // TODO: multiple subarray partitioning
     readerPartitions.add(

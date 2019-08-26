@@ -4,6 +4,9 @@ import io.tiledb.java.api.*;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+
 import org.apache.spark.sql.types.*;
 
 public class TileDBReadSchema implements Serializable {
@@ -12,18 +15,40 @@ public class TileDBReadSchema implements Serializable {
   private TileDBDataSourceOptions options;
   private StructType pushDownSparkSchema;
   private StructType tiledbSparkSchema;
-  public HashMap<String, Integer> dimensionIndexes;
+  private List<IntegerDimRange> nonEmptyDomain;
+  private HashMap<String, Integer> dimensionNameIdxMap;
+  private HashMap<String, Integer> attributeNameIdxMap;
 
   public TileDBReadSchema(URI uri, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.options = options;
-    this.dimensionIndexes = new HashMap<>();
+    this.nonEmptyDomain = new LinkedList<>();
+    this.dimensionNameIdxMap = new HashMap<>();
+    this.attributeNameIdxMap = new HashMap<>();
     this.getSparkSchema();
   }
 
   public TileDBReadSchema setPushDownSchema(StructType pushDownSchema) {
     pushDownSparkSchema = pushDownSchema;
     return this;
+  }
+
+  /** @return True if the the given name is a dimension, false otherwise **/
+  public boolean isDimensionName(String name) {
+    return dimensionNameIdxMap.containsKey(name);
+  };
+
+  /** @return Optional integer index
+  public Optional<Integer> getDimensionIdx(String name) {
+    if (!isDimensionName(name)) {
+      return Optional.empty();
+    }
+    return Optional.of(dimensionNameIdxMap.get(name));
+  }
+
+  /** @return True if the given name is an attribute, false otherwise **/
+  public boolean isAttributeName(String name) {
+    return dimensionNameIdxMap.containsKey(name);
   }
 
   /** @return StructType spark schema given by the array schema and projected columns * */
@@ -52,14 +77,18 @@ public class TileDBReadSchema implements Serializable {
   private StructType getTileDBSchema(TileDBDataSourceOptions options) throws TileDBError {
     StructType sparkSchema = new StructType();
     try (Context ctx = new Context(options.getTileDBConfigMap());
-        // fetch and load the schema (IO)
-        ArraySchema arraySchema = new ArraySchema(ctx, uri.toString());
+        // fetch and load the array / schema (IO)
+         Array array = new Array(ctx, uri.toString());
+        ArraySchema arraySchema = array.getSchema();
         Domain arrayDomain = arraySchema.getDomain()) {
+      HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
       // for every dimension add a struct field
       for (int i = 0; i < arrayDomain.getNDim(); i++) {
         try (Dimension dim = arrayDomain.getDimension(i)) {
           String dimName = dim.getName();
-          dimensionIndexes.put(dimName, i);
+          Pair dimExtent = nonEmptyDomain.get(dimName);
+          this.nonEmptyDomain.add(new IntegerDimRange(dimName, i, dim.getType(), (Long) dimExtent.getFirst(), (Long) dimExtent.getSecond()));
+          this.dimensionNameIdxMap.put(dimName, i);
           // schema is immutable so to iteratively add we need to re-assign
           sparkSchema = sparkSchema.add(toStructField(dimName, true, dim.getType(), 1l, false));
         }
@@ -68,6 +97,7 @@ public class TileDBReadSchema implements Serializable {
       for (int i = 0; i < arraySchema.getAttributeNum(); i++) {
         try (Attribute attr = arraySchema.getAttribute(i)) {
           String attrName = attr.getName();
+          attributeNameIdxMap.put(attrName, i);
           sparkSchema =
               sparkSchema.add(
                   toStructField(attrName, false, attr.getType(), attr.getCellValNum(), false));
