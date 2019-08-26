@@ -215,11 +215,20 @@ public class TileDBDataSourceReader
                   medianVolume,
                   medianSubarray.getDatatype());
 
-          //        for (SubArrayRanges subArrayRanges : subarrays) {
+          int sumOfNeededSplitsForEvenDistributed =
+              neededSplitsToReduceToMedianVolume.stream().mapToInt(Integer::intValue).sum();
+
           for (int i = 0; i < neededSplitsToReduceToMedianVolume.size(); i++) {
             SubArrayRanges subarray = subarrays.get(i);
-            List<SubArrayRanges> splitSubarray =
-                subarray.split(neededSplitsToReduceToMedianVolume.get(i));
+            // Inpercisions with double division don't matter here we just want close enough
+            // percentages;
+            int numberOfWeightedSplits =
+                (int)
+                    Math.ceil(
+                        neededSplitsToReduceToMedianVolume.get(i).doubleValue()
+                            / sumOfNeededSplitsForEvenDistributed
+                            * availablePartitions);
+            List<SubArrayRanges> splitSubarray = subarray.split(numberOfWeightedSplits);
 
             subarrays.remove(i);
             subarrays.addAll(splitSubarray);
