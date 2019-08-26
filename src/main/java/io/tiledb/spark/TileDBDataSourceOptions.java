@@ -30,7 +30,10 @@ public class TileDBDataSourceOptions implements Serializable {
     optionMap = new HashMap<>(options.asMap());
   }
 
-  /** @return Optional URI to TileDB array resource * */
+  /**
+   * @return Optional URI to TileDB array resource
+   * @throws URISyntaxException
+   */
   public Optional<URI> getArrayURI() throws URISyntaxException {
     if (optionMap.containsKey("uri")) {
       return Optional.of(new URI(optionMap.get("uri")));

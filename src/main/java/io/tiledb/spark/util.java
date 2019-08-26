@@ -7,7 +7,7 @@ import java.util.List;
 
 public class util {
 
-  /** Returns v + eps, where eps is the smallest value for the datatype such that v + eps > v. */
+  /* Returns v + eps, where eps is the smallest value for the datatype such that v + eps > v. */
   public static Object addEpsilon(Object value, Datatype type) throws TileDBError {
     switch (type) {
       case TILEDB_CHAR:
@@ -36,7 +36,7 @@ public class util {
     }
   }
 
-  /** Returns v - eps, where eps is the smallest value for the datatype such that v - eps < v. */
+  /* Returns v - eps, where eps is the smallest value for the datatype such that v - eps < v. */
   public static Object subtractEpsilon(Object value, Datatype type) throws TileDBError {
     switch (type) {
       case TILEDB_CHAR:
@@ -65,6 +65,14 @@ public class util {
     }
   }
 
+  /**
+   * Helper function because java doesn't support template numeric operations
+   *
+   * @param a first value to operate on
+   * @param b second value to operate on
+   * @param dataClassType class type, used to cast objects
+   * @return operatior results
+   */
   public static Object add_objects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return (Byte) a + (Byte) b;
@@ -82,6 +90,14 @@ public class util {
     return (Double) a + (Double) b;
   }
 
+  /**
+   * Helper function because java doesn't support template numeric operations
+   *
+   * @param a first value to operate on
+   * @param b second value to operate on
+   * @param dataClassType class type, used to cast objects
+   * @return operatior results
+   */
   public static Object subtract_objects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return (Byte) a - (Byte) b;
@@ -99,6 +115,14 @@ public class util {
     return (Double) a - (Double) b;
   }
 
+  /**
+   * Helper function because java doesn't support template numeric operations
+   *
+   * @param a first value to operate on
+   * @param b second value to operate on
+   * @param dataClassType class type, used to cast objects
+   * @return operatior results
+   */
   public static Object divide_objects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return (Byte) a / (Byte) b;
@@ -116,6 +140,14 @@ public class util {
     return (Double) a / (Double) b;
   }
 
+  /**
+   * Helper function because java doesn't support template numeric operations
+   *
+   * @param a first value to operate on
+   * @param b second value to operate on
+   * @param dataClassType class type, used to cast objects
+   * @return operatior results
+   */
   public static Object modulo_objects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return (Byte) a % (Byte) b;
@@ -133,6 +165,14 @@ public class util {
     return (Double) a % (Double) b;
   }
 
+  /**
+   * Generate all combination of subarrays from a list of ranges per dimension
+   *
+   * @param ranges ranges per dimension to build from
+   * @param results stored here
+   * @param index recursive index position
+   * @param current current partial subarray
+   */
   public static void generateAllSubarrays(
       List<List<Range>> ranges, List<SubArrayRanges> results, int index, List<Range> current) {
     if (index == ranges.size()) {
