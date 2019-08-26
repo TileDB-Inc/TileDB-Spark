@@ -212,8 +212,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
       // Pushdown any ranges
       if (pushedRanges.size() > 0) {
-          for (List<Range> ranges : pushedRanges) {
-            for (int i = 0; i < ranges.size(); i++) {
+        for (List<Range> ranges : pushedRanges) {
+          for (int i = 0; i < ranges.size(); i++) {
             query.addRange(i, ranges.get(i).getFirst(), ranges.get(i).getSecond());
           }
         }

@@ -91,15 +91,13 @@ public class TileDBDataSourceReader
   private boolean checkFilterIsDimensionOnly(Filter filter) {
     if (filter instanceof Or) {
       Or f = (Or) filter;
-        if (checkFilterIsDimensionOnly(f.left()) &&
-      checkFilterIsDimensionOnly(f.right())) {
-          return true;
-        }
-    }
-    else if (filter instanceof EqualNullSafe) {
+      if (checkFilterIsDimensionOnly(f.left()) && checkFilterIsDimensionOnly(f.right())) {
+        return true;
+      }
+    } else if (filter instanceof EqualNullSafe) {
       EqualNullSafe f = (EqualNullSafe) filter;
       if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
-          return true;
+        return true;
       }
     } else if (filter instanceof EqualTo) {
       EqualTo f = (EqualTo) filter;
@@ -187,10 +185,10 @@ public class TileDBDataSourceReader
                   .get();
           range.add(new Range(nonEmptyDomain.get(dimensionName)));
         } else {
-         List<Range> mergedRanges = checkAndMergeRanges(range);
+          List<Range> mergedRanges = checkAndMergeRanges(range);
+          ranges.set(i, mergedRanges);
         }
       }
-
 
       List<SubArrayRanges> subarrays = new ArrayList<>();
 
@@ -265,41 +263,83 @@ public class TileDBDataSourceReader
   }
 
   private List<Range> checkAndMergeRanges(List<Range> range) {
-    List<Range> mergedRanges = new ArrayList<>();
-      range.sort(new Comparator<Range>() {
-        @Override
-        public int compare(Range range, Range t1) {
-          if (range.dataClassType() == Byte.class) {
-            Pair<Byte, Byte> rangeByte = range.getRange();
-            Pair<Byte, Byte> t1Byte = t1.getRange();
-            return Byte.compare(rangeByte.getFirst(), t1Byte.getFirst());
-          } else if (range.dataClassType() == Byte.class) {
-            Pair<Short, Short> rangeShort = range.getRange();
-            Pair<Short, Short> t1Short = t1.getRange();
-            return Short.compare(rangeShort.getFirst(), t1Short.getFirst());
-          } else if (range.dataClassType() == Byte.class) {
-            Pair<Integer, Integer> rangeInteger = range.getRange();
-            Pair<Integer, Integer> t1Integer = t1.getRange();
-            return Integer.compare(rangeInteger.getFirst(), t1Integer.getFirst());
-          } else if (range.dataClassType() == Byte.class) {
-            Pair<Long, Long> rangeLong = range.getRange();
-            Pair<Long, Long> t1Long = t1.getRange();
-            return Long.compare(rangeLong.getFirst(), t1Long.getFirst());
-          } else if (range.dataClassType() == Byte.class) {
-            Pair<Float, Float> rangeFloat = range.getRange();
-            Pair<Float, Float> t1Float = t1.getRange();
-            return Float.compare(rangeFloat.getFirst(), t1Float.getFirst());
-          } else if (range.dataClassType() == Byte.class) {
-            Pair<Double, Double> rangeDouble = range.getRange();
-            Pair<Double, Double> t1Double = t1.getRange();
-            return Double.compare(rangeDouble.getFirst(), t1Double.getFirst());
+    List<Range> rangesToBeMerged = new ArrayList<>(range);
+    rangesToBeMerged.sort(
+        new Comparator<Range>() {
+          @Override
+          public int compare(Range range, Range t1) {
+            if (range.dataClassType() == Byte.class) {
+              Pair<Byte, Byte> rangeByte = range.getRange();
+              Pair<Byte, Byte> t1Byte = t1.getRange();
+              return Byte.compare(rangeByte.getFirst(), t1Byte.getFirst());
+            } else if (range.dataClassType() == Byte.class) {
+              Pair<Short, Short> rangeShort = range.getRange();
+              Pair<Short, Short> t1Short = t1.getRange();
+              return Short.compare(rangeShort.getFirst(), t1Short.getFirst());
+            } else if (range.dataClassType() == Byte.class) {
+              Pair<Integer, Integer> rangeInteger = range.getRange();
+              Pair<Integer, Integer> t1Integer = t1.getRange();
+              return Integer.compare(rangeInteger.getFirst(), t1Integer.getFirst());
+            } else if (range.dataClassType() == Byte.class) {
+              Pair<Long, Long> rangeLong = range.getRange();
+              Pair<Long, Long> t1Long = t1.getRange();
+              return Long.compare(rangeLong.getFirst(), t1Long.getFirst());
+            } else if (range.dataClassType() == Byte.class) {
+              Pair<Float, Float> rangeFloat = range.getRange();
+              Pair<Float, Float> t1Float = t1.getRange();
+              return Float.compare(rangeFloat.getFirst(), t1Float.getFirst());
+            } else if (range.dataClassType() == Byte.class) {
+              Pair<Double, Double> rangeDouble = range.getRange();
+              Pair<Double, Double> t1Double = t1.getRange();
+              return Double.compare(rangeDouble.getFirst(), t1Double.getFirst());
+            }
+
+            return 0;
           }
+        });
 
-          return 0;
+    for (int i = 0; i < rangesToBeMerged.size() - 1; i++) {
+      System.out.println(rangesToBeMerged.get(i).canMerge(rangesToBeMerged.get(i + 1)));
+    }
+
+    boolean mergeable = true;
+    while (mergeable) {
+      List<Range> mergedRange = new ArrayList<>();
+      for (int i = 0; i < rangesToBeMerged.size(); i++) {
+
+        // If we are at the last range in the list it means the last_range - 1 and last_range were
+        // not mergeable
+        // OR it means we have a list of 1, either way the only thing to do is add this last range
+        // to the list
+        // and break
+        if (i == rangesToBeMerged.size() - 1) {
+          mergedRange.add(rangesToBeMerged.get(i));
+          break;
         }
-      });
 
-      return mergedRanges;
+        System.out.println(rangesToBeMerged.get(i).canMerge(rangesToBeMerged.get(i + 1)));
+        Range left = rangesToBeMerged.get(i);
+        Range right = rangesToBeMerged.get(i + 1);
+        if (left.canMerge(right)) {
+          mergedRange.add(left.merge(right));
+          i++;
+        } else {
+          mergedRange.add(left);
+        }
+      }
+
+      // If the merged ranges is the same size as the unmerged ranges it means there is was no
+      // merges possible
+      // and we have completed the merge process
+      if (mergedRange.size() == rangesToBeMerged.size()) {
+        mergeable = false;
+      }
+
+      // Override original ranges with new merged Ranges
+      rangesToBeMerged = new ArrayList<>(mergedRange);
+    }
+
+    return rangesToBeMerged;
   }
 
   private List<Pair> splitRange(Pair range, int buckets) {
@@ -360,8 +400,10 @@ public class TileDBDataSourceReader
     }
     // First handle filter that are equal so `dim = 1`
     if (filter instanceof Or) {
-      List<List<Range>> left = buildRangeFromFilter(((Or) filter).left(), domainType, nonEmptyDomain);
-      List<List<Range>> right = buildRangeFromFilter(((Or) filter).right(), domainType, nonEmptyDomain);
+      List<List<Range>> left =
+          buildRangeFromFilter(((Or) filter).left(), domainType, nonEmptyDomain);
+      List<List<Range>> right =
+          buildRangeFromFilter(((Or) filter).right(), domainType, nonEmptyDomain);
       for (int i = 0; i < left.size(); i++) {
         while (right.size() < i) {
           right.add(new ArrayList<>());
@@ -424,8 +466,8 @@ public class TileDBDataSourceReader
       LessThanOrEqual f = (LessThanOrEqual) filter;
       int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
       ranges
-              .get(dimIndex)
-              .add(new Range(new Pair<>(nonEmptyDomain.get(f.attribute()).getFirst(), f.value())));
+          .get(dimIndex)
+          .add(new Range(new Pair<>(nonEmptyDomain.get(f.attribute()).getFirst(), f.value())));
     } else {
       throw new TileDBError("Unsupported filter type");
     }
