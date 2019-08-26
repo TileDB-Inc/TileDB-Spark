@@ -472,9 +472,7 @@ public class Range implements java.io.Serializable {
     return Datatype.TILEDB_ANY;
   }
 
-  public List<Range> splitRange(int splits) throws TileDBError {
-    // Buckets is the number of splits + 1
-    int buckets = splits + 1;
+  public List<Range> splitRange(int buckets) throws TileDBError {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
     // Only long dimensions can be split with naive algorithm

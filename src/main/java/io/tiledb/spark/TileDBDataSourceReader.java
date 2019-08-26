@@ -1,6 +1,7 @@
 package io.tiledb.spark;
 
 import static io.tiledb.spark.util.addEpsilon;
+import static io.tiledb.spark.util.generateAllSubarrays;
 import static io.tiledb.spark.util.subtractEpsilon;
 import static org.apache.log4j.Priority.ERROR;
 
@@ -431,19 +432,5 @@ public class TileDBDataSourceReader
       throw new TileDBError("Unsupported filter type");
     }
     return ranges;
-  }
-
-  private static void generateAllSubarrays(
-      List<List<Range>> ranges, List<SubArrayRanges> results, int index, List<Range> current) {
-    if (index == ranges.size()) {
-      results.add(new SubArrayRanges(current, current.get(0).dataClassType()));
-      return;
-    }
-
-    for (Range rangeForSingleDimension : ranges.get(index)) {
-      List<Range> currentCopy = new ArrayList<>(current);
-      currentCopy.add(rangeForSingleDimension);
-      generateAllSubarrays(ranges, results, index + 1, currentCopy);
-    }
   }
 }

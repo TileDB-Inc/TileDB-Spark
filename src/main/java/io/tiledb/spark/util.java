@@ -2,6 +2,8 @@ package io.tiledb.spark;
 
 import io.tiledb.java.api.Datatype;
 import io.tiledb.java.api.TileDBError;
+import java.util.ArrayList;
+import java.util.List;
 
 public class util {
 
@@ -129,5 +131,19 @@ public class util {
 
     // Else assume double
     return (Double) a % (Double) b;
+  }
+
+  public static void generateAllSubarrays(
+      List<List<Range>> ranges, List<SubArrayRanges> results, int index, List<Range> current) {
+    if (index == ranges.size()) {
+      results.add(new SubArrayRanges(current, current.get(0).dataClassType()));
+      return;
+    }
+
+    for (Range rangeForSingleDimension : ranges.get(index)) {
+      List<Range> currentCopy = new ArrayList<>(current);
+      currentCopy.add(rangeForSingleDimension);
+      generateAllSubarrays(ranges, results, index + 1, currentCopy);
+    }
   }
 }

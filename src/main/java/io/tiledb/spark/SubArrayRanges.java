@@ -1,9 +1,13 @@
 package io.tiledb.spark;
 
+import static io.tiledb.spark.util.generateAllSubarrays;
+import static java.lang.Math.ceil;
+
 import io.tiledb.java.api.TileDBError;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class SubArrayRanges implements Comparable<SubArrayRanges> {
@@ -133,79 +137,6 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     return volume;
   }
 
-  /*private Byte volumeByte() {
-    byte volume = 1;
-    for (List<Range> dimRange : ranges) {
-      byte width = 0;
-      for (Range range : dimRange) {
-        width += range.width().byteValue();
-      }
-      volume *= width;
-    }
-    return volume;
-  }
-
-  private Short volumeShort() {
-    short volume = 1;
-    for (List<Range> dimRange : ranges) {
-      short width = 0;
-      for (Range range : dimRange) {
-        width += range.width().shortValue();
-      }
-
-      volume *= width;
-    }
-    return volume;
-  }
-
-  private Integer volumeInteger() {
-    int volume = 1;
-    for (List<Range> dimRange : ranges) {
-      int width = 0;
-      for (Range range : dimRange) {
-        width += range.width().intValue();
-      }
-      volume *= width;
-    }
-    return volume;
-  }
-
-  private Long volumeLong() {
-    long volume = 1;
-    for (List<Range> dimRange : ranges) {
-      long width = 0;
-      for (Range range : dimRange) {
-        width += range.width().longValue();
-      }
-      volume *= width;
-    }
-    return volume;
-  }
-
-  private Float volumeFloat() {
-    float volume = 1;
-    for (List<Range> dimRange : ranges) {
-      float width = 0;
-      for (Range range : dimRange) {
-        width += range.width().floatValue();
-      }
-      volume *= width;
-    }
-    return volume;
-  }
-
-  private Double volumeDouble() {
-    double volume = 1;
-    for (List<Range> dimRange : ranges) {
-      double width = 0;
-      for (Range range : dimRange) {
-        width += range.width().doubleValue();
-      }
-      volume *= width;
-    }
-    return volume;
-  }*/
-
   @Override
   public int compareTo(SubArrayRanges other) {
     // compareTo should return < 0 if this is supposed to be
@@ -229,22 +160,67 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
   }
 
   public List<SubArrayRanges> split(int splits) throws TileDBError {
-    // Get the index with the widest dimension
-    int dimIndex = getDimensionWithLargestWidth();
-
-    // Split the given range for a dimension into x splits
-    List<Range> newRanges = ranges.get(dimIndex).splitRange(splits);
-
     List<SubArrayRanges> newSubarrays = new ArrayList<>();
 
-    // Create a new subArrayRanges for each split, copying all dimensions then overriding the one we
-    // split
-    for (Range newRange : newRanges) {
-      List<Range> newDimRanges = new ArrayList<>(ranges);
-      newDimRanges.set(dimIndex, newRange);
-      newSubarrays.add(new SubArrayRanges(newDimRanges, datatype));
+    // Handle base case where there is a single dimension
+    if (ranges.size() == 1) {
+      for (Range newRange : ranges.get(0).splitRange(splits)) {
+        List<Range> dimRanges = new ArrayList<>();
+        dimRanges.add(newRange);
+        newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
+      }
+    } else {
+
+      List<Double> dimensionVolumeRatios = computeDimensionVolumeRations();
+
+      List<List<Range>> newSplits = new ArrayList<>();
+      // Use volume ratios to weightily determine splits
+      for (int i = 0; i < ranges.size(); i++) {
+        int dimensionWeightedSplits =
+            (int) ceil(((splits * dimensionVolumeRatios.get(i)) / ranges.size()));
+
+        // Split the given range for a dimension into x splits
+        newSplits.add(new ArrayList<>(ranges.get(i).splitRange(dimensionWeightedSplits)));
+
+        // Create a new subArrayRanges for each split, copying all dimensions then overriding the
+        // one we
+        // split
+        /*for (Range newRange : newRanges) {
+          List<Range> newDimRanges = new ArrayList<>(ranges);
+          newDimRanges.set(dimIndex, newRange);
+          newSubarrays.add(new SubArrayRanges(newDimRanges, datatype));
+        }*/
+      }
+      generateAllSubarrays(newSplits, newSubarrays, 0, new ArrayList<>());
     }
 
     return newSubarrays;
+  }
+
+  private List<Double> computeDimensionVolumeRations() {
+    List<Object> widths = ranges.stream().map(Range::width).collect(Collectors.toList());
+    if (datatype == Byte.class) {
+      int sum = widths.stream().map(e -> (Byte) e).mapToInt(Byte::intValue).sum();
+      return widths.stream().map(e -> ((Byte) e).doubleValue() / sum).collect(Collectors.toList());
+    } else if (datatype == Short.class) {
+      int sum = widths.stream().map(e -> (Short) e).mapToInt(Short::intValue).sum();
+      return widths.stream().map(e -> ((Short) e).doubleValue() / sum).collect(Collectors.toList());
+    } else if (datatype == Integer.class) {
+      int sum = widths.stream().map(e -> (Integer) e).mapToInt(Integer::intValue).sum();
+      return widths
+          .stream()
+          .map(e -> ((Integer) e).doubleValue() / sum)
+          .collect(Collectors.toList());
+    } else if (datatype == Long.class) {
+      long sum = widths.stream().map(e -> (Long) e).mapToLong(Long::intValue).sum();
+      return widths.stream().map(e -> ((Long) e).doubleValue() / sum).collect(Collectors.toList());
+    } else if (datatype == Float.class) {
+      double sum = widths.stream().map(e -> (Float) e).mapToDouble(Float::doubleValue).sum();
+      return widths.stream().map(e -> ((Float) e).doubleValue() / sum).collect(Collectors.toList());
+    }
+
+    // Else assume double
+    double sum = widths.stream().map(e -> (Double) e).mapToDouble(Double::doubleValue).sum();
+    return widths.stream().map(e -> ((Double) e) / sum).collect(Collectors.toList());
   }
 }
