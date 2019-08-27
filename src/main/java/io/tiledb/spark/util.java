@@ -146,7 +146,7 @@ public class util {
    * @param a first value to operate on
    * @param b second value to operate on
    * @param dataClassType class type, used to cast objects
-   * @return operatior results
+   * @return operation results
    */
   public static Object moduloObjects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
@@ -191,5 +191,22 @@ public class util {
       currentCopy.add(rangeForSingleDimension);
       generateAllSubarrays(ranges, results, index + 1, currentCopy);
     }
+  }
+
+  public static boolean greaterThanOrEqual(Object a, Object b, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return (Byte) a >= (Byte) b;
+    } else if (dataClassType == Short.class) {
+      return (Short) a >= (Short) b;
+    } else if (dataClassType == Integer.class) {
+      return (Integer) a >= (Integer) b;
+    } else if (dataClassType == Long.class) {
+      return (Long) a >= (Long) b;
+    } else if (dataClassType == Float.class) {
+      return (Float) a >= (Float) b;
+    }
+
+    // Else assume double
+    return (Double) a >= (Double) b;
   }
 }

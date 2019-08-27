@@ -519,6 +519,13 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     return true;
   }
 
+  /**
+   * Split a range. Will split upto N buckets
+   *
+   * @param buckets
+   * @return
+   * @throws TileDBError
+   */
   public List<Range> splitRange(int buckets) throws TileDBError {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
@@ -555,7 +562,10 @@ public class Range implements java.io.Serializable, Comparable<Range> {
 
       // If this is the last split we need to set the bond to the same as the range upper bound
       // Also make sure we don't leave any values out by setting the high to the max of the range
-      if (i == buckets - 1) {
+      // util.addObjects(low, rangeLength, dataClassType) > max
+      if (i == buckets - 1
+          || util.greaterThanOrEqual(
+              util.addObjects(low, rangeLength, dataClassType), max, dataClassType)) {
         high = max;
       }
       // If this is not the last split we should spread out any leftOver values
@@ -570,6 +580,11 @@ public class Range implements java.io.Serializable, Comparable<Range> {
       ranges.add(new Range(new Pair<>(low, high)));
       // Set the low value to the high+1 for the next range split
       low = addEpsilon(high, tileDBDatatype());
+
+      // If we reached the max of the range than we can't add any more buckets
+      if (high == max) {
+        break;
+      }
     }
 
     return ranges;
