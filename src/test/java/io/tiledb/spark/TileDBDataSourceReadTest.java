@@ -53,6 +53,7 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
               .format("io.tiledb.spark")
               .option("uri", testArrayURIString("writing_dense_global_array"))
               .option("order", order)
+              .option("partition_count", 1)
               .load();
       dfRead.createOrReplaceTempView("tmp");
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
@@ -82,6 +83,7 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
               .format("io.tiledb.spark")
               .option("uri", testArrayURIString("writing_dense_global_array"))
               .option("order", order)
+              .option("partition_count", 1)
               .load();
       dfRead.createOrReplaceTempView("tmp");
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
