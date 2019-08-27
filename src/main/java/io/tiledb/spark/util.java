@@ -73,7 +73,7 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operatior results
    */
-  public static Object add_objects(Object a, Object b, Class dataClassType) {
+  public static Object addObjects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return (Byte) a + (Byte) b;
     } else if (dataClassType == Short.class) {
@@ -98,7 +98,7 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operatior results
    */
-  public static Object subtract_objects(Object a, Object b, Class dataClassType) {
+  public static Object subtractObjects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return (Byte) a - (Byte) b;
     } else if (dataClassType == Short.class) {
@@ -123,7 +123,7 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operatior results
    */
-  public static Object divide_objects(Object a, Object b, Class dataClassType) {
+  public static Object divideObjects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return (Byte) a / (Byte) b;
     } else if (dataClassType == Short.class) {
@@ -148,7 +148,7 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operatior results
    */
-  public static Object modulo_objects(Object a, Object b, Class dataClassType) {
+  public static Object moduloObjects(Object a, Object b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return (Byte) a % (Byte) b;
     } else if (dataClassType == Short.class) {
@@ -166,7 +166,13 @@ public class util {
   }
 
   /**
-   * Generate all combination of subarrays from a list of ranges per dimension
+   * Generate all combination of subarrays from a list of ranges per dimension That is if we have
+   * the following ranges [[[1, 2], [10, 20]], [[100, 230]]] which translates to dim0 = [[1, 2],
+   * [10, 20]] and dim1 = [100, 230]
+   *
+   * <p>This function produces the following output
+   *
+   * <p>[[[1, 2], [100, 230]], [[10, 20], [100, 230]]]
    *
    * @param ranges ranges per dimension to build from
    * @param results stored here

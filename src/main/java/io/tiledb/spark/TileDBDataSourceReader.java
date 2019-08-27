@@ -13,7 +13,6 @@ import io.tiledb.java.api.TileDBError;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -305,39 +304,7 @@ public class TileDBDataSourceReader
    */
   private List<Range> checkAndMergeRanges(List<Range> range) throws TileDBError {
     List<Range> rangesToBeMerged = new ArrayList<>(range);
-    rangesToBeMerged.sort(
-        new Comparator<Range>() {
-          @Override
-          public int compare(Range range, Range t1) {
-            if (range.dataClassType() == Byte.class) {
-              Pair<Byte, Byte> rangeByte = range.getRange();
-              Pair<Byte, Byte> t1Byte = t1.getRange();
-              return Byte.compare(rangeByte.getFirst(), t1Byte.getFirst());
-            } else if (range.dataClassType() == Short.class) {
-              Pair<Short, Short> rangeShort = range.getRange();
-              Pair<Short, Short> t1Short = t1.getRange();
-              return Short.compare(rangeShort.getFirst(), t1Short.getFirst());
-            } else if (range.dataClassType() == Integer.class) {
-              Pair<Integer, Integer> rangeInteger = range.getRange();
-              Pair<Integer, Integer> t1Integer = t1.getRange();
-              return Integer.compare(rangeInteger.getFirst(), t1Integer.getFirst());
-            } else if (range.dataClassType() == Long.class) {
-              Pair<Long, Long> rangeLong = range.getRange();
-              Pair<Long, Long> t1Long = t1.getRange();
-              return Long.compare(rangeLong.getFirst(), t1Long.getFirst());
-            } else if (range.dataClassType() == Float.class) {
-              Pair<Float, Float> rangeFloat = range.getRange();
-              Pair<Float, Float> t1Float = t1.getRange();
-              return Float.compare(rangeFloat.getFirst(), t1Float.getFirst());
-            } else if (range.dataClassType() == Range.class) {
-              Pair<Double, Double> rangeDouble = range.getRange();
-              Pair<Double, Double> t1Double = t1.getRange();
-              return Double.compare(rangeDouble.getFirst(), t1Double.getFirst());
-            }
-
-            return 0;
-          }
-        });
+    Collections.sort(rangesToBeMerged);
 
     boolean mergeable = true;
     while (mergeable) {

@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.beanutils.ConvertUtils;
 
-public class Range implements java.io.Serializable {
+public class Range implements java.io.Serializable, Comparable<Range> {
   private Pair range;
   private Class dataClassType;
 
@@ -137,6 +137,40 @@ public class Range implements java.io.Serializable {
               max(range.getSecond(), otherRange.getSecond())));
     }
     return null;
+  }
+
+  @Override
+  public int compareTo(Range other) {
+    // compareTo should return < 0 if this is supposed to be
+    // less than other, > 0 if this is supposed to be greater than
+    // other and 0 if they are supposed to be equal
+    if (dataClassType == Byte.class) {
+      Pair<Byte, Byte> rangeByte = range;
+      Pair<Byte, Byte> t1Byte = other.getRange();
+      return Byte.compare(rangeByte.getFirst(), t1Byte.getFirst());
+    } else if (dataClassType == Short.class) {
+      Pair<Short, Short> rangeShort = range;
+      Pair<Short, Short> t1Short = other.getRange();
+      return Short.compare(rangeShort.getFirst(), t1Short.getFirst());
+    } else if (dataClassType == Integer.class) {
+      Pair<Integer, Integer> rangeInteger = range;
+      Pair<Integer, Integer> t1Integer = other.getRange();
+      return Integer.compare(rangeInteger.getFirst(), t1Integer.getFirst());
+    } else if (dataClassType == Long.class) {
+      Pair<Long, Long> rangeLong = range;
+      Pair<Long, Long> t1Long = other.getRange();
+      return Long.compare(rangeLong.getFirst(), t1Long.getFirst());
+    } else if (dataClassType == Float.class) {
+      Pair<Float, Float> rangeFloat = range;
+      Pair<Float, Float> t1Float = other.getRange();
+      return Float.compare(rangeFloat.getFirst(), t1Float.getFirst());
+    } else if (dataClassType == Range.class) {
+      Pair<Double, Double> rangeDouble = range;
+      Pair<Double, Double> t1Double = other.getRange();
+      return Double.compare(rangeDouble.getFirst(), t1Double.getFirst());
+    }
+
+    return 0;
   }
 
   public boolean canMerge(Range other) throws TileDBError {
@@ -502,12 +536,12 @@ public class Range implements java.io.Serializable {
     // ConvertUtils.convert(util.divide_objects(util.subtract_objects(max, min, dataClassType),
     // buckets, dataClassType), Long.class);
     Object rangeLength =
-        util.divide_objects(util.subtract_objects(max, min, dataClassType), buckets, dataClassType);
+        util.divideObjects(util.subtractObjects(max, min, dataClassType), buckets, dataClassType);
     Long leftOvers =
         (Long)
             ConvertUtils.convert(
-                util.modulo_objects(
-                    util.subtract_objects(max, min, dataClassType), buckets, dataClassType),
+                util.moduloObjects(
+                    util.subtractObjects(max, min, dataClassType), buckets, dataClassType),
                 Long.class);
 
     Object low = min;
@@ -515,7 +549,7 @@ public class Range implements java.io.Serializable {
       // We want to set the high of the split range to be the low value of the range + the length -
       // 1
       Object high =
-          util.subtractEpsilon(util.add_objects(low, rangeLength, dataClassType), tileDBDatatype());
+          util.subtractEpsilon(util.addObjects(low, rangeLength, dataClassType), tileDBDatatype());
       // Handle base case where range length is 1, so we don't need to subtract one to account for
       // inclusiveness
 
