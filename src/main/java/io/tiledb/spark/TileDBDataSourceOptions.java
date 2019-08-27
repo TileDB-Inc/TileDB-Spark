@@ -1,6 +1,7 @@
 package io.tiledb.spark;
 
 import io.tiledb.java.api.Layout;
+import io.tiledb.java.api.Pair;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -107,6 +108,36 @@ public class TileDBDataSourceOptions implements Serializable {
       return Optional.empty();
     }
     return Optional.of(dimPartitions);
+  }
+
+  /** @return Optional List of Dimension names for creating a TileDB ArraySchema */
+  public Optional<List<Pair<String, Integer>>> getSchemaDimensions() {
+    if (optionMap.isEmpty()) {
+      return Optional.empty();
+    }
+    ArrayList<Pair<String, Integer>> schemaDimensions = new ArrayList<>();
+    Iterator<Map.Entry<String, String>> entries = optionMap.entrySet().iterator();
+    String prefix = "schema.dim.";
+    while (entries.hasNext()) {
+      Map.Entry<String, String> entry = entries.next();
+      String key = entry.getKey();
+      String val = entry.getValue();
+      if (key.startsWith(prefix)) {
+        String strippedKey = key.substring(prefix.length());
+        Integer dimIdx;
+        try {
+          dimIdx = Integer.parseInt(strippedKey);
+        } catch (NumberFormatException err) {
+          continue;
+        }
+        schemaDimensions.add(new Pair<>(val, dimIdx));
+      }
+    }
+    if (schemaDimensions.isEmpty()) {
+      return Optional.empty();
+    }
+    schemaDimensions.sort(Comparator.comparing((Pair p) -> ((Integer) p.getSecond())));
+    return Optional.of(schemaDimensions);
   }
 
   /** @return Optional String HashMap of tiledb config options and values * */
