@@ -84,9 +84,9 @@ public class TileDBReadSchema implements Serializable {
       throws TileDBError {
     MetadataBuilder metadataBuilder = new MetadataBuilder();
     if (isDim) {
-      metadataBuilder.putBoolean("dimension", true);
+      metadataBuilder.putBoolean("tiledb.dimension", true);
     } else {
-      metadataBuilder.putBoolean("attribute", true);
+      metadataBuilder.putBoolean("tiledb.attribute", true);
     }
     Metadata metadata = metadataBuilder.build();
     StructField field;
@@ -113,7 +113,6 @@ public class TileDBReadSchema implements Serializable {
           }
           break;
         }
-      case TILEDB_CHAR:
       case TILEDB_INT8:
         {
           if (cellValNum > 1) {
@@ -161,6 +160,7 @@ public class TileDBReadSchema implements Serializable {
           }
           break;
         }
+      case TILEDB_CHAR:
       case TILEDB_STRING_ASCII:
       case TILEDB_STRING_UTF8:
         {
