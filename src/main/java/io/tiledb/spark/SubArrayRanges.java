@@ -159,15 +159,25 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     return 0;
   }
 
+  public boolean splittable() {
+    for (Range range : ranges) {
+      if (!range.splittable()) return false;
+    }
+
+    return true;
+  }
+
   public List<SubArrayRanges> split(int splits) throws TileDBError {
     List<SubArrayRanges> newSubarrays = new ArrayList<>();
 
     // Handle base case where there is a single dimension
     if (ranges.size() == 1) {
-      for (Range newRange : ranges.get(0).splitRange(splits)) {
-        List<Range> dimRanges = new ArrayList<>();
-        dimRanges.add(newRange);
-        newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
+      if (ranges.get(0).splittable()) {
+        for (Range newRange : ranges.get(0).splitRange(splits)) {
+          List<Range> dimRanges = new ArrayList<>();
+          dimRanges.add(newRange);
+          newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
+        }
       }
     } else {
 
@@ -176,20 +186,22 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
       List<List<Range>> newSplits = new ArrayList<>();
       // Use volume ratios to weightily determine splits
       for (int i = 0; i < ranges.size(); i++) {
-        int dimensionWeightedSplits =
-            (int) ceil(((splits * dimensionVolumeRatios.get(i)) / ranges.size()));
+        if (ranges.get(i).splittable()) {
+          int dimensionWeightedSplits =
+              (int) ceil(((splits * dimensionVolumeRatios.get(i)) / ranges.size()));
 
-        // Split the given range for a dimension into x splits
-        newSplits.add(new ArrayList<>(ranges.get(i).splitRange(dimensionWeightedSplits)));
+          // Split the given range for a dimension into x splits
+          newSplits.add(new ArrayList<>(ranges.get(i).splitRange(dimensionWeightedSplits)));
 
-        // Create a new subArrayRanges for each split, copying all dimensions then overriding the
-        // one we
-        // split
-        /*for (Range newRange : newRanges) {
-          List<Range> newDimRanges = new ArrayList<>(ranges);
-          newDimRanges.set(dimIndex, newRange);
-          newSubarrays.add(new SubArrayRanges(newDimRanges, datatype));
-        }*/
+          // Create a new subArrayRanges for each split, copying all dimensions then overriding the
+          // one we
+          // split
+          /*for (Range newRange : newRanges) {
+            List<Range> newDimRanges = new ArrayList<>(ranges);
+            newDimRanges.set(dimIndex, newRange);
+            newSubarrays.add(new SubArrayRanges(newDimRanges, datatype));
+          }*/
+        }
       }
       generateAllSubarrays(newSplits, newSubarrays, 0, new ArrayList<>());
     }

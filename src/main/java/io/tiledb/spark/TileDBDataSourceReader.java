@@ -207,7 +207,7 @@ public class TileDBDataSourceReader
       int availablePartitions = tiledbOptions.getPartitionCount() - subarrays.size();
       if (availablePartitions > 1) {
         // Base case where we don't have any (or just single) pushdown per dimension
-        if (subarrays.size() == 1) {
+        if (subarrays.size() == 1 && subarrays.get(0).splittable()) {
           // Split the single subarray into the available partitions
           subarrays = subarrays.get(0).split(availablePartitions);
         } else {
@@ -229,6 +229,11 @@ public class TileDBDataSourceReader
 
           for (int i = 0; i < neededSplitsToReduceToMedianVolume.size(); i++) {
             SubArrayRanges subarray = subarrays.get(i);
+
+            // Don't try to split unsplittable subarrays
+            if (!subarray.splittable()) {
+              continue;
+            }
             // Inpercisions with double division don't matter here we just want close enough
             // percentages;
             int numberOfWeightedSplits =

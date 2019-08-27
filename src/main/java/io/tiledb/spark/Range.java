@@ -472,12 +472,31 @@ public class Range implements java.io.Serializable {
     return Datatype.TILEDB_ANY;
   }
 
+  /**
+   * Check if a range is splitable
+   *
+   * @return
+   */
+  public boolean splittable() {
+    if (range.getFirst() == range.getSecond()) {
+      return false;
+    }
+
+    return true;
+  }
+
   public List<Range> splitRange(int buckets) throws TileDBError {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
     // Only long dimensions can be split with naive algorithm
     Object min = range.getFirst();
     Object max = range.getSecond();
+
+    // If the min is the max this range is not splittable
+    if (min == max) {
+      ranges.add(new Range(range));
+      return ranges;
+    }
 
     //    Long rangeLength = (Long)
     // ConvertUtils.convert(util.divide_objects(util.subtract_objects(max, min, dataClassType),
