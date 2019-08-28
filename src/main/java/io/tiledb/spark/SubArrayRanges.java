@@ -89,26 +89,26 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     return (T) (Integer) (0);
   }
 
-  private Byte volumeByte() {
-    byte volume = 1;
+  private Long volumeByte() {
+    long volume = 1;
     for (Range dimRange : ranges) {
-      volume *= dimRange.width().byteValue();
+      volume *= dimRange.width().longValue();
     }
     return volume;
   }
 
-  private Short volumeShort() {
-    short volume = 1;
+  private Long volumeShort() {
+    long volume = 1;
     for (Range dimRange : ranges) {
-      volume *= dimRange.width().shortValue();
+      volume *= dimRange.width().longValue();
     }
     return volume;
   }
 
-  private Integer volumeInteger() {
-    int volume = 1;
+  private Long volumeInteger() {
+    long volume = 1;
     for (Range dimRange : ranges) {
-      volume *= dimRange.width().intValue();
+      volume *= dimRange.width().longValue();
     }
     return volume;
   }
@@ -121,10 +121,10 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     return volume;
   }
 
-  private Float volumeFloat() {
-    float volume = 1;
+  private Double volumeFloat() {
+    double volume = 1;
     for (Range dimRange : ranges) {
-      volume *= dimRange.width().floatValue();
+      volume *= dimRange.width().doubleValue();
     }
     return volume;
   }
@@ -187,20 +187,21 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
       // Use volume ratios to weightily determine splits
       for (int i = 0; i < ranges.size(); i++) {
         if (ranges.get(i).splittable()) {
+
+          /*
+           The weights are computed based on the width of each range
+           For example if we have 3 ranges (dimensions) with width 10, 15 and 35
+           the percentages are previously computed to be:
+           10 / (10+15+35) = 0.16666, 15/(10+15+35) = 0.25, 35 / (10+15+35) = 0.58333
+           We take the total number of splits multiply by the percentage and divide by the number of ranges (dimensions)
+           If there is 6 splits, they are computed to be:
+           6*0.1666 / 3 = 1, 6*0.25/3 = 1 and 6*0.5833/3 = 2
+          */
           int dimensionWeightedSplits =
               (int) ceil(((splits * dimensionVolumeRatios.get(i)) / ranges.size()));
 
           // Split the given range for a dimension into x splits
           newSplits.add(new ArrayList<>(ranges.get(i).splitRange(dimensionWeightedSplits)));
-
-          // Create a new subArrayRanges for each split, copying all dimensions then overriding the
-          // one we
-          // split
-          /*for (Range newRange : newRanges) {
-            List<Range> newDimRanges = new ArrayList<>(ranges);
-            newDimRanges.set(dimIndex, newRange);
-            newSubarrays.add(new SubArrayRanges(newDimRanges, datatype));
-          }*/
         }
       }
       generateAllSubarrays(newSplits, newSubarrays, 0, new ArrayList<>());
@@ -209,22 +210,29 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     return newSubarrays;
   }
 
+  /**
+   * Compute the percentage of width that each dimension gives based on the total summation of
+   * widths For example if we have 3 ranges with widths 10, 15 and 35 then the computation is: 10 /
+   * (10+15+35) = 0.16666, 15/(10+15+35) = 0.25, 35 / (10+15+35) = 0.58333
+   *
+   * @return
+   */
   private List<Double> computeDimensionVolumeRations() {
     List<Object> widths = ranges.stream().map(Range::width).collect(Collectors.toList());
     if (datatype == Byte.class) {
-      int sum = widths.stream().map(e -> (Byte) e).mapToInt(Byte::intValue).sum();
+      long sum = widths.stream().map(e -> (Byte) e).mapToLong(Byte::longValue).sum();
       return widths.stream().map(e -> ((Byte) e).doubleValue() / sum).collect(Collectors.toList());
     } else if (datatype == Short.class) {
-      int sum = widths.stream().map(e -> (Short) e).mapToInt(Short::intValue).sum();
+      long sum = widths.stream().map(e -> (Short) e).mapToLong(Short::longValue).sum();
       return widths.stream().map(e -> ((Short) e).doubleValue() / sum).collect(Collectors.toList());
     } else if (datatype == Integer.class) {
-      int sum = widths.stream().map(e -> (Integer) e).mapToInt(Integer::intValue).sum();
+      long sum = widths.stream().map(e -> (Integer) e).mapToLong(Integer::longValue).sum();
       return widths
           .stream()
           .map(e -> ((Integer) e).doubleValue() / sum)
           .collect(Collectors.toList());
     } else if (datatype == Long.class) {
-      long sum = widths.stream().map(e -> (Long) e).mapToLong(Long::intValue).sum();
+      long sum = widths.stream().map(e -> (Long) e).mapToLong(Long::longValue).sum();
       return widths.stream().map(e -> ((Long) e).doubleValue() / sum).collect(Collectors.toList());
     } else if (datatype == Float.class) {
       double sum = widths.stream().map(e -> (Float) e).mapToDouble(Float::doubleValue).sum();

@@ -233,8 +233,20 @@ public class TileDBDataSourceReader
             if (!subarray.splittable()) {
               continue;
             }
-            // Inpercisions with double division don't matter here we just want close enough
-            // percentages;
+
+            /*
+             Imprecision with double division don't matter here we just want close enough percentages;
+
+             The weights are computed based on the percentage of needed splits to reduce to the median.
+             For example if we have 5 subarrays each with volumes of 10, 15, 50, 200, 400
+             The median is 50
+             The number of splits to reduce to the median is 400 / 50 = 8 AND 200 / 50 = 4
+             The weights are computed to be
+             8 / (8+4) = 0.66 and 4 / (8+4) = 0.33 for subarrays 400 and 200 respectively.
+             If the number of available splits is 3 (thus we can not give the full 8 + 4 splits needed for the median)
+             We do 0.66 * 3 = 2 splits to the 400 and 3 * 0.33 = 1 splits to the 200 subarray.
+             This results in a final subarray volumes of 10, 15, 50, 100, 100, 100, 100, 100, 100
+            */
             int numberOfWeightedSplits =
                 (int)
                     Math.ceil(
