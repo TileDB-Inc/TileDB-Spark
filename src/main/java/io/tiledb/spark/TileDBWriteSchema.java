@@ -1,6 +1,7 @@
 package io.tiledb.spark;
 
 import io.tiledb.java.api.*;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -11,7 +12,7 @@ public class TileDBWriteSchema {
 
   static String[] getSchemaDimensionOptions(StructType sparkSchema, TileDBDataSourceOptions options)
       throws TileDBError {
-    Optional<List<Pair<String, Integer>>> schemaDimsOpt = options.getSchemaDimensions();
+    Optional<List<Pair<String, Integer>>> schemaDimsOpt = options.getSchemaDimensionNames();
     if (!schemaDimsOpt.isPresent()) {
       throw new TileDBError(
           "must specify one or more dimension columns when writing a TileDB array");
@@ -39,31 +40,126 @@ public class TileDBWriteSchema {
     return schemaDims.stream().map(Pair::getFirst).toArray(String[]::new);
   }
 
-  static Dimension toDimension(Context ctx, StructField field) throws TileDBError {
+  static Dimension toDimension(
+      Context ctx, String dimName, int dimIdx, StructField field, TileDBDataSourceOptions options)
+      throws TileDBError {
     DataType dataType = field.dataType();
-    if (dataType instanceof IntegerType) {
-      int extent = 10000;
-      int min = Integer.MIN_VALUE;
-      int max = Integer.MAX_VALUE - extent;
-      return new Dimension(ctx, field.name(), Datatype.TILEDB_INT32, new Pair<>(min, max), extent);
-    } else if (dataType instanceof LongType) {
-      long extent = 10000;
-      long min = Long.MIN_VALUE;
-      long max = Long.MAX_VALUE - extent;
-      return new Dimension(ctx, field.name(), Datatype.TILEDB_INT64, new Pair<>(min, max), extent);
-    } else if (dataType instanceof ShortType) {
-      short extent = 10000;
-      short min = Short.MIN_VALUE;
-      short max = (short) (Short.MAX_VALUE - extent);
-      return new Dimension(ctx, field.name(), Datatype.TILEDB_INT16, new Pair<>(min, max), extent);
-    } else if (dataType instanceof ByteType) {
-      byte extent = 64;
-      byte min = Byte.MIN_VALUE;
-      byte max = (byte) (Byte.MAX_VALUE - extent);
-      return new Dimension(ctx, field.name(), Datatype.TILEDB_UINT8, new Pair<>(min, max), extent);
+    if ((dataType instanceof FloatType) || (dataType instanceof DoubleType)) {
+      Optional<Double> realMin = options.getSchemaDimensionMinDomainDouble(dimIdx);
+      Optional<Double> realMax = options.getSchemaDimensionMaxDomainDouble(dimIdx);
+      Optional<Double> realExtent = options.getSchemaDimensionExtentDouble(dimIdx);
+      if (dataType instanceof FloatType) {
+        Float min = Float.MIN_VALUE;
+        if (realMin.isPresent()) {
+          min = BigDecimal.valueOf(realMin.get()).floatValue();
+        }
+        Float max = Float.MAX_VALUE;
+        if (realMax.isPresent()) {
+          max = BigDecimal.valueOf(realMax.get()).floatValue();
+        }
+        Float extent;
+        if (realExtent.isPresent()) {
+          extent = BigDecimal.valueOf(realExtent.get()).floatValue();
+        } else {
+          extent = min - max;
+        }
+        return new Dimension(
+            ctx, field.name(), Datatype.TILEDB_FLOAT32, new Pair<>(min, max), extent);
+      } else if (dataType instanceof DoubleType) {
+
+        Double min = Double.MIN_VALUE;
+        if (realMin.isPresent()) {
+          min = realMin.get();
+        }
+        Double max = Double.MAX_VALUE;
+        if (realMax.isPresent()) {
+          max = realMax.get();
+        }
+        Double extent;
+        if (realExtent.isPresent()) {
+          extent = realExtent.get();
+        } else {
+          extent = max - min;
+        }
+        return new Dimension(
+            ctx, field.name(), Datatype.TILEDB_FLOAT64, new Pair<>(min, max), extent);
+      }
     } else {
-      throw new TileDBError("Datatype not supported for dimension: " + dataType);
+      Optional<Long> longMin = options.getSchemaDimensionMinDomainLong(dimIdx);
+      Optional<Long> longMax = options.getSchemaDimensionMaxDomainLong(dimIdx);
+      Optional<Long> longExtent = options.getSchemaDimensionExtentLong(dimIdx);
+      if (dataType instanceof IntegerType) {
+        Integer min = Integer.MIN_VALUE;
+        if (longMin.isPresent()) {
+          min = Math.toIntExact(longMin.get());
+        }
+        Integer max = Integer.MAX_VALUE;
+        if (longMax.isPresent()) {
+          max = Math.toIntExact(longMax.get());
+        }
+        Integer extent;
+        if (longExtent.isPresent()) {
+          extent = Math.toIntExact(longExtent.get());
+        } else {
+          extent = max - min;
+        }
+        return new Dimension(
+            ctx, field.name(), Datatype.TILEDB_INT32, new Pair<>(min, max), extent);
+      } else if (dataType instanceof LongType) {
+        Long min = Long.MIN_VALUE + 1l;
+        if (longMin.isPresent()) {
+          min = longMin.get();
+        }
+        Long max = Long.MAX_VALUE - 1l;
+        if (longMax.isPresent()) {
+          max = longMax.get();
+        }
+        Long extent;
+        if (longExtent.isPresent()) {
+          extent = longExtent.get();
+        } else {
+          extent = max;
+        }
+        return new Dimension(
+            ctx, field.name(), Datatype.TILEDB_INT64, new Pair<>(min, max), extent);
+      } else if (dataType instanceof ShortType) {
+        Short min = Short.MIN_VALUE;
+        if (longMin.isPresent()) {
+          min = Short.valueOf(longMin.get().toString());
+        }
+        Short max = Short.MAX_VALUE;
+        if (longMax.isPresent()) {
+          max = Short.valueOf(longMax.get().toString());
+        }
+        Short extent;
+        if (longExtent.isPresent()) {
+          extent = Short.valueOf(longExtent.get().toString());
+        } else {
+          extent = Short.valueOf((short) (max - min));
+        }
+        return new Dimension(
+            ctx, field.name(), Datatype.TILEDB_INT16, new Pair<>(min, max), extent);
+      } else if (dataType instanceof ByteType) {
+        Byte min = Byte.MIN_VALUE;
+        if (longMin.isPresent()) {
+          min = Byte.valueOf(longMin.get().toString());
+        }
+        Byte max = Byte.MAX_VALUE;
+        if (longMax.isPresent()) {
+          max = Byte.valueOf(longMin.get().toString());
+        }
+        Byte extent;
+        if (longExtent.isPresent()) {
+          extent = Byte.valueOf(longExtent.get().toString());
+        } else {
+          extent = Byte.valueOf((byte) (max - min));
+        }
+        return new Dimension(
+            ctx, field.name(), Datatype.TILEDB_UINT8, new Pair<>(min, max), extent);
+      }
     }
+    throw new TileDBError(
+        "Datatype not supported for TileDB spark write schema dimension: " + dataType);
   }
 
   static Attribute toAttribute(Context ctx, StructField field) throws TileDBError {

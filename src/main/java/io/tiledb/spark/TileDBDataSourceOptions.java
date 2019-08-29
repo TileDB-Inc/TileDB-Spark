@@ -90,7 +90,7 @@ public class TileDBDataSourceOptions implements Serializable {
    */
   public Optional<List<OptionDimPartition>> getDimPartitions() {
     List<Pair<String, String>> results =
-        collectOptionsWithPrefixSuffix(optionMap, "partition.", null);
+        collectOptionsWithKeyPrefixSuffix(optionMap, "partition.", null);
     if (results.isEmpty()) {
       return Optional.empty();
     }
@@ -102,9 +102,9 @@ public class TileDBDataSourceOptions implements Serializable {
   }
 
   /** @return Optional List of Dimension names for creating a TileDB ArraySchema */
-  public Optional<List<Pair<String, Integer>>> getSchemaDimensions() {
+  public Optional<List<Pair<String, Integer>>> getSchemaDimensionNames() {
     List<Pair<String, String>> results =
-        collectOptionsWithPrefixSuffix(optionMap, "schema.dim.", ".name");
+        collectOptionsWithKeyPrefixSuffix(optionMap, "schema.dim.", ".name");
     if (results.isEmpty()) {
       return Optional.empty();
     }
@@ -120,21 +120,58 @@ public class TileDBDataSourceOptions implements Serializable {
       }
       schemaDimensions.add(new Pair<>(val, dimIdx));
     }
+    schemaDimensions.sort(Comparator.comparing(Pair::getSecond));
     return Optional.of(schemaDimensions);
   }
 
+  public Optional<Long> getSchemaDimensionMinDomainLong(int dimIdx) {
+    String dimExtentKey = "schema.dim." + dimIdx + ".min";
+    return tryParseOptionKeyLong(optionMap, dimExtentKey);
+  }
+
+  public Optional<Long> getSchemaDimensionMaxDomainLong(int dimIdx) {
+    String dimExtentKey = "schema.dim." + dimIdx + ".max";
+    return tryParseOptionKeyLong(optionMap, dimExtentKey);
+  }
+
+  public Optional<Long> getSchemaDimensionExtentLong(int dimIdx) {
+    String dimExtentKey = "schema.dim." + dimIdx + ".extent";
+    return tryParseOptionKeyLong(optionMap, dimExtentKey);
+  }
+
+  public Optional<Double> getSchemaDimensionMinDomainDouble(int dimIdx) {
+    String dimExtentKey = "schema.dim." + dimIdx + ".min";
+    return tryParseOptionKeyDouble(optionMap, dimExtentKey);
+  }
+
+  public Optional<Double> getSchemaDimensionMaxDomainDouble(int dimIdx) {
+    String dimExtentKey = "schema.dim." + dimIdx + ".max";
+    return tryParseOptionKeyDouble(optionMap, dimExtentKey);
+  }
+
+  public Optional<Double> getSchemaDimensionExtentDouble(int dimIdx) {
+    String dimExtentKey = "schema.dim." + dimIdx + ".extent";
+    return tryParseOptionKeyDouble(optionMap, dimExtentKey);
+  }
+
+  public Optional<Long> getSchemaCapacity() {
+    String capacityKey = "schema.capacity";
+    return tryParseOptionKeyLong(optionMap, capacityKey);
+  }
+
   public long getWriteBufferSize() {
-    if (optionMap.containsKey("write_buffer_size")) {
-      return Long.parseLong(optionMap.get("write_buffer_size"));
+    Optional<Long> bufferSize = tryParseOptionKeyLong(optionMap, "write_buffer_size");
+    if (bufferSize.isPresent()) {
+      return bufferSize.get();
     }
     return QUERY_BUFFER_SIZE;
   }
 
   /** @return Optional String HashMap of tiledb config options and values * */
   public Map<String, String> getTileDBConfigMap() {
-
     HashMap<String, String> configMap = new HashMap<>();
-    List<Pair<String, String>> results = collectOptionsWithPrefixSuffix(optionMap, "tiledb.", null);
+    List<Pair<String, String>> results =
+        collectOptionsWithKeyPrefixSuffix(optionMap, "tiledb.", null);
     if (results.isEmpty()) {
       return configMap;
     }
@@ -144,10 +181,38 @@ public class TileDBDataSourceOptions implements Serializable {
     return configMap;
   }
 
-  private static List<Pair<String, String>> collectOptionsWithPrefixSuffix(
+  private static Optional<Long> tryParseOptionKeyLong(Map<String, String> options, String key) {
+    if (!options.containsKey(key)) {
+      return Optional.empty();
+    }
+    Long val;
+    try {
+      val = Long.parseLong(options.get(key));
+    } catch (NumberFormatException err) {
+      return Optional.empty();
+    }
+    return Optional.of(val);
+  }
+
+  private static Optional<Double> tryParseOptionKeyDouble(Map<String, String> options, String key) {
+    if (!options.containsKey(key)) {
+      return Optional.empty();
+    }
+    Double val;
+    try {
+      val = Double.parseDouble(options.get(key));
+    } catch (NumberFormatException err) {
+      return Optional.empty();
+    }
+    return Optional.of(val);
+  }
+
+  private static List<Pair<String, String>> collectOptionsWithKeyPrefixSuffix(
       Map<String, String> options, String prefix, String suffix) {
     ArrayList<Pair<String, String>> results = new ArrayList<>();
-    if (options.isEmpty() && (prefix == null)) {
+    boolean hasPrefix = (prefix != null && prefix.length() > 0);
+    boolean hasSuffix = (suffix != null && suffix.length() > 0);
+    if (options.isEmpty() || !hasPrefix) {
       return results;
     }
     Iterator<Map.Entry<String, String>> entries = options.entrySet().iterator();
@@ -160,19 +225,18 @@ public class TileDBDataSourceOptions implements Serializable {
         if (strippedKeyPrefix.length() == 0) {
           continue;
         }
-        if (suffix == null || suffix.length() == 0) {
+        if (!hasSuffix) {
           results.add(new Pair<>(strippedKeyPrefix, val));
           continue;
         }
-        if (!key.endsWith(suffix)) {
-          continue;
+        // check suffix
+        if (key.endsWith(suffix)) {
+          String strippedKeySuffix =
+              strippedKeyPrefix.substring(0, strippedKeyPrefix.length() - suffix.length());
+          if (strippedKeySuffix.length() > 0) {
+            results.add(new Pair<>(strippedKeySuffix, val));
+          }
         }
-        String strippedKeySuffix =
-            strippedKeyPrefix.substring(0, strippedKeyPrefix.length() - suffix.length());
-        if (strippedKeySuffix.length() == 0) {
-          continue;
-        }
-        results.add(new Pair<>(strippedKeySuffix, val));
       }
     }
     return results;

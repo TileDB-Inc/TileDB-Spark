@@ -76,7 +76,14 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
         .format("io.tiledb.spark")
         .option("uri", writeArrayURI)
         .option("schema.dim.0.name", "rows")
+        .option("schema.dim.0.min", 1)
+        .option("schema.dim.0.max", 2)
+        .option("schema.dim.0.extent", 2)
         .option("schema.dim.1.name", "cols")
+        .option("schema.dim.1.min", 1)
+        .option("schema.dim.1.max", 4)
+        .option("schema.dim.1.extent", 4)
+        .option("schema.capacity", 3)
         .mode(SaveMode.ErrorIfExists)
         .save();
 
