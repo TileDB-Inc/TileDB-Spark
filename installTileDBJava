@@ -4,7 +4,7 @@ if [ -d "TileDB-Java" ]; then
 fi
 git clone https://github.com/TileDB-Inc/TileDB-Java.git
 pushd TileDB-Java
-git checkout jcb/set_buffer_elements
+git checkout master
 ./gradlew assemble --info
 ./gradlew publishToMavenLocal --info
 popd
