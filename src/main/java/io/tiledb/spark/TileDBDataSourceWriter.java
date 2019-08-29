@@ -39,7 +39,15 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
   public void commit(WriterCommitMessage[] messages) {}
 
   @Override
-  public void abort(WriterCommitMessage[] messages) {}
+  public void abort(WriterCommitMessage[] messages) {
+    if (messages.length > 0) {
+      try (Context ctx = new Context(options.getTileDBConfigMap())) {
+        TileDBObject.remove(ctx, uri.toString());
+      } catch (TileDBError err) {
+        throw new RuntimeException("Error removing tiledb array at '" + uri + "' after aborted / failed write: " + err.getMessage());
+      }
+    }
+  }
 
   private boolean tryWriteArraySchema() {
     try (Context ctx = new Context(options.getTileDBConfigMap())) {
