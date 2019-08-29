@@ -35,14 +35,30 @@ Optionally include the `read_buffer_size` to set the off heap tiledb buffer size
                                .option("uri", "file:///path/to/tiledb/array")
                                .option("read_buffer_size", 100*1024*1024)
                                .load()
-                               
-### Options
+  
+To write to TileDB from an existing dataframe, you need to specify a URI and the column(s) which map to sparse array dimensions.  For now only sparse array writes are supported.
 
+    scala > val sampleDF.write()
+                        .format("io.tiledb.spark")
+                        .option("uri", "file:///path/to/tiledb/array_new")                          
+			.option("schema.dim.0", "rows")
+                        .option("schema.dim.1", "cols")
+                        .mode(SaveMode.ErrorIfExists)
+                        .save();
+
+## Options
+
+### Read/Write options
 * `uri` (required): URI to TileDB sparse or dense array
-* `order` (optional): Result layout order `"row-major"`/ `"TILEDB_ROW_MAJOR"`, `"col-major"` / `"TILEDB_COL_MAJOR"`, or `"unordered"`/ `"TILEDB_UNORDERED"` (default `"unordered"`).
 * `tiledb.` (optional): Set a TileDB config option, ex: `option("tiledb.vfs.num_threads", 4)`.  Multiple tiledb config options can be specified.  See the [full list of configuration options](https://docs.tiledb.io/en/latest/tutorials/config.html?highlight=config#summary-of-parameters).
+
+### Read options
+* `order` (optional): Result layout order `"row-major"`/ `"TILEDB_ROW_MAJOR"`, `"col-major"` / `"TILEDB_COL_MAJOR"`, or `"unordered"`/ `"TILEDB_UNORDERED"` (default `"unordered"`).
 * `read_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
 * `allow_read_buffer_realloc` (optional): If the read buffer size is too small allow reallocation. Default: True
+
+### Write options
+* `schema.dim.<0..N>` (requried): Specify which of the spark dataframe columns names are dimensions
 
 ## Semantics
 
