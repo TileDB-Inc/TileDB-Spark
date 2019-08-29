@@ -44,7 +44,11 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
       try (Context ctx = new Context(options.getTileDBConfigMap())) {
         TileDBObject.remove(ctx, uri.toString());
       } catch (TileDBError err) {
-        throw new RuntimeException("Error removing tiledb array at '" + uri + "' after aborted / failed write: " + err.getMessage());
+        throw new RuntimeException(
+            "Error removing tiledb array at '"
+                + uri
+                + "' after aborted / failed write: "
+                + err.getMessage());
       }
     }
   }

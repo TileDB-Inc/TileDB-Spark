@@ -41,8 +41,9 @@ To write to TileDB from an existing dataframe, you need to specify a URI and the
     scala > val sampleDF.write()
                         .format("io.tiledb.spark")
                         .option("uri", "file:///path/to/tiledb/array_new")                          
-			.option("schema.dim.0", "rows")
+                        .option("schema.dim.0", "rows")
                         .option("schema.dim.1", "cols")
+                        .option("write_buffer_size", 100*1024*1024)
                         .mode(SaveMode.ErrorIfExists)
                         .save();
 
@@ -59,6 +60,7 @@ To write to TileDB from an existing dataframe, you need to specify a URI and the
 
 ### Write options
 * `schema.dim.<0..N>` (requried): Specify which of the spark dataframe columns names are dimensions
+* `write_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
 
 ## Semantics
 
