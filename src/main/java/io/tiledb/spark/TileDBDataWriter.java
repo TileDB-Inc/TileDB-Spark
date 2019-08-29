@@ -145,21 +145,21 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     return;
   }
 
-  private void bufferDimensionValue(int dimIdx, InternalRow record, int ordinal)
+  private boolean bufferDimensionValue(int dimIdx, InternalRow record, int ordinal)
       throws TileDBError {
     int bufferIdx = 0;
     int bufferElements = (nRecordsBuffered * nDims) + dimIdx;
-    writeRecordToBuffer(bufferIdx, bufferElements, record, ordinal);
+    return writeRecordToBuffer(bufferIdx, bufferElements, record, ordinal);
   }
 
-  private void bufferAttributeValue(int attrIdx, InternalRow record, int ordinal)
+  private boolean bufferAttributeValue(int attrIdx, InternalRow record, int ordinal)
       throws TileDBError {
     int bufferIdx = nDims + attrIdx;
     int bufferElements = nRecordsBuffered;
-    writeRecordToBuffer(bufferIdx, bufferElements, record, ordinal);
+    return writeRecordToBuffer(bufferIdx, bufferElements, record, ordinal);
   }
 
-  private void writeRecordToBuffer(
+  private boolean writeRecordToBuffer(
       int bufferIdx, int bufferElement, InternalRow record, int ordinal) throws TileDBError {
     Datatype dtype = bufferDatatypes[bufferIdx];
     boolean isArray = bufferValNum[bufferIdx] > 1l;
@@ -170,6 +170,9 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             byte[] array = record.getArray(ordinal).toByteArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+              return true;
+            }
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
@@ -180,7 +183,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getByte(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return;
+          return false;
         }
       case TILEDB_UINT8:
       case TILEDB_INT16:
@@ -188,6 +191,9 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             short[] array = record.getArray(ordinal).toShortArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+              return true;
+            }
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
@@ -199,7 +205,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getShort(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return;
+          return false;
         }
       case TILEDB_UINT16:
       case TILEDB_INT32:
@@ -207,6 +213,9 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             int[] array = record.getArray(ordinal).toIntArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+              return true;
+            }
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
@@ -217,7 +226,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getInt(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return;
+          return false;
         }
       case TILEDB_UINT32:
       case TILEDB_UINT64:
@@ -226,6 +235,9 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             long[] array = record.getArray(ordinal).toLongArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+              return true;
+            }
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
@@ -236,13 +248,16 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getLong(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return;
+          return false;
         }
       case TILEDB_FLOAT32:
         {
           if (isArray) {
             float[] array = record.getArray(ordinal).toFloatArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+              return true;
+            }
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
@@ -253,13 +268,16 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getFloat(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return;
+          return false;
         }
       case TILEDB_FLOAT64:
         {
           if (isArray) {
             double[] array = record.getArray(ordinal).toDoubleArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+              return true;
+            }
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
@@ -270,19 +288,23 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getDouble(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return;
+          return false;
         }
       case TILEDB_CHAR:
       case TILEDB_STRING_ASCII:
       case TILEDB_STRING_UTF8:
         {
           String val = record.getString(ordinal);
+          int bytesLen = val.getBytes().length;
           int bufferOffset = nativeArrayOffsetElements[bufferIdx];
+          if ((bufferOffset + bytesLen) > DEFAULT_BATCH_SIZE) {
+            return true;
+          }
           buffer.setItem(bufferOffset, val);
           nativeArrayOffsetBuffers[bufferIdx].setItem(bufferElement, (long) bufferOffset);
           nativeArrayOffsetElements[bufferIdx] += 1;
-          nativeArrayBufferElements[bufferIdx] += val.getBytes().length;
-          return;
+          nativeArrayBufferElements[bufferIdx] += bytesLen;
+          return false;
         }
       default:
         throw new TileDBError("Unimplemented attribute type for Spark writes: " + dtype);
@@ -292,17 +314,27 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   @Override
   public void write(InternalRow record) throws IOException {
     try {
-      for (int ordinal = 0; ordinal < record.numFields(); ordinal++) {
-        int buffIdx = bufferIndex[ordinal];
-        if (buffIdx < nDims) {
-          int dimIdx = buffIdx - 0;
-          bufferDimensionValue(dimIdx, record, ordinal);
-        } else {
-          int attrIdx = buffIdx - nDims;
-          bufferAttributeValue(attrIdx, record, ordinal);
+      boolean retryAfterFlush;
+      do {
+        retryAfterFlush = false;
+        for (int ordinal = 0; ordinal < record.numFields(); ordinal++) {
+          int buffIdx = bufferIndex[ordinal];
+          if (buffIdx < nDims) {
+            int dimIdx = buffIdx - 0;
+            retryAfterFlush = bufferDimensionValue(dimIdx, record, ordinal);
+          } else {
+            int attrIdx = buffIdx - nDims;
+            retryAfterFlush = bufferAttributeValue(attrIdx, record, ordinal);
+          }
         }
-      }
+        if (retryAfterFlush) {
+          flushBuffers();
+          resetWriteQueryAndBuffers();
+          // retry record write
+        }
+      } while (retryAfterFlush);
       nRecordsBuffered++;
+      // case when all columns are scalar, reset for the next row
       if (nRecordsBuffered > DEFAULT_BATCH_SIZE) {
         flushBuffers();
         resetWriteQueryAndBuffers();
