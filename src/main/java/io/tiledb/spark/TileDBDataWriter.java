@@ -12,7 +12,7 @@ import org.apache.spark.sql.types.StructType;
 
 public class TileDBDataWriter implements DataWriter<InternalRow> {
 
-  private static final int DEFAULT_BATCH_SIZE = 10000;
+  private static final int DEFAULT_BATCH_SIZE = 3;
 
   private URI uri;
   private StructType sparkSchema;
@@ -314,9 +314,8 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   @Override
   public void write(InternalRow record) throws IOException {
     try {
-      boolean retryAfterFlush;
-      do {
-        retryAfterFlush = false;
+      for (int flushAttempts = 0; flushAttempts  < 2; flushAttempts++) {
+        boolean retryAfterFlush = false;
         for (int ordinal = 0; ordinal < record.numFields(); ordinal++) {
           int buffIdx = bufferIndex[ordinal];
           if (buffIdx < nDims) {
@@ -326,13 +325,25 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             int attrIdx = buffIdx - nDims;
             retryAfterFlush = bufferAttributeValue(attrIdx, record, ordinal);
           }
+          if (retryAfterFlush) {
+            // don't write any more parts of the record
+            break;
+          }
         }
-        if (retryAfterFlush) {
+        if (!retryAfterFlush) {
+          // record written
+          break;
+        }
+        if (nRecordsBuffered == 0 || flushAttempts == 1) {
+          // nothing can fit abort, buffers are not big enough to hold varlen data for write
+          throw new TileDBError("Allocated buffer sizes are too small to write Spark varlen data, increase max buffer size");
+        }
+        if (nRecordsBuffered > 0 && flushAttempts == 0) {
+          // some prev records were written but one of current varlen values exceeded the max size flush and reset, trying again
           flushBuffers();
           resetWriteQueryAndBuffers();
-          // retry record write
         }
-      } while (retryAfterFlush);
+      }
       nRecordsBuffered++;
       // case when all columns are scalar, reset for the next row
       if (nRecordsBuffered > DEFAULT_BATCH_SIZE) {
@@ -370,8 +381,10 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   @Override
   public WriterCommitMessage commit() throws IOException {
     try {
-      // flush remaining buffers
-      flushBuffers();
+      // flush remaining records
+      if (nRecordsBuffered >= 1) {
+        flushBuffers();
+      }
     } catch (TileDBError err) {
       throw new IOException(err.getMessage());
     }
@@ -380,6 +393,8 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
   @Override
   public void abort() throws IOException {
+    // clean up buffered resources
     closeTileDBResources();
-  }
+    throw new IOException("Aborted record write after retry for partition:");
+  };
 }
