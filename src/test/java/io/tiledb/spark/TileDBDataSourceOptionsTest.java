@@ -1,6 +1,7 @@
 package io.tiledb.spark;
 
 import io.tiledb.java.api.Layout;
+import io.tiledb.java.api.Pair;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -110,6 +111,29 @@ public class TileDBDataSourceOptionsTest {
     OptionDimPartition p1 = partitions.get().get(1);
     Assert.assertEquals("foo", p1.getDimName().get());
     Assert.assertEquals(2, (int) p1.getNPartitions());
+  }
+
+  @Test
+  public void testEmptyTileDBSchemaDims() throws Exception {
+    HashMap<String, String> optionMap = new HashMap<>();
+    optionMap.put("uri", "s3://foo/bar");
+    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+    Assert.assertFalse(options.getSchemaDimensions().isPresent());
+  }
+
+  @Test
+  public void testTileDBSchemaDims() throws Exception {
+    HashMap<String, String> optionMap = new HashMap<>();
+    optionMap.put("uri", "s3://foo/bar");
+    optionMap.put("schema.dim.0.name", "rows");
+    optionMap.put("schema.dim.1.name", "cols");
+    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+    Assert.assertTrue(options.getSchemaDimensions().isPresent());
+    List<Pair<String, Integer>> schemaDims = options.getSchemaDimensions().get();
+    Assert.assertEquals("rows", schemaDims.get(0).getFirst());
+    Assert.assertEquals(Integer.valueOf(0), schemaDims.get(0).getSecond());
+    Assert.assertEquals("cols", schemaDims.get(1).getFirst());
+    Assert.assertEquals(Integer.valueOf(1), schemaDims.get(1).getSecond());
   }
 
   @Test

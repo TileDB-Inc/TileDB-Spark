@@ -26,7 +26,7 @@ public class WriteSparkDataTypesTest extends SharedJavaSparkSession implements S
         .write()
         .format("io.tiledb.spark")
         .option("uri", arrayURI)
-        .option("schema.dim.0", "id")
+        .option("schema.dim.0.name", "id")
         .mode(SaveMode.ErrorIfExists)
         .save();
 

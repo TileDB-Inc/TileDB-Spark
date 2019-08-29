@@ -89,54 +89,37 @@ public class TileDBDataSourceOptions implements Serializable {
    *     partitions *
    */
   public Optional<List<OptionDimPartition>> getDimPartitions() {
-    if (optionMap.isEmpty()) {
+    List<Pair<String, String>> results =
+        collectOptionsWithPrefixSuffix(optionMap, "partition.", null);
+    if (results.isEmpty()) {
       return Optional.empty();
     }
-    List<OptionDimPartition> dimPartitions = new LinkedList<>();
-    Iterator<Map.Entry<String, String>> entries = optionMap.entrySet().iterator();
-    String prefix = "partition.";
-    while (entries.hasNext()) {
-      Map.Entry<String, String> entry = entries.next();
-      String key = entry.getKey();
-      String val = entry.getValue();
-      if (key.startsWith(prefix)) {
-        String strippedKey = key.substring(prefix.length());
-        dimPartitions.add(new OptionDimPartition(strippedKey, val));
-      }
-    }
-    if (dimPartitions.isEmpty()) {
-      return Optional.empty();
+    List<OptionDimPartition> dimPartitions = new ArrayList<>();
+    for (Pair<String, String> entry : results) {
+      dimPartitions.add(new OptionDimPartition(entry.getFirst(), entry.getSecond()));
     }
     return Optional.of(dimPartitions);
   }
 
   /** @return Optional List of Dimension names for creating a TileDB ArraySchema */
   public Optional<List<Pair<String, Integer>>> getSchemaDimensions() {
-    if (optionMap.isEmpty()) {
+    List<Pair<String, String>> results =
+        collectOptionsWithPrefixSuffix(optionMap, "schema.dim.", ".name");
+    if (results.isEmpty()) {
       return Optional.empty();
     }
     ArrayList<Pair<String, Integer>> schemaDimensions = new ArrayList<>();
-    Iterator<Map.Entry<String, String>> entries = optionMap.entrySet().iterator();
-    String prefix = "schema.dim.";
-    while (entries.hasNext()) {
-      Map.Entry<String, String> entry = entries.next();
-      String key = entry.getKey();
-      String val = entry.getValue();
-      if (key.startsWith(prefix)) {
-        String strippedKey = key.substring(prefix.length());
-        Integer dimIdx;
-        try {
-          dimIdx = Integer.parseInt(strippedKey);
-        } catch (NumberFormatException err) {
-          continue;
-        }
-        schemaDimensions.add(new Pair<>(val, dimIdx));
+    for (Pair<String, String> entry : results) {
+      String dimIntString = entry.getFirst();
+      String val = entry.getSecond();
+      Integer dimIdx;
+      try {
+        dimIdx = Integer.parseInt(dimIntString);
+      } catch (NumberFormatException err) {
+        continue;
       }
+      schemaDimensions.add(new Pair<>(val, dimIdx));
     }
-    if (schemaDimensions.isEmpty()) {
-      return Optional.empty();
-    }
-    schemaDimensions.sort(Comparator.comparing((Pair p) -> ((Integer) p.getSecond())));
     return Optional.of(schemaDimensions);
   }
 
@@ -149,21 +132,49 @@ public class TileDBDataSourceOptions implements Serializable {
 
   /** @return Optional String HashMap of tiledb config options and values * */
   public Map<String, String> getTileDBConfigMap() {
+
     HashMap<String, String> configMap = new HashMap<>();
-    if (optionMap.isEmpty()) {
+    List<Pair<String, String>> results = collectOptionsWithPrefixSuffix(optionMap, "tiledb.", null);
+    if (results.isEmpty()) {
       return configMap;
     }
-    Iterator<Map.Entry<String, String>> entries = optionMap.entrySet().iterator();
+    for (Pair<String, String> entry : results) {
+      configMap.put(entry.getFirst(), entry.getSecond());
+    }
+    return configMap;
+  }
+
+  private static List<Pair<String, String>> collectOptionsWithPrefixSuffix(
+      Map<String, String> options, String prefix, String suffix) {
+    ArrayList<Pair<String, String>> results = new ArrayList<>();
+    if (options.isEmpty() && (prefix == null)) {
+      return results;
+    }
+    Iterator<Map.Entry<String, String>> entries = options.entrySet().iterator();
     while (entries.hasNext()) {
       Map.Entry<String, String> entry = entries.next();
       String key = entry.getKey();
       String val = entry.getValue();
-      if (key.startsWith("tiledb.")) {
-        // Strip out leading "tiledb." prefix
-        String strippedKey = key.substring(7);
-        configMap.put(strippedKey, val);
+      if (key.startsWith(prefix)) {
+        String strippedKeyPrefix = key.substring(prefix.length());
+        if (strippedKeyPrefix.length() == 0) {
+          continue;
+        }
+        if (suffix == null || suffix.length() == 0) {
+          results.add(new Pair<>(strippedKeyPrefix, val));
+          continue;
+        }
+        if (!key.endsWith(suffix)) {
+          continue;
+        }
+        String strippedKeySuffix =
+            strippedKeyPrefix.substring(0, strippedKeyPrefix.length() - suffix.length());
+        if (strippedKeySuffix.length() == 0) {
+          continue;
+        }
+        results.add(new Pair<>(strippedKeySuffix, val));
       }
     }
-    return configMap;
+    return results;
   }
 }
