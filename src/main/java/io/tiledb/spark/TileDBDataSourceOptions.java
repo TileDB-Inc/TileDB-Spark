@@ -140,6 +140,13 @@ public class TileDBDataSourceOptions implements Serializable {
     return Optional.of(schemaDimensions);
   }
 
+  public long getWriteBufferSize() {
+    if (optionMap.containsKey("write_buffer_size")) {
+      return Long.parseLong(optionMap.get("write_buffer_size"));
+    }
+    return QUERY_BUFFER_SIZE;
+  }
+
   /** @return Optional String HashMap of tiledb config options and values * */
   public Map<String, String> getTileDBConfigMap() {
     HashMap<String, String> configMap = new HashMap<>();

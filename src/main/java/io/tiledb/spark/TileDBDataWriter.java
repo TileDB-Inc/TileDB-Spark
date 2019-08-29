@@ -3,7 +3,6 @@ package io.tiledb.spark;
 import io.tiledb.java.api.*;
 import java.io.IOException;
 import java.net.URI;
-import java.util.*;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
@@ -12,37 +11,38 @@ import org.apache.spark.sql.types.StructType;
 
 public class TileDBDataWriter implements DataWriter<InternalRow> {
 
-  private static final int DEFAULT_BATCH_SIZE = 3;
-
   private URI uri;
   private StructType sparkSchema;
-  private TileDBDataSourceOptions options;
 
   private Context ctx;
   private Array array;
   private Query query;
 
-  private final StructField[] sparkSchemaFields;
-  private final int[] bufferIndex;
-
   private final int nDims;
+  // map struct fields / dataframe columns to array schema original order
+  // coordinate buffers are first, attribute buffer positions are attrIdx + numDim
+  private final int[] bufferIndex;
   private final String[] bufferNames;
-
-  private final long[] bufferValNum;
   private final Datatype[] bufferDatatypes;
+  private final long[] bufferValNum;
+
+  // array holding native array buffers for row buffering
+  // there are ndim + nattribute buffers to prepare for heterogenous domains
   private NativeArray[] nativeArrayOffsetBuffers;
-  private int[] nativeArrayOffsetElements;
   private NativeArray[] nativeArrayBuffers;
+  private int[] nativeArrayOffsetElements;
   private int[] nativeArrayBufferElements;
+  private long writeBufferSize;
   private int nRecordsBuffered;
 
   public TileDBDataWriter(URI uri, StructType schema, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.sparkSchema = schema;
-    this.sparkSchemaFields = schema.fields();
-    this.options = options;
+    // set write options
+    writeBufferSize = options.getWriteBufferSize();
 
     // mapping of fields to dimension / attributes in TileDB schema
+    StructField[] sparkSchemaFields = schema.fields();
     int nFields = sparkSchemaFields.length;
     bufferIndex = new int[nFields];
 
@@ -98,7 +98,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     }
   }
 
-  public void resetWriteQueryAndBuffers() throws TileDBError {
+  private void resetWriteQueryAndBuffers() throws TileDBError {
     if (query != null) {
       query.close();
     }
@@ -108,31 +108,34 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     int bufferIdx = 0;
     try (ArraySchema arraySchema = array.getSchema()) {
       try (Domain domain = arraySchema.getDomain()) {
-        NativeArray coordsBuffer =
-            new NativeArray(ctx, DEFAULT_BATCH_SIZE * (int) domain.getNDim(), domain.getType());
+        int numElements = Math.toIntExact(writeBufferSize / domain.getType().getNativeSize());
+        NativeArray coordsBuffer = new NativeArray(ctx, numElements, domain.getType());
         nativeArrayBuffers[bufferIdx] = coordsBuffer;
-        nativeArrayBufferElements[bufferIdx] = 0;
+        nativeArrayBufferElements[bufferIdx] = numElements;
         query.setBuffer(Constants.TILEDB_COORDS, coordsBuffer);
+        // we just skip over all dims for now (special case zipped coordinates)
         bufferIdx += nDims;
       }
       for (int i = 0; i < arraySchema.getAttributeNum(); i++) {
         try (Attribute attr = arraySchema.getAttribute(i)) {
           String attrName = attr.getName();
           if (attr.isVar()) {
-            NativeArray bufferOff =
-                new NativeArray(ctx, DEFAULT_BATCH_SIZE, Datatype.TILEDB_UINT64);
+            int numOffsets =
+                Math.toIntExact(writeBufferSize / Datatype.TILEDB_UINT64.getNativeSize());
+            NativeArray bufferOff = new NativeArray(ctx, numOffsets, Datatype.TILEDB_UINT64);
             nativeArrayOffsetBuffers[bufferIdx] = bufferOff;
             nativeArrayOffsetElements[bufferIdx] = 0;
-            NativeArray bufferData = new NativeArray(ctx, DEFAULT_BATCH_SIZE, attr.getType());
+
+            int numElements = Math.toIntExact(writeBufferSize / attr.getType().getNativeSize());
+            NativeArray bufferData = new NativeArray(ctx, numElements, attr.getType());
             nativeArrayBuffers[bufferIdx] = bufferData;
             nativeArrayBufferElements[bufferIdx] = 0;
 
             query.setBuffer(attrName, bufferOff, bufferData);
             bufferIdx += 1;
           } else {
-            NativeArray bufferData =
-                new NativeArray(
-                    ctx, DEFAULT_BATCH_SIZE * (int) attr.getCellValNum(), attr.getType());
+            int numElements = Math.toIntExact(writeBufferSize / attr.getType().getNativeSize());
+            NativeArray bufferData = new NativeArray(ctx, numElements, attr.getType());
             nativeArrayBuffers[bufferIdx] = bufferData;
             nativeArrayBufferElements[bufferIdx] = 0;
             query.setBuffer(attrName, bufferData);
@@ -147,6 +150,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
   private boolean bufferDimensionValue(int dimIdx, InternalRow record, int ordinal)
       throws TileDBError {
+    // special case zipped coordinate for now
     int bufferIdx = 0;
     int bufferElements = (nRecordsBuffered * nDims) + dimIdx;
     return writeRecordToBuffer(bufferIdx, bufferElements, record, ordinal);
@@ -162,15 +166,27 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private boolean writeRecordToBuffer(
       int bufferIdx, int bufferElement, InternalRow record, int ordinal) throws TileDBError {
     Datatype dtype = bufferDatatypes[bufferIdx];
-    boolean isArray = bufferValNum[bufferIdx] > 1l;
     NativeArray buffer = nativeArrayBuffers[bufferIdx];
+    NativeArray offsets = nativeArrayOffsetBuffers[bufferIdx];
+    boolean isArray = bufferValNum[bufferIdx] > 1l;
+    int maxBufferElements = buffer.getSize();
+    if (bufferElement >= maxBufferElements) {
+      return true;
+    }
+    if (isArray) {
+      // rare, would have to be a repeat of zero sized values
+      int maxOffsetElements = offsets.getSize();
+      if (bufferElement >= maxOffsetElements) {
+        return true;
+      }
+    }
     switch (dtype) {
       case TILEDB_INT8:
         {
           if (isArray) {
             byte[] array = record.getArray(ordinal).toByteArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
-            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+            if ((bufferOffset + array.length) > maxBufferElements) {
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -180,6 +196,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             nativeArrayOffsetElements[bufferIdx] += 1;
             nativeArrayBufferElements[bufferIdx] += array.length;
           } else {
+            if ((bufferElement + 1) > maxBufferElements) {}
             buffer.setItem(bufferElement, record.getByte(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
@@ -191,7 +208,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             short[] array = record.getArray(ordinal).toShortArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
-            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+            if ((bufferOffset + array.length) > maxBufferElements) {
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -213,7 +230,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             int[] array = record.getArray(ordinal).toIntArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
-            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+            if ((bufferOffset + array.length) > maxBufferElements) {
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -235,7 +252,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             long[] array = record.getArray(ordinal).toLongArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
-            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+            if ((bufferOffset + array.length) > maxBufferElements) {
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -255,7 +272,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             float[] array = record.getArray(ordinal).toFloatArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
-            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+            if ((bufferOffset + array.length) > maxBufferElements) {
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -275,7 +292,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           if (isArray) {
             double[] array = record.getArray(ordinal).toDoubleArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
-            if ((bufferOffset + array.length) > DEFAULT_BATCH_SIZE) {
+            if ((bufferOffset + array.length) > maxBufferElements) {
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -297,7 +314,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           String val = record.getString(ordinal);
           int bytesLen = val.getBytes().length;
           int bufferOffset = nativeArrayOffsetElements[bufferIdx];
-          if ((bufferOffset + bytesLen) > DEFAULT_BATCH_SIZE) {
+          if ((bufferOffset + bytesLen) > maxBufferElements) {
             return true;
           }
           buffer.setItem(bufferOffset, val);
@@ -314,7 +331,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   @Override
   public void write(InternalRow record) throws IOException {
     try {
-      for (int flushAttempts = 0; flushAttempts  < 2; flushAttempts++) {
+      for (int flushAttempts = 0; flushAttempts < 2; flushAttempts++) {
         boolean retryAfterFlush = false;
         for (int ordinal = 0; ordinal < record.numFields(); ordinal++) {
           int buffIdx = bufferIndex[ordinal];
@@ -336,20 +353,17 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
         }
         if (nRecordsBuffered == 0 || flushAttempts == 1) {
           // nothing can fit abort, buffers are not big enough to hold varlen data for write
-          throw new TileDBError("Allocated buffer sizes are too small to write Spark varlen data, increase max buffer size");
+          throw new TileDBError(
+              "Allocated buffer sizes are too small to write Spark varlen data, increase max buffer size");
         }
         if (nRecordsBuffered > 0 && flushAttempts == 0) {
-          // some prev records were written but one of current varlen values exceeded the max size flush and reset, trying again
+          // some prev records were written but one of current varlen values exceeded the max size
+          // flush and reset, trying again
           flushBuffers();
           resetWriteQueryAndBuffers();
         }
       }
       nRecordsBuffered++;
-      // case when all columns are scalar, reset for the next row
-      if (nRecordsBuffered > DEFAULT_BATCH_SIZE) {
-        flushBuffers();
-        resetWriteQueryAndBuffers();
-      }
     } catch (TileDBError err) {
       throw new IOException(err.getMessage());
     }
@@ -395,6 +409,5 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   public void abort() throws IOException {
     // clean up buffered resources
     closeTileDBResources();
-    throw new IOException("Aborted record write after retry for partition:");
   };
 }
