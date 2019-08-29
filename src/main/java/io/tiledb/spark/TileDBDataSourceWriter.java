@@ -3,6 +3,7 @@ package io.tiledb.spark;
 import io.tiledb.java.api.*;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Optional;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
@@ -101,9 +102,11 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
         Domain domain = new Domain(ctx)) {
       String[] dimNames = TileDBWriteSchema.getSchemaDimensionOptions(sparkSchema, options);
       StructField[] sparkFields = sparkSchema.fields();
-      for (String dimName : dimNames) {
+      for (int dimIdx = 0; dimIdx < dimNames.length; dimIdx++) {
+        String dimName = dimNames[dimIdx];
         int idx = sparkSchema.fieldIndex(dimName);
-        try (Dimension dim = TileDBWriteSchema.toDimension(ctx, sparkFields[idx])) {
+        try (Dimension dim =
+            TileDBWriteSchema.toDimension(ctx, dimName, dimIdx, sparkFields[idx], options)) {
           domain.addDimension(dim);
         }
       }
@@ -117,6 +120,11 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
         }
       }
       arraySchema.setDomain(domain);
+      // set capacity
+      Optional<Long> schemaCapacity = options.getSchemaCapacity();
+      if (schemaCapacity.isPresent()) {
+        arraySchema.setCapacity(schemaCapacity.get());
+      }
       arraySchema.check();
       Array.create(uri.toString(), arraySchema);
     }

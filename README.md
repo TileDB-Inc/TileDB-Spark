@@ -59,7 +59,11 @@ To write to TileDB from an existing dataframe, you need to specify a URI and the
 * `allow_read_buffer_realloc` (optional): If the read buffer size is too small allow reallocation. Default: True
 
 ### Write options
-* `schema.dim.<0..N>` (requried): Specify which of the spark dataframe columns names are dimensions
+* `schema.dim.<N>.name` (requried): Specify which of the spark dataframe columns names are dimensions.
+* `schema.dim.<N>.min` (optional): Specify the lower bound for the TileDB array schema.
+* `schema.dim.<N>.max` (optional): Specify the upper bound for the TileDB array schema.
+* `schema.dim.<N>.extent` (optional): Specify the shema dimension domain extent (tile size).
+* `schema.capacity` (optional): Specify the sparse array tile capacity.
 * `write_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
 
 ## Semantics
