@@ -9,6 +9,7 @@ import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TileDBDataSourceOptions implements Serializable {
 
+  private static final int DEFAULT_PARTITIONS = 10;
   // we need to serialize the options to each partition reader / writer
   // DataSourceOptions is not serializable so we convert to a Java HashMap
   private HashMap<String, String> optionMap;
@@ -26,7 +27,10 @@ public class TileDBDataSourceOptions implements Serializable {
     optionMap = new HashMap<>(options.asMap());
   }
 
-  /** @return Optional URI to TileDB array resource * */
+  /**
+   * @return Optional URI to TileDB array resource
+   * @throws URISyntaxException
+   */
   public Optional<URI> getArrayURI() throws URISyntaxException {
     if (optionMap.containsKey("uri")) {
       return Optional.of(new URI(optionMap.get("uri")));
@@ -48,6 +52,14 @@ public class TileDBDataSourceOptions implements Serializable {
       return Boolean.parseBoolean(optionMap.get("allow_read_buffer_realloc"));
     }
     return true;
+  }
+
+  /** @return partition count * */
+  public int getPartitionCount() {
+    if (optionMap.containsKey("partition_count")) {
+      return Integer.parseInt(optionMap.get("partition_count"));
+    }
+    return DEFAULT_PARTITIONS;
   }
 
   /** @return Optional TileDB.Layout description for overriding dataframe sorted order * */

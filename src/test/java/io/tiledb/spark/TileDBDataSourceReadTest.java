@@ -11,7 +11,7 @@ import org.junit.Test;
 public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
 
   private String testArrayURIString(String arrayName) {
-    Path arraysPath = Paths.get("src", "test", "resources", "data", arrayName);
+    Path arraysPath = Paths.get("src", "test", "resources", "data", "1.6", arrayName);
     return "file://".concat(arraysPath.toAbsolutePath().toString());
   }
 
@@ -53,6 +53,7 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
               .format("io.tiledb.spark")
               .option("uri", testArrayURIString("writing_dense_global_array"))
               .option("order", order)
+              .option("partition_count", 1)
               .load();
       dfRead.createOrReplaceTempView("tmp");
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
@@ -82,6 +83,7 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
               .format("io.tiledb.spark")
               .option("uri", testArrayURIString("writing_dense_global_array"))
               .option("order", order)
+              .option("partition_count", 1)
               .load();
       dfRead.createOrReplaceTempView("tmp");
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
@@ -235,6 +237,39 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     Assert.assertEquals(2, row.getInt(0));
     Assert.assertEquals(3, row.getInt(1));
     Assert.assertEquals(3, row.getInt(2));
+    return;
+  }
+
+  @Test
+  public void testQuickStartSparseFilterBetween() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("quickstart_sparse_array"))
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows =
+        session()
+            .sql(
+                "SELECT * FROM tmp WHERE rows between 1 and 3 AND (cols = 1 OR cols = 3 OR cols = 4) ORDER BY rows, cols")
+            .collectAsList();
+    Assert.assertEquals(3, rows.size());
+    // A[1, 1] == 1
+    Row row = rows.get(0);
+    Assert.assertEquals(1, row.getInt(0));
+    Assert.assertEquals(1, row.getInt(1));
+    Assert.assertEquals(1, row.getInt(2));
+    // A[2, 3] == 3
+    row = rows.get(1);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(3, row.getInt(1));
+    Assert.assertEquals(3, row.getInt(2));
+    // A[2, 4] == 2
+    row = rows.get(2);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(4, row.getInt(1));
+    Assert.assertEquals(2, row.getInt(2));
     return;
   }
 }

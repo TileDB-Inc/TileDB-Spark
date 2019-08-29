@@ -13,6 +13,7 @@ public class TileDBReadSchema implements Serializable {
   private StructType pushDownSparkSchema;
   private StructType tiledbSparkSchema;
   public HashMap<String, Integer> dimensionIndexes;
+  public Datatype domainType;
 
   public TileDBReadSchema(URI uri, TileDBDataSourceOptions options) {
     this.uri = uri;
@@ -55,6 +56,7 @@ public class TileDBReadSchema implements Serializable {
         // fetch and load the schema (IO)
         ArraySchema arraySchema = new ArraySchema(ctx, uri.toString());
         Domain arrayDomain = arraySchema.getDomain()) {
+      this.domainType = arrayDomain.getType();
       // for every dimension add a struct field
       for (int i = 0; i < arrayDomain.getNDim(); i++) {
         try (Dimension dim = arrayDomain.getDimension(i)) {

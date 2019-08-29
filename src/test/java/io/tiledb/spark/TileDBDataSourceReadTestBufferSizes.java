@@ -11,7 +11,7 @@ import org.junit.Test;
 public class TileDBDataSourceReadTestBufferSizes extends SharedJavaSparkSession {
 
   private String testArrayURIString(String arrayName) {
-    Path arraysPath = Paths.get("src", "test", "resources", "data", arrayName);
+    Path arraysPath = Paths.get("src", "test", "resources", "data", "1.6", arrayName);
     return "file://".concat(arraysPath.toAbsolutePath().toString());
   }
 
