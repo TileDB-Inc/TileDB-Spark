@@ -542,13 +542,15 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     //    Long rangeLength = (Long)
     // ConvertUtils.convert(util.divide_objects(util.subtract_objects(max, min, dataClassType),
     // buckets, dataClassType), Long.class);
+    Object bucketsObj = ConvertUtils.convert(buckets, dataClassType);
     Object rangeLength =
-        util.divideObjects(util.subtractObjects(max, min, dataClassType), buckets, dataClassType);
+        util.divideObjects(
+            util.subtractObjects(max, min, dataClassType), bucketsObj, dataClassType);
     Long leftOvers =
         (Long)
             ConvertUtils.convert(
                 util.moduloObjects(
-                    util.subtractObjects(max, min, dataClassType), buckets, dataClassType),
+                    util.subtractObjects(max, min, dataClassType), bucketsObj, dataClassType),
                 Long.class);
 
     Object low = min;

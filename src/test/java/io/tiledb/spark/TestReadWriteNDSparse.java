@@ -37,7 +37,7 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
   }
 
   private String testArrayURIString(String arrayName) {
-    Path arraysPath = Paths.get("src", "test", "resources", "data", arrayName);
+    Path arraysPath = Paths.get("src", "test", "resources", "data", "1.6", arrayName);
     return "file://".concat(arraysPath.toAbsolutePath().toString());
   }
 
@@ -75,8 +75,8 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
         .write()
         .format("io.tiledb.spark")
         .option("uri", writeArrayURI)
-        .option("schema.dim.0", "rows")
-        .option("schema.dim.1", "cols")
+        .option("schema.dim.0.name", "rows")
+        .option("schema.dim.1.name", "cols")
         .mode(SaveMode.ErrorIfExists)
         .save();
 
