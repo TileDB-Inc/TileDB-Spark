@@ -165,7 +165,7 @@ public class WriteSparkDataTypesTest extends SharedJavaSparkSession implements S
     rows.add(RowFactory.create("three"));
     StructType structType = new StructType(structFields);
     Dataset<Row> df = ss.createDataFrame(rows, structType);
-    return df.withColumn("id", functions.monotonically_increasing_id());
+    return df.withColumn("id", functions.monotonically_increasing_id()).repartition(1);
   }
 
   @Test
