@@ -173,4 +173,28 @@ public class TileDBDataSourceOptionsTest {
     Assert.assertEquals("false", tiledbOptions.get("sm.check_coord_dups"));
     Assert.assertEquals("true", tiledbOptions.get("sm.dedup_coords"));
   }
+
+  @Test
+  public void testSingleFilter() throws Exception {
+    String filters = "(gzip, 2)";
+    Optional<List<Pair<String, Integer>>> filterList =
+        TileDBDataSourceOptions.tryParseFilterList(filters);
+    Assert.assertTrue(filterList.isPresent());
+    Assert.assertEquals(1, filterList.get().size());
+    Assert.assertEquals("gzip", filterList.get().get(0).getFirst());
+    Assert.assertEquals(Integer.valueOf(2), filterList.get().get(0).getSecond());
+  }
+
+  @Test
+  public void testFilterList() throws Exception {
+    String filters = "(byteshuffle, -1), (gzip, 2)";
+    Optional<List<Pair<String, Integer>>> filterList =
+        TileDBDataSourceOptions.tryParseFilterList(filters);
+    Assert.assertTrue(filterList.isPresent());
+    Assert.assertEquals(2, filterList.get().size());
+    Assert.assertEquals("byteshuffle", filterList.get().get(0).getFirst());
+    Assert.assertEquals(Integer.valueOf(-1), filterList.get().get(0).getSecond());
+    Assert.assertEquals("gzip", filterList.get().get(1).getFirst());
+    Assert.assertEquals(Integer.valueOf(2), filterList.get().get(1).getSecond());
+  }
 }
