@@ -192,7 +192,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
-            nativeArrayOffsetBuffers[bufferIdx].setItem(bufferElement, (long) bufferOffset);
+            offsets.setItem(bufferElement, (long) bufferOffset);
             nativeArrayOffsetElements[bufferIdx] += 1;
             nativeArrayBufferElements[bufferIdx] += array.length;
           } else {
@@ -214,7 +214,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
-            nativeArrayOffsetBuffers[bufferIdx].setItem(bufferElement, (long) bufferOffset);
+            offsets.setItem(bufferElement, (long) bufferOffset);
             nativeArrayOffsetElements[bufferIdx] += 1;
             nativeArrayBufferElements[bufferIdx] += array.length;
 
@@ -236,7 +236,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
-            nativeArrayOffsetBuffers[bufferIdx].setItem(bufferElement, (long) bufferOffset);
+            offsets.setItem(bufferElement, (long) bufferOffset);
             nativeArrayOffsetElements[bufferIdx] += 1;
             nativeArrayBufferElements[bufferIdx] += array.length;
           } else {
@@ -258,7 +258,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
-            nativeArrayOffsetBuffers[bufferIdx].setItem(bufferElement, (long) bufferOffset);
+            offsets.setItem(bufferElement, (long) bufferOffset);
             nativeArrayOffsetElements[bufferIdx] += 1;
             nativeArrayBufferElements[bufferIdx] += array.length;
           } else {
@@ -278,7 +278,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
-            nativeArrayOffsetBuffers[bufferIdx].setItem(bufferElement, (long) bufferOffset);
+            offsets.setItem(bufferElement, (long) bufferOffset);
             nativeArrayOffsetElements[bufferIdx] += 1;
             nativeArrayBufferElements[bufferIdx] += array.length;
           } else {
@@ -298,7 +298,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             for (int i = 0; i < array.length; i++) {
               buffer.setItem(bufferOffset + i, array[i]);
             }
-            nativeArrayOffsetBuffers[bufferIdx].setItem(bufferElement, (long) bufferOffset);
+            offsets.setItem(bufferElement, (long) bufferOffset);
             nativeArrayOffsetElements[bufferIdx] += 1;
             nativeArrayBufferElements[bufferIdx] += array.length;
           } else {
@@ -313,12 +313,12 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
         {
           String val = record.getString(ordinal);
           int bytesLen = val.getBytes().length;
-          int bufferOffset = nativeArrayOffsetElements[bufferIdx];
+          int bufferOffset = nativeArrayBufferElements[bufferIdx];
           if ((bufferOffset + bytesLen) > maxBufferElements) {
             return true;
           }
           buffer.setItem(bufferOffset, val);
-          nativeArrayOffsetBuffers[bufferIdx].setItem(bufferElement, (long) bufferOffset);
+          offsets.setItem(bufferElement, (long) bufferOffset);
           nativeArrayOffsetElements[bufferIdx] += 1;
           nativeArrayBufferElements[bufferIdx] += bytesLen;
           return false;
