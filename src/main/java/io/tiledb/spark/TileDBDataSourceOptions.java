@@ -128,4 +128,11 @@ public class TileDBDataSourceOptions implements Serializable {
     }
     return configMap;
   }
+
+  public boolean getTaskMetricsEnabled() {
+    if (optionMap.containsKey("metrics")) {
+      return Boolean.parseBoolean(optionMap.get("metrics"));
+    }
+    return true;
+  }
 }

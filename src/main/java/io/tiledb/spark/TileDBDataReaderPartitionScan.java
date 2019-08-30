@@ -5,6 +5,16 @@ import static io.tiledb.java.api.Datatype.TILEDB_UINT64;
 import static io.tiledb.java.api.QueryStatus.TILEDB_COMPLETED;
 import static io.tiledb.java.api.QueryStatus.TILEDB_INCOMPLETE;
 import static io.tiledb.java.api.QueryStatus.TILEDB_UNINITIALIZED;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryAllocBufferTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryCloseNativeArraysTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryGetDimensionTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryGetScalarAttributeTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryGetTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryGetVariableLengthAttributeTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryInitTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryNextTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryReadTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmitTimerName;
 
 import io.tiledb.java.api.*;
 import java.net.URI;
@@ -15,13 +25,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.spark.TaskContext;
+import org.apache.spark.metrics.TileDBReadMetricsUpdater;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import oshi.hardware.HardwareAbstractionLayer;
-import scala.annotation.meta.field;
 
 public class TileDBDataReaderPartitionScan implements InputPartitionReader<ColumnarBatch> {
 
@@ -32,6 +43,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   // HAL for getting memory details about doubling buffers
   private final HardwareAbstractionLayer hardwareAbstractionLayer;
+  private final TileDBReadMetricsUpdater metricsUpdater;
 
   // read buffer size
   private long read_query_buffer_size;
@@ -60,6 +72,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   // Query status
   private QueryStatus queryStatus;
 
+  private TaskContext task;
   /**
    * List of NativeArray buffers used in the query object. This is indexed based on columnHandles
    * indexing (aka query field indexes)
@@ -76,6 +89,17 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     this.options = options;
     this.queryStatus = TILEDB_UNINITIALIZED;
     this.pushedRanges = pushedRanges;
+    this.task = TaskContext.get();
+
+    metricsUpdater = new TileDBReadMetricsUpdater(task, this.options);
+    metricsUpdater.startTimer(queryReadTimerName);
+
+    task.addTaskCompletionListener(
+        context -> {
+          double duration = metricsUpdater.finish(queryReadTimerName) / 1000000000d;
+          log.info("duration of read: " + duration);
+          //    session.close()
+        });
 
     this.read_query_buffer_size = options.getReadBufferSizes();
 
@@ -95,6 +119,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   @Override
   public boolean next() {
+    metricsUpdater.startTimer(queryNextTimerName);
     try (Domain domain = arraySchema.getDomain()) {
       // first submission initialize the query and see if we can fast fail;
       if (query == null) {
@@ -104,11 +129,14 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       // If the query was completed, and we have exhausted all records then we should close the
       // cursor
       if (queryStatus == TILEDB_COMPLETED) {
+        metricsUpdater.finish(queryNextTimerName);
         return false;
       }
 
       do {
+        metricsUpdater.startTimer(tileDBReadQuerySubmitTimerName);
         query.submit();
+        metricsUpdater.finish(tileDBReadQuerySubmitTimerName);
 
         queryStatus = query.getQueryStatus();
 
@@ -127,6 +155,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           }
         } else if (currentNumRecords > 0) {
           // Break out of resubmit loop as we have some results.
+          metricsUpdater.finish(queryNextTimerName);
           return true;
         }
       } while (queryStatus == TILEDB_INCOMPLETE);
@@ -134,11 +163,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       throw new RuntimeException(err.getMessage());
     }
 
+    metricsUpdater.finish(queryNextTimerName);
     return true;
   }
 
   @Override
   public ColumnarBatch get() {
+    metricsUpdater.startTimer(queryGetTimerName);
     try {
       int colIdx = 0;
       int nRows = 0;
@@ -161,9 +192,12 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       // across iterations and the total number of rows allocated will be the high water number of
       // rows over all batches
       resultBatch.setNumRows(nRows);
+      // Note that calculateNativeArrayByteSizes() might not be
+      this.metricsUpdater.updateTaskMetrics(nRows, calculateNativeArrayByteSizes());
     } catch (TileDBError err) {
       throw new RuntimeException(err.getMessage());
     }
+    metricsUpdater.finish(queryGetTimerName);
     return resultBatch;
   }
 
@@ -188,6 +222,9 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     if (ctx != null) {
       ctx.close();
     }
+
+    //    metricsUpdater.finish();
+
   }
 
   /**
@@ -197,6 +234,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    * @throws TileDBError A TileDB exception
    */
   private boolean initQuery() throws TileDBError {
+    metricsUpdater.startTimer(queryInitTimerName);
     ctx = new Context(options.getTileDBConfigMap());
     array = new Array(ctx, arrayURI.toString(), QueryType.TILEDB_READ);
     arraySchema = array.getSchema();
@@ -236,6 +274,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       allocateQuerybuffers(this.read_query_buffer_size);
     }
     // est that there are resuts, so perform a read for this partition
+    metricsUpdater.finish(queryInitTimerName);
     return true;
   }
 
@@ -318,7 +357,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   }
 
   private void allocateQuerybuffers(long readBufferSize) throws TileDBError {
-
+    metricsUpdater.startTimer(queryAllocBufferTimerName);
     try (Domain domain = arraySchema.getDomain(); ) {
       // Create coordinate buffers
       int ncoords = Math.toIntExact(readBufferSize / domain.getType().getNativeSize());
@@ -360,64 +399,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
               Math.toIntExact(ncoords / domain.getNDim()), sparkSchema);
       resultBatch = new ColumnarBatch(resultVectors);
     }
-  }
 
-  /** Returns v + eps, where eps is the smallest value for the datatype such that v + eps > v. */
-  private static Object addEpsilon(Object value, Datatype type) throws TileDBError {
-    switch (type) {
-      case TILEDB_CHAR:
-      case TILEDB_INT8:
-        return ((byte) value) < Byte.MAX_VALUE ? ((byte) value + 1) : value;
-      case TILEDB_INT16:
-        return ((short) value) < Short.MAX_VALUE ? ((short) value + 1) : value;
-      case TILEDB_INT32:
-        return ((int) value) < Integer.MAX_VALUE ? ((int) value + 1) : value;
-      case TILEDB_INT64:
-        return ((long) value) < Long.MAX_VALUE ? ((long) value + 1) : value;
-      case TILEDB_UINT8:
-        return ((short) value) < ((short) Byte.MAX_VALUE + 1) ? ((short) value + 1) : value;
-      case TILEDB_UINT16:
-        return ((int) value) < ((int) Short.MAX_VALUE + 1) ? ((int) value + 1) : value;
-      case TILEDB_UINT32:
-        return ((long) value) < ((long) Integer.MAX_VALUE + 1) ? ((long) value + 1) : value;
-      case TILEDB_UINT64:
-        return ((long) value) < ((long) Integer.MAX_VALUE + 1) ? ((long) value + 1) : value;
-      case TILEDB_FLOAT32:
-        return ((float) value) < Float.MAX_VALUE ? Math.nextUp((float) value) : value;
-      case TILEDB_FLOAT64:
-        return ((double) value) < Double.MAX_VALUE ? Math.nextUp((double) value) : value;
-      default:
-        throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
-    }
-  }
-
-  /** Returns v - eps, where eps is the smallest value for the datatype such that v - eps < v. */
-  private static Object subtractEpsilon(Object value, Datatype type) throws TileDBError {
-    switch (type) {
-      case TILEDB_CHAR:
-      case TILEDB_INT8:
-        return ((byte) value) > Byte.MIN_VALUE ? ((byte) value - 1) : value;
-      case TILEDB_INT16:
-        return ((short) value) > Short.MIN_VALUE ? ((short) value - 1) : value;
-      case TILEDB_INT32:
-        return ((int) value) > Integer.MIN_VALUE ? ((int) value - 1) : value;
-      case TILEDB_INT64:
-        return ((long) value) > Long.MIN_VALUE ? ((long) value - 1) : value;
-      case TILEDB_UINT8:
-        return ((short) value) > ((short) Byte.MIN_VALUE - 1) ? ((short) value - 1) : value;
-      case TILEDB_UINT16:
-        return ((int) value) > ((int) Short.MIN_VALUE - 1) ? ((int) value - 1) : value;
-      case TILEDB_UINT32:
-        return ((long) value) > ((long) Integer.MIN_VALUE - 1) ? ((long) value - 1) : value;
-      case TILEDB_UINT64:
-        return ((long) value) > ((long) Integer.MIN_VALUE - 1) ? ((long) value - 1) : value;
-      case TILEDB_FLOAT32:
-        return ((float) value) > Float.MIN_VALUE ? Math.nextDown((float) value) : value;
-      case TILEDB_FLOAT64:
-        return ((double) value) > Double.MIN_VALUE ? Math.nextDown((double) value) : value;
-      default:
-        throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
-    }
+    metricsUpdater.finish(queryAllocBufferTimerName);
   }
 
   private void setOptionQueryLayout(Optional<Layout> layoutOption) throws TileDBError {
@@ -486,6 +469,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   private int getScalarValueAttributeColumn(String name, Attribute attribute, int index)
       throws TileDBError {
+    metricsUpdater.startTimer(queryGetScalarAttributeTimerName);
     int numValues;
     int bufferLength;
     switch (attribute.getType()) {
@@ -553,11 +537,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           throw new TileDBError("Not supported getDomain getType " + attribute.getType());
         }
     }
+    metricsUpdater.finish(queryGetScalarAttributeTimerName);
     return numValues;
   }
 
   private int getVarLengthAttributeColumn(String name, Attribute attribute, int index)
       throws TileDBError {
+    metricsUpdater.startTimer(queryGetVariableLengthAttributeTimerName);
     int numValues = 0;
     int bufferLength = 0;
     // reset columnar batch start index
@@ -649,10 +635,12 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         resultVectors[index].putArray(j, cellNum * j, cellNum);
       }
     }
+    metricsUpdater.finish(queryGetVariableLengthAttributeTimerName);
     return numValues;
   }
 
   private int getDimensionColumn(String name, int index) throws TileDBError {
+    metricsUpdater.startTimer(queryGetDimensionTimerName);
     int numValues = 0;
     int bufferLength = 0;
     try (Domain domain = arraySchema.getDomain()) {
@@ -756,11 +744,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           }
       }
     }
+    metricsUpdater.finish(queryGetDimensionTimerName);
     return numValues;
   }
 
   /** Close out all the NativeArray objects */
   private void closeQueryNativeArrays() {
+    metricsUpdater.startTimer(queryCloseNativeArraysTimerName);
     for (Pair<NativeArray, NativeArray> bufferSet : queryBuffers) {
       if (bufferSet == null) {
         continue;
@@ -774,5 +764,6 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         valuesArray.close();
       }
     }
+    metricsUpdater.finish(queryCloseNativeArraysTimerName);
   }
 }
