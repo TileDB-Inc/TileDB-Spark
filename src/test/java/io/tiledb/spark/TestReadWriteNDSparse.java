@@ -83,6 +83,9 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
         .option("schema.dim.1.min", 1)
         .option("schema.dim.1.max", 4)
         .option("schema.dim.1.extent", 4)
+        .option("schema.attr.a.filter_list", "(byteshuffle, -1), (gzip, -10)")
+        .option("schema.cell_order", "row-major")
+        .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
         .mode(SaveMode.ErrorIfExists)
         .save();

@@ -85,12 +85,17 @@ to `$SPARK_HOME/jars/`.
 * `allow_read_buffer_realloc` (optional): If the read buffer size is too small allow reallocation. Default: True
 
 ### Write options
+* `write_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
 * `schema.dim.<N>.name` (requried): Specify which of the spark dataframe columns names are dimensions.
 * `schema.dim.<N>.min` (optional): Specify the lower bound for the TileDB array schema.
 * `schema.dim.<N>.max` (optional): Specify the upper bound for the TileDB array schema.
-* `schema.dim.<N>.extent` (optional): Specify the shema dimension domain extent (tile size).
+* `schema.dim.<N>.extent` (optional): Specify the schema dimension domain extent (tile size).
+* `schema.attr.<NAME>.filter_list` (optional): Specfify filter list for attribute NAME.  Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
 * `schema.capacity` (optional): Specify the sparse array tile capacity.
-* `write_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
+* `schema.cell_order` (optional): Specify the cell order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
+* `schema.tile_order` (optional): Specify the tile order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
+* `schema.coords_filter_list` (optional): Specify the coordinate filter list.
+* `schema.offsets_filter_list` (optional): Specify the offsets filter list.
 
 ## Semantics
 

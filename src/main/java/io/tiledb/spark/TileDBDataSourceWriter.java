@@ -3,6 +3,7 @@ package io.tiledb.spark;
 import io.tiledb.java.api.*;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -110,16 +111,42 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
           domain.addDimension(dim);
         }
       }
+      // set domain
+      arraySchema.setDomain(domain);
+      // add attributes
       for (StructField field : sparkFields) {
         // skip over dims
         if (Arrays.stream(dimNames).anyMatch(field.name()::equals)) {
           continue;
         }
-        try (Attribute attr = TileDBWriteSchema.toAttribute(ctx, field)) {
+        try (Attribute attr = TileDBWriteSchema.toAttribute(ctx, field, options)) {
           arraySchema.addAttribute(attr);
         }
       }
-      arraySchema.setDomain(domain);
+      // set schema tile / layouts and remaining attributes
+      Optional<Layout> schemaCellOrder = options.getSchemaCellOrder();
+      if (schemaCellOrder.isPresent()) {
+        arraySchema.setCellOrder(schemaCellOrder.get());
+      }
+      Optional<Layout> schemaTileOrder = options.getSchemaTileOrder();
+      if (schemaTileOrder.isPresent()) {
+        arraySchema.setTileOrder(schemaTileOrder.get());
+      }
+      // schema filters
+      Optional<List<Pair<String, Integer>>> coordsFilters = options.getSchemaCoordsFilterList();
+      if (coordsFilters.isPresent()) {
+        try (FilterList filterList =
+            TileDBWriteSchema.createTileDBFilterList(ctx, coordsFilters.get())) {
+          arraySchema.setCoodsFilterList(filterList);
+        }
+      }
+      Optional<List<Pair<String, Integer>>> offsetsFilters = options.getSchemaCoordsFilterList();
+      if (coordsFilters.isPresent()) {
+        try (FilterList filterList =
+            TileDBWriteSchema.createTileDBFilterList(ctx, offsetsFilters.get())) {
+          arraySchema.setOffsetsFilterList(filterList);
+        }
+      }
       // set capacity
       Optional<Long> schemaCapacity = options.getSchemaCapacity();
       if (schemaCapacity.isPresent()) {

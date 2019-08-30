@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import javax.swing.*;
 import org.apache.spark.sql.types.*;
 import org.apache.spark.sql.types.ArrayType;
 
@@ -162,37 +163,39 @@ public class TileDBWriteSchema {
         "Datatype not supported for TileDB spark write schema dimension: " + dataType);
   }
 
-  static Attribute toAttribute(Context ctx, StructField field) throws TileDBError {
+  static Attribute toAttribute(Context ctx, StructField field, TileDBDataSourceOptions options)
+      throws TileDBError {
     DataType dataType = field.dataType();
+    Attribute attribute;
     if (dataType instanceof IntegerType) {
-      return new Attribute(ctx, field.name(), Integer.class);
+      attribute = new Attribute(ctx, field.name(), Integer.class);
     } else if (dataType instanceof ShortType) {
-      return new Attribute(ctx, field.name(), Short.class);
+      attribute = new Attribute(ctx, field.name(), Short.class);
     } else if (dataType instanceof ByteType) {
-      return new Attribute(ctx, field.name(), Byte.class);
+      attribute = new Attribute(ctx, field.name(), Byte.class);
     } else if (dataType instanceof LongType) {
-      return new Attribute(ctx, field.name(), Long.class);
+      attribute = new Attribute(ctx, field.name(), Long.class);
     } else if (dataType instanceof FloatType) {
-      return new Attribute(ctx, field.name(), Float.class);
+      attribute = new Attribute(ctx, field.name(), Float.class);
     } else if (dataType instanceof DoubleType) {
-      return new Attribute(ctx, field.name(), Double.class);
+      attribute = new Attribute(ctx, field.name(), Double.class);
     } else if (dataType instanceof StringType) {
-      return new Attribute(ctx, field.name(), String.class).setCellVar();
+      attribute = new Attribute(ctx, field.name(), String.class).setCellVar();
     } else if (dataType instanceof ArrayType) {
       ArrayType arrayType = ((ArrayType) dataType);
       DataType elementType = arrayType.elementType();
       if (elementType instanceof IntegerType) {
-        return new Attribute(ctx, field.name(), Integer.class).setCellVar();
+        attribute = new Attribute(ctx, field.name(), Integer.class).setCellVar();
       } else if (elementType instanceof ShortType) {
-        return new Attribute(ctx, field.name(), Short.class).setCellVar();
+        attribute = new Attribute(ctx, field.name(), Short.class).setCellVar();
       } else if (elementType instanceof ByteType) {
-        return new Attribute(ctx, field.name(), Byte.class).setCellVar();
+        attribute = new Attribute(ctx, field.name(), Byte.class).setCellVar();
       } else if (elementType instanceof LongType) {
-        return new Attribute(ctx, field.name(), Long.class).setCellVar();
+        attribute = new Attribute(ctx, field.name(), Long.class).setCellVar();
       } else if (elementType instanceof FloatType) {
-        return new Attribute(ctx, field.name(), Float.class).setCellVar();
+        attribute = new Attribute(ctx, field.name(), Float.class).setCellVar();
       } else if (elementType instanceof DoubleType) {
-        return new Attribute(ctx, field.name(), Double.class).setCellVar();
+        attribute = new Attribute(ctx, field.name(), Double.class).setCellVar();
       } else {
         throw new TileDBError(
             "Spark Array DataType not supported for TileDB schema conversion: "
@@ -202,5 +205,78 @@ public class TileDBWriteSchema {
       throw new TileDBError(
           "Spark DataType not supported for TileDB schema conversion: " + dataType.toString());
     }
+    Optional<List<Pair<String, Integer>>> filterListDesc =
+        options.getAttributeFilterList(field.name());
+    try {
+      if (filterListDesc.isPresent()) {
+        try (FilterList filterList = createTileDBFilterList(ctx, filterListDesc.get())) {
+          attribute.setFilterList(filterList);
+        }
+      }
+    } catch (TileDBError err) {
+      attribute.close();
+      throw err;
+    }
+    return attribute;
+  }
+
+  public static FilterList createTileDBFilterList(
+      Context ctx, List<Pair<String, Integer>> filterListDesc) throws TileDBError {
+    FilterList filterList = new FilterList(ctx);
+    try {
+      for (Pair<String, Integer> filterDesc : filterListDesc) {
+        String filterName = filterDesc.getFirst();
+        Integer filterOption = filterDesc.getSecond();
+        if (filterName.equalsIgnoreCase("NONE")) {
+          try (Filter filter = new NoneFilter(ctx)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("GZIP")) {
+          try (Filter filter = new GzipFilter(ctx, filterOption)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("ZSTD")) {
+          try (Filter filter = new ZstdFilter(ctx, filterOption)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("LZ4")) {
+          try (Filter filter = new LZ4Filter(ctx, filterOption)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("RLE")) {
+          try (Filter filter = new LZ4Filter(ctx, filterOption)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("BZIP2")) {
+          try (Filter filter = new Bzip2Filter(ctx, filterOption)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("DOUBLE_DELTA")) {
+          try (Filter filter = new DoubleDeltaFilter(ctx, filterOption)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("BIT_WIDTH_REDUCTION")) {
+          try (Filter filter = new BitWidthReductionFilter(ctx, filterOption)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("BITSHUFFLE")) {
+          try (Filter filter = new BitShuffleFilter(ctx)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("BYTESHUFFLE")) {
+          try (Filter filter = new ByteShuffleFilter(ctx)) {
+            filterList.addFilter(filter);
+          }
+        } else if (filterName.equalsIgnoreCase("POSITIVE_DELTA")) {
+          try (Filter filter = new ByteShuffleFilter(ctx)) {
+            filterList.addFilter(filter);
+          }
+        }
+      }
+    } catch (TileDBError err) {
+      filterList.close();
+      throw err;
+    }
+    return filterList;
   }
 }
