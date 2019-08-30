@@ -629,18 +629,15 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     if (attribute.isVar()) {
       // add var length offsets
       long[] offsets = query.getVarBuffer(name);
+      numValues = offsets.length;
       // number of bytes per (scalar) element in
       int typeSize = attribute.getType().getNativeSize();
-      for (int j = 0; j < offsets.length; j++) {
-        // for every variable elgnth value, compute the Spark offset location from the number of
-        // bytes / varlen cell
-        int length =
-            (j == offsets.length - 1)
-                ? bufferLength * typeSize - (int) offsets[j]
-                : (int) offsets[j + 1] - (int) offsets[j];
-        resultVectors[index].putArray(j, ((int) offsets[j]) / typeSize, length / typeSize);
+      long numBytes = bufferLength * typeSize;
+      for (int j = 0; j < numValues; j++) {
+        int off1 = Math.toIntExact(offsets[j] / typeSize);
+        int off2 = Math.toIntExact((j < numValues - 1 ? offsets[j + 1] : numBytes) / typeSize);
+        resultVectors[index].putArray(j, off1, off2 - off1);
       }
-      numValues = offsets.length;
     } else {
       // fixed sized array attribute
       int cellNum = (int) attribute.getCellValNum();
