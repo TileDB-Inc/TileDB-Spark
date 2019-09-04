@@ -1,5 +1,7 @@
 package org.apache.spark.metrics;
 
+import static org.apache.spark.metrics.TileDBMetricsSource.sourceName;
+
 import java.util.Optional;
 import org.apache.spark.SparkEnv;
 import org.apache.spark.TaskContext;
@@ -8,7 +10,6 @@ import scala.Option;
 import scala.collection.Seq;
 
 public abstract class MetricsUpdater implements MetricsUpdate {
-  private String sourceName = "tiledb";
 
   Optional<TileDBMetricsSource> getSource(TaskContext task) {
     if (task != null) {
