@@ -6,6 +6,8 @@ import org.apache.log4j.Logger;
 import org.apache.spark.metrics.source.Source;
 
 public class TileDBMetricsSource implements Source {
+  public static final String sourceName = "tiledb";
+
   public static final String queryReadTimerName = "query-read-task";
   public static final String tileDBReadQuerySubmitTimerName = "tiledb-read-query-submit";
   public static final String queryInitTimerName = "query-init";
@@ -84,7 +86,7 @@ public class TileDBMetricsSource implements Source {
 
   @Override
   public String sourceName() {
-    return "tiledb";
+    return sourceName;
   }
 
   public Timer registerTimer(String timerName) {

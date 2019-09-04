@@ -1,5 +1,7 @@
 package org.apache.spark.metrics;
 
+import static org.apache.spark.metrics.TileDBMetricsSource.sourceName;
+
 import io.tiledb.spark.TileDBDataSourceOptions;
 import io.tiledb.spark.TileDBDataSourceReader;
 import java.util.HashMap;
@@ -9,6 +11,8 @@ import org.apache.spark.SparkEnv;
 import org.apache.spark.TaskContext;
 import org.apache.spark.executor.InputMetrics;
 import org.apache.spark.executor.TaskMetrics;
+import org.apache.spark.metrics.source.Source;
+import scala.collection.Seq;
 
 public class TileDBReadMetricsUpdater extends MetricsUpdater {
   static Logger log = Logger.getLogger(TileDBDataSourceReader.class.getName());
@@ -22,6 +26,10 @@ public class TileDBReadMetricsUpdater extends MetricsUpdater {
     Optional<TileDBMetricsSource> tmp = getSource(task);
     if (tmp.isPresent()) {
       source = tmp.get();
+    } else {
+      SparkEnv env = SparkEnv.get();
+      Seq<Source> sources = env.metricsSystem().getSourcesByName(sourceName);
+      if (sources.length() > 1) source = (TileDBMetricsSource) sources.head();
     }
     timers = new HashMap<>();
 
