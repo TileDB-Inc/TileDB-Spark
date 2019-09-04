@@ -1,21 +1,28 @@
 package org.apache.spark.metrics;
 
 import io.tiledb.spark.TileDBDataSourceOptions;
+import io.tiledb.spark.TileDBDataSourceReader;
 import java.util.HashMap;
 import java.util.Optional;
+import org.apache.log4j.Logger;
+import org.apache.spark.SparkEnv;
 import org.apache.spark.TaskContext;
 import org.apache.spark.executor.InputMetrics;
 import org.apache.spark.executor.TaskMetrics;
 
 public class TileDBReadMetricsUpdater extends MetricsUpdater {
+  static Logger log = Logger.getLogger(TileDBDataSourceReader.class.getName());
   //  private Timer timer;
   private InputMetrics inputMetrics = null;
-  private Optional<TileDBMetricsSource> source;
+  private TileDBMetricsSource source = null;
   private HashMap<String, Timer> timers;
 
   public TileDBReadMetricsUpdater(TaskContext task, TileDBDataSourceOptions options) {
 
-    source = getSource(task);
+    Optional<TileDBMetricsSource> tmp = getSource(task);
+    if (tmp.isPresent()) {
+      source = tmp.get();
+    }
     timers = new HashMap<>();
 
     if (options.getTaskMetricsEnabled() && task != null) {
@@ -25,9 +32,14 @@ public class TileDBReadMetricsUpdater extends MetricsUpdater {
   }
 
   public synchronized void startTimer(String timerName) {
-    if (source.isPresent()) {
-      timers.put(timerName, new TileDBMetricsTimer(source.get(), timerName));
+    if (source != null) {
+      log.info("Source defined for " + timerName + " all is well");
+      timers.put(timerName, new TileDBMetricsTimer(source, timerName));
     } else {
+      log.error(
+          "Source was null or not defined for "
+              + timerName
+              + "!! Timer will not report metrics properly!");
       timers.put(timerName, new SimpleTimer());
     }
   }
@@ -44,6 +56,9 @@ public class TileDBReadMetricsUpdater extends MetricsUpdater {
     if (timers.containsKey(timerName)) {
       return timers.get(timerName).stopTimer();
     }
+
+    SparkEnv.get().metricsSystem().report();
+    ;
     return null;
   }
 }
