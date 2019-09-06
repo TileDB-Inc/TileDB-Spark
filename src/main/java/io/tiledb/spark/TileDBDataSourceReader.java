@@ -4,6 +4,13 @@ import static io.tiledb.spark.util.addEpsilon;
 import static io.tiledb.spark.util.generateAllSubarrays;
 import static io.tiledb.spark.util.subtractEpsilon;
 import static org.apache.log4j.Priority.ERROR;
+import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceBuildRangeFromFilterTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceCheckAndMergeRangesTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePlanBatchInputPartitionsTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePruneColumnsTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePushFiltersTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceReadSchemaTimerName;
 
 import io.tiledb.java.api.Array;
 import io.tiledb.java.api.Context;
@@ -19,6 +26,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.IntStream;
 import org.apache.log4j.Logger;
+import org.apache.spark.TaskContext;
+import org.apache.spark.metrics.TileDBReadMetricsUpdater;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
@@ -40,6 +49,7 @@ public class TileDBDataSourceReader
         SupportsPushDownFilters {
 
   static Logger log = Logger.getLogger(TileDBDataSourceReader.class.getName());
+  private final TileDBReadMetricsUpdater metricsUpdater;
 
   private URI uri;
   private TileDBReadSchema tileDBReadSchema;
@@ -50,24 +60,30 @@ public class TileDBDataSourceReader
     this.uri = uri;
     this.tiledbOptions = options;
     this.tileDBReadSchema = new TileDBReadSchema(uri, options);
+    this.metricsUpdater = new TileDBReadMetricsUpdater(TaskContext.get());
   }
 
   @Override
   public StructType readSchema() {
+    metricsUpdater.startTimer(dataSourceReadSchemaTimerName);
     log.trace("Reading schema for " + uri);
     StructType schema = tileDBReadSchema.getSparkSchema();
     log.trace("Read schema for " + uri + ": " + schema);
+    metricsUpdater.finish(dataSourceReadSchemaTimerName);
     return schema;
   }
 
   @Override
   public void pruneColumns(StructType pushDownSchema) {
+    metricsUpdater.startTimer(dataSourcePruneColumnsTimerName);
     log.trace("Set pushdown columns for " + uri + ": " + pushDownSchema);
     tileDBReadSchema.setPushDownSchema(pushDownSchema);
+    metricsUpdater.finish(dataSourcePruneColumnsTimerName);
   }
 
   @Override
   public Filter[] pushFilters(Filter[] filters) {
+    metricsUpdater.startTimer(dataSourcePushFiltersTimerName);
     log.info("size of filters " + filters.length);
     ArrayList<Filter> pushedFiltersList = new ArrayList<>();
     ArrayList<Filter> leftOverFilters = new ArrayList<>();
@@ -87,6 +103,7 @@ public class TileDBDataSourceReader
 
     Filter[] leftOvers = new Filter[leftOverFilters.size()];
     leftOvers = leftOverFilters.toArray(leftOvers);
+    metricsUpdater.finish(dataSourcePushFiltersTimerName);
     return leftOvers;
   }
 
@@ -154,6 +171,7 @@ public class TileDBDataSourceReader
 
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
+    metricsUpdater.startTimer(dataSourcePlanBatchInputPartitionsTimerName);
     ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
 
     try (Context ctx = new Context(tiledbOptions.getTileDBConfigMap());
@@ -272,8 +290,10 @@ public class TileDBDataSourceReader
       }
     } catch (TileDBError tileDBError) {
       log.log(ERROR, tileDBError.getMessage());
+      metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
       return readerPartitions;
     }
+    metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
     return readerPartitions;
   }
 
@@ -287,6 +307,7 @@ public class TileDBDataSourceReader
    */
   private List<Integer> computeNeededSplitsToReduceToMedianVolume(
       List<SubArrayRanges> subArrayRanges, Number medianVolume, Class datatype) {
+    metricsUpdater.startTimer(dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName);
     List<Integer> neededSplits = new ArrayList<>();
     for (SubArrayRanges subArrayRange : subArrayRanges) {
       Number volume = subArrayRange.getVolume();
@@ -304,6 +325,7 @@ public class TileDBDataSourceReader
         neededSplits.add(((Double) (volume.doubleValue() / medianVolume.doubleValue())).intValue());
       }
     }
+    metricsUpdater.finish(dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName);
     return neededSplits;
   }
 
@@ -315,6 +337,7 @@ public class TileDBDataSourceReader
    * @throws TileDBError
    */
   private List<Range> checkAndMergeRanges(List<Range> range) throws TileDBError {
+    metricsUpdater.startTimer(dataSourceCheckAndMergeRangesTimerName);
     List<Range> rangesToBeMerged = new ArrayList<>(range);
     Collections.sort(rangesToBeMerged);
 
@@ -354,6 +377,7 @@ public class TileDBDataSourceReader
       rangesToBeMerged = new ArrayList<>(mergedRange);
     }
 
+    metricsUpdater.finish(dataSourceCheckAndMergeRangesTimerName);
     return rangesToBeMerged;
   }
 
@@ -367,6 +391,7 @@ public class TileDBDataSourceReader
    */
   private Pair<List<List<Range>>, Class> buildRangeFromFilter(
       Filter filter, Datatype domainType, HashMap<String, Pair> nonEmptyDomain) throws TileDBError {
+    metricsUpdater.startTimer(dataSourceBuildRangeFromFilterTimerName);
     Class filterType = filter.getClass();
     // Map<String, Integer> dimensionIndexing = new HashMap<>();
     List<List<Range>> ranges = new ArrayList<>();
@@ -493,6 +518,7 @@ public class TileDBDataSourceReader
     } else {
       throw new TileDBError("Unsupported filter type");
     }
+    metricsUpdater.finish(dataSourceBuildRangeFromFilterTimerName);
     return new Pair<>(ranges, filterType);
   }
 }
