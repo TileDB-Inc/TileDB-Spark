@@ -13,6 +13,7 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id 'com.github.sherter.google-java-format' version '0.7.1'
+    id "com.github.johnrengelman.shadow" version "4.0.4"
 }
 
 group 'io.tiledb'
@@ -64,16 +65,6 @@ test {
     }
 }
 
-task installTileDBJava(type: Exec) {
-    doFirst {
-        mkdir project.buildDir
-    }
-    workingDir = project.buildDir
-    executable = "../installTileDBJava"
-}
-
-assemble.dependsOn(installTileDBJava)
-
 // metrics.jar
 task metricsJar(type: Jar) {
     baseName = "tiledb-spark-metrics"
@@ -88,6 +79,14 @@ task getHomeDir {
     doLast {
         println gradle.gradleHomeDir
     }
+}
+
+tasks.jar.configure {
+    classifier = 'default'
+}
+
+tasks.shadowJar.configure {
+    classifier = null
 }
 
 import com.github.sherter.googlejavaformatgradleplugin.GoogleJavaFormat
