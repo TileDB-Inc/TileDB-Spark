@@ -5,6 +5,7 @@ import com.codahale.metrics.Timer;
 import org.apache.log4j.Logger;
 import org.apache.spark.metrics.source.Source;
 
+/** Base class for metrics source. Initializes all timers used to track function calls */
 public class TileDBMetricsSource implements Source {
   public static final String sourceName = "tiledb";
 
@@ -36,6 +37,7 @@ public class TileDBMetricsSource implements Source {
 
   static Logger log = Logger.getLogger(TileDBMetricsSource.class.getName());
 
+  /** Constructor called by spark when initializing the metrics */
   public TileDBMetricsSource() {
     log.info("Creating TileDBMetricsSource");
     metricRegistry = new MetricRegistry();
@@ -65,10 +67,17 @@ public class TileDBMetricsSource implements Source {
     return sourceName;
   }
 
+  /**
+   * Helper function for dynamically registering functions, not sure if this is actually working
+   *
+   * @param timerName time name for later lookup and reporting
+   * @return timer instance
+   */
   public Timer registerTimer(String timerName) {
     return metricRegistry.timer(timerName);
   }
 
+  /** Return the drop wizard metric registry */
   @Override
   public MetricRegistry metricRegistry() {
     return metricRegistry;
