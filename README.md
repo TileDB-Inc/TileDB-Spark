@@ -36,6 +36,30 @@ Optionally include the `read_buffer_size` to set the off heap tiledb buffer size
                                .option("read_buffer_size", 100*1024*1024)
                                .load()
                                
+## Metrics
+
+Reporting metrics are supported via dropwizard and the default spark
+metrics setup. Metrics can be enabled by adding the following lines to your
+`metric.properties` file:
+
+```
+driver.source.io.tiledb.spark.class=org.apache.spark.metrics.TileDBMetricsSource
+executor.source.io.tiledb.spark.class=org.apache.spark.metrics.TileDBMetricsSource
+```
+
+### Using Metrics on Executor/Worker Nodes
+
+When loading an application jar (i.e. via `--jar` cli flag use by
+spark-submit/pyspark/sparkR) the metrics are available to the master node
+and the `driver` metrics will report. However the executors will error
+about class not found. This is because on each worker node a jar containing
+the `org.apache.spark.metrics.TileDBMetricsSource` must be provided in the
+class path.
+
+A dedicated jar `tiledb-spark-metrics-$version.jar` is built by default to
+allow a user to place this in the class path. Typically this jar can be copied
+to `$SPARK_HOME/jars/`.
+
 ### Options
 
 * `uri` (required): URI to TileDB sparse or dense array

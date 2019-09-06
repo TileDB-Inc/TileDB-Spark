@@ -74,6 +74,16 @@ task installTileDBJava(type: Exec) {
 
 assemble.dependsOn(installTileDBJava)
 
+// metrics.jar
+task metricsJar(type: Jar) {
+    baseName = "tiledb-spark-metrics"
+    from(sourceSets.main.output) {
+        include "org/apache/spark/metrics/**"
+    }
+}
+
+assemble.dependsOn(metricsJar)
+
 task getHomeDir {
     doLast {
         println gradle.gradleHomeDir
