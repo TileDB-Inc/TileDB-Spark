@@ -91,14 +91,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     this.pushedRanges = pushedRanges;
     this.task = TaskContext.get();
 
-    metricsUpdater = new TileDBReadMetricsUpdater(task, this.options);
+    metricsUpdater = new TileDBReadMetricsUpdater(task);
     metricsUpdater.startTimer(queryReadTimerName);
 
     task.addTaskCompletionListener(
         context -> {
           double duration = metricsUpdater.finish(queryReadTimerName) / 1000000000d;
           log.info("duration of read: " + duration);
-          //    session.close()
         });
 
     this.read_query_buffer_size = options.getReadBufferSizes();

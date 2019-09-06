@@ -2,7 +2,6 @@ package org.apache.spark.metrics;
 
 import static org.apache.spark.metrics.TileDBMetricsSource.sourceName;
 
-import io.tiledb.spark.TileDBDataSourceOptions;
 import java.util.HashMap;
 import java.util.Optional;
 import org.apache.spark.SparkEnv;
@@ -18,7 +17,7 @@ public class TileDBReadMetricsUpdater extends MetricsUpdater {
   private TileDBMetricsSource source = null;
   private HashMap<String, Timer> timers;
 
-  public TileDBReadMetricsUpdater(TaskContext task, TileDBDataSourceOptions options) {
+  public TileDBReadMetricsUpdater(TaskContext task) {
 
     Optional<TileDBMetricsSource> tmp = getSource(task);
     if (tmp.isPresent()) {
@@ -30,7 +29,7 @@ public class TileDBReadMetricsUpdater extends MetricsUpdater {
     }
     timers = new HashMap<>();
 
-    if (options.getTaskMetricsEnabled() && task != null) {
+    if (task != null) {
       TaskMetrics tm = task.taskMetrics();
       inputMetrics = tm.inputMetrics();
     }

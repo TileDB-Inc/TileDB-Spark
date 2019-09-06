@@ -60,7 +60,7 @@ public class TileDBDataSourceReader
     this.uri = uri;
     this.tiledbOptions = options;
     this.tileDBReadSchema = new TileDBReadSchema(uri, options);
-    this.metricsUpdater = new TileDBReadMetricsUpdater(TaskContext.get(), this.tiledbOptions);
+    this.metricsUpdater = new TileDBReadMetricsUpdater(TaskContext.get());
   }
 
   @Override
