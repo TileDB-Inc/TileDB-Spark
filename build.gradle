@@ -48,7 +48,7 @@ dependencies {
     compile 'org.apache.spark:spark-sql_2.12:2.4.3'
     compile 'org.apache.spark:spark-core_2.12:2.4.3'
 
-    compile 'io.tiledb:tiledb-java:0.1.8-SNAPSHOT'
+    compile 'io.tiledb:tiledb-java:0.1.9-SNAPSHOT'
 
     compile 'commons-beanutils:commons-beanutils:1.9.4'
 
