@@ -221,6 +221,9 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     if (ctx != null) {
       ctx.close();
     }
+
+    // Close out spark buffers
+    closeOnHeapColumnVectors();
   }
 
   /**
@@ -345,9 +348,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       resultBatch.close();
     }
 
+    // Reset
     query.resetBuffers();
 
     this.read_query_buffer_size *= 2;
+
+    // Close out spark buffers
+    closeOnHeapColumnVectors();
 
     allocateQuerybuffers(this.read_query_buffer_size);
   }
@@ -742,6 +749,14 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     }
     metricsUpdater.finish(queryGetDimensionTimerName);
     return numValues;
+  }
+
+  /** Close out onheap column vectors */
+  private void closeOnHeapColumnVectors() {
+    // Close the OnHeapColumnVector buffers
+    for (OnHeapColumnVector buff : resultVectors) {
+      buff.close();
+    }
   }
 
   /** Close out all the NativeArray objects */
