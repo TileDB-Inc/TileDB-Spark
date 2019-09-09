@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -192,12 +193,33 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       // rows over all batches
       resultBatch.setNumRows(nRows);
       // Note that calculateNativeArrayByteSizes() might not be
-      this.metricsUpdater.updateTaskMetrics(nRows, calculateNativeArrayByteSizes());
+      this.metricsUpdater.updateTaskMetrics(nRows, calculateResultByteSize());
     } catch (TileDBError err) {
       throw new RuntimeException(err.getMessage());
     }
     metricsUpdater.finish(queryGetTimerName);
     return resultBatch;
+  }
+
+  /**
+   * calculates the actual byte sizes of the results from the last invocation of query.submit()
+   *
+   * @return size in bytes of results
+   * @throws TileDBError on error
+   */
+  private long calculateResultByteSize() throws TileDBError {
+    long resultBytes = 0;
+    HashMap<String, Pair<Long, Long>> resultBufferElements = query.resultBufferSizes();
+    for (Map.Entry<String, Pair<Long, Long>> elementCount : resultBufferElements.entrySet()) {
+      if (elementCount.getValue().getFirst() != null) {
+        resultBytes += elementCount.getValue().getFirst();
+      }
+
+      if (elementCount.getValue().getSecond() != null) {
+        resultBytes += elementCount.getValue().getSecond();
+      }
+    }
+    return resultBytes;
   }
 
   @Override
