@@ -7,9 +7,6 @@ jdk:
 notifications:
   email: false
 
-before_install:
-  - ./scripts/installTileDBJava.sh
-
 install:
   - ./gradlew assemble --info
 
