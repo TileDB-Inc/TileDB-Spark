@@ -59,7 +59,7 @@ dependencies {
 }
 
 test {
-    systemProperty "java.library.path", new File(buildDir, "TileDB-Java/build/tiledb_jni")
+//    systemProperty "java.library.path", new File(buildDir, "TileDB-Java/build/tiledb_jni")
     testLogging {
         showStandardStreams = true
     }

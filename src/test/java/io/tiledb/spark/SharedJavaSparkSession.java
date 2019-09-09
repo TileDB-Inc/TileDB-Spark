@@ -1,5 +1,6 @@
 package io.tiledb.spark;
 
+import io.tiledb.libtiledb.NativeLibLoader;
 import org.apache.spark.sql.SparkSession;
 
 public class SharedJavaSparkSession extends SharedJavaSparkContext {
@@ -10,6 +11,7 @@ public class SharedJavaSparkSession extends SharedJavaSparkContext {
   public void runBeforeHook() {
     super.runBeforeHook();
     sparkSession = SparkSession.builder().config(conf()).getOrCreate();
+    new NativeLibLoader();
   }
 
   public SparkSession session() {

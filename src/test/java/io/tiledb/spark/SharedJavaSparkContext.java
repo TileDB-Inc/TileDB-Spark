@@ -1,10 +1,14 @@
 package io.tiledb.spark;
 
+import io.tiledb.libtiledb.NativeLibLoader;
 import org.apache.spark.SparkConf;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.util.Utils;
 import org.junit.*;
+
+import static io.tiledb.libtiledb.NativeLibLoader.loadNativeTileDB;
+import static io.tiledb.libtiledb.NativeLibLoader.loadNativeTileDBJNI;
 
 public class SharedJavaSparkContext {
 
@@ -51,6 +55,8 @@ public class SharedJavaSparkContext {
       javaSparkContext = new JavaSparkContext(sparkContext);
       runBeforeHook();
     }
+
+    new NativeLibLoader();
   }
 
   @AfterClass

@@ -3,12 +3,20 @@ package io.tiledb.spark;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+
+import io.tiledb.libtiledb.NativeLibLoader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TileDBDataSourceReadTestPartitioning extends SharedJavaSparkSession {
+
+  @Before
+  public void before() {
+    new NativeLibLoader();
+  }
 
   private String testArrayURIString(String arrayName) {
     Path arraysPath = Paths.get("src", "test", "resources", "data", "1.6", arrayName);
