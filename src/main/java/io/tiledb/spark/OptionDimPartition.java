@@ -10,7 +10,7 @@ public class OptionDimPartition {
 
   public OptionDimPartition(String dimNameOrIdx, String value) throws IllegalArgumentException {
     String[] splitDimId = dimNameOrIdx.split("\\.");
-    if (splitDimId.length != 2) {
+    if (splitDimId.length != 2 || !splitDimId[0].equalsIgnoreCase("dim")) {
       throw new IllegalArgumentException(
           "Invalid dimension option key, expected 'dim.idx` or 'dim.name' got: " + dimNameOrIdx);
     }

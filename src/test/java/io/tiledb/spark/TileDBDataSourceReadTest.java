@@ -75,6 +75,26 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
   }
 
   @Test
+  public void testExampleVarlenArray() {
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("uri", testArrayURIString("variable_length_array"))
+            .option("partition_count", 1)
+            .load();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rows = session().sql("SELECT a1 FROM tmp").collectAsList();
+    String[] expected =
+        new String[] {
+          "a", "bb", "ccc", "dd", "eee", "f", "g", "hhh", "i", "jjj", "kk", "l", "m", "n", "oo", "p"
+        };
+    for (int i = 0; i < rows.size(); i++) {
+      Assert.assertEquals(expected[i], rows.get(i).getString(0));
+    }
+  }
+
+  @Test
   public void testQuickStartDenseColMajor() {
     for (String order : new String[] {"col-major", "TILEDB_COL_MAJOR"}) {
       Dataset<Row> dfRead =

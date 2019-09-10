@@ -1,6 +1,7 @@
 package io.tiledb.spark;
 
 import io.tiledb.java.api.Layout;
+import io.tiledb.java.api.Pair;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -113,6 +114,46 @@ public class TileDBDataSourceOptionsTest {
   }
 
   @Test
+  public void testEmptyTileDBSchemaDims() throws Exception {
+    HashMap<String, String> optionMap = new HashMap<>();
+    optionMap.put("uri", "s3://foo/bar");
+    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+    Assert.assertFalse(options.getSchemaDimensionNames().isPresent());
+  }
+
+  @Test
+  public void testTileDBSchemaDims() throws Exception {
+    HashMap<String, String> optionMap = new HashMap<>();
+    optionMap.put("uri", "s3://foo/bar");
+    optionMap.put("schema.dim.0.name", "rows");
+    optionMap.put("schema.dim.1.name", "cols");
+    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+    Assert.assertTrue(options.getSchemaDimensionNames().isPresent());
+    List<Pair<String, Integer>> schemaDims = options.getSchemaDimensionNames().get();
+    Assert.assertEquals("rows", schemaDims.get(0).getFirst());
+    Assert.assertEquals(Integer.valueOf(0), schemaDims.get(0).getSecond());
+    Assert.assertEquals("cols", schemaDims.get(1).getFirst());
+    Assert.assertEquals(Integer.valueOf(1), schemaDims.get(1).getSecond());
+  }
+
+  @Test
+  public void testTileDBSchemaExtent() throws Exception {
+    HashMap<String, String> optionMap = new HashMap<>();
+    optionMap.put("uri", "s3://foo/bar");
+    optionMap.put("schema.dim.0.extent", "10");
+    optionMap.put("schema.dim.1.extent", "1025.34");
+    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+    Optional<Long> dim0Extent = options.getSchemaDimensionExtentLong(0);
+    Optional<Double> dim1Extent = options.getSchemaDimensionExtentDouble(1);
+    Assert.assertTrue(dim0Extent.isPresent());
+    Assert.assertEquals(Long.valueOf(10), dim0Extent.get());
+    Assert.assertTrue(dim1Extent.isPresent());
+    Assert.assertEquals(Double.parseDouble("1025.34"), (double) dim1Extent.get(), 0.001);
+    Assert.assertFalse(options.getSchemaDimensionExtentLong(2).isPresent());
+    Assert.assertFalse(options.getSchemaDimensionExtentLong(1).isPresent());
+  }
+
+  @Test
   public void testEmptyTileDBConfigOption() throws Exception {
     HashMap<String, String> optionMap = new HashMap<>();
     optionMap.put("uri", "s3://foo/bar");
@@ -129,7 +170,31 @@ public class TileDBDataSourceOptionsTest {
     TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
 
     Map<String, String> tiledbOptions = options.getTileDBConfigMap();
-    Assert.assertEquals(tiledbOptions.get("sm.check_coord_dups"), "false");
-    Assert.assertEquals(tiledbOptions.get("sm.dedup_coords"), "true");
+    Assert.assertEquals("false", tiledbOptions.get("sm.check_coord_dups"));
+    Assert.assertEquals("true", tiledbOptions.get("sm.dedup_coords"));
+  }
+
+  @Test
+  public void testSingleFilter() throws Exception {
+    String filters = "(gzip, 2)";
+    Optional<List<Pair<String, Integer>>> filterList =
+        TileDBDataSourceOptions.tryParseFilterList(filters);
+    Assert.assertTrue(filterList.isPresent());
+    Assert.assertEquals(1, filterList.get().size());
+    Assert.assertEquals("gzip", filterList.get().get(0).getFirst());
+    Assert.assertEquals(Integer.valueOf(2), filterList.get().get(0).getSecond());
+  }
+
+  @Test
+  public void testFilterList() throws Exception {
+    String filters = "(byteshuffle, -1), (gzip, 2)";
+    Optional<List<Pair<String, Integer>>> filterList =
+        TileDBDataSourceOptions.tryParseFilterList(filters);
+    Assert.assertTrue(filterList.isPresent());
+    Assert.assertEquals(2, filterList.get().size());
+    Assert.assertEquals("byteshuffle", filterList.get().get(0).getFirst());
+    Assert.assertEquals(Integer.valueOf(-1), filterList.get().get(0).getSecond());
+    Assert.assertEquals("gzip", filterList.get().get(1).getFirst());
+    Assert.assertEquals(Integer.valueOf(2), filterList.get().get(1).getSecond());
   }
 }

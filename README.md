@@ -36,7 +36,18 @@ Optionally include the `read_buffer_size` to set the off heap tiledb buffer size
                                .option("uri", "file:///path/to/tiledb/array")
                                .option("read_buffer_size", 100*1024*1024)
                                .load()
-                               
+
+To write to TileDB from an existing dataframe, you need to specify a URI and the column(s) which map to sparse array dimensions.  For now only sparse array writes are supported.
+
+    scala > val sampleDF.write()
+                        .format("io.tiledb.spark")
+                        .option("uri", "file:///path/to/tiledb/array_new")                          
+                        .option("schema.dim.0.name", "rows")
+                        .option("schema.dim.1.name", "cols")
+                        .option("write_buffer_size", 100*1024*1024)
+                        .mode(SaveMode.ErrorIfExists)
+                        .save();
+
 ## Metrics
 
 Reporting metrics are supported via dropwizard and the default spark
@@ -61,13 +72,30 @@ A dedicated jar `tiledb-spark-metrics-$version.jar` is built by default to
 allow a user to place this in the class path. Typically this jar can be copied
 to `$SPARK_HOME/jars/`.
 
-### Options
 
+## Options
+
+### Read/Write options
 * `uri` (required): URI to TileDB sparse or dense array
-* `order` (optional): Result layout order `"row-major"`/ `"TILEDB_ROW_MAJOR"`, `"col-major"` / `"TILEDB_COL_MAJOR"`, or `"unordered"`/ `"TILEDB_UNORDERED"` (default `"unordered"`).
 * `tiledb.` (optional): Set a TileDB config option, ex: `option("tiledb.vfs.num_threads", 4)`.  Multiple tiledb config options can be specified.  See the [full list of configuration options](https://docs.tiledb.io/en/latest/tutorials/config.html?highlight=config#summary-of-parameters).
+
+### Read options
+* `order` (optional): Result layout order `"row-major"`/ `"TILEDB_ROW_MAJOR"`, `"col-major"` / `"TILEDB_COL_MAJOR"`, or `"unordered"`/ `"TILEDB_UNORDERED"` (default `"unordered"`).
 * `read_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
 * `allow_read_buffer_realloc` (optional): If the read buffer size is too small allow reallocation. Default: True
+
+### Write options
+* `write_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
+* `schema.dim.<N>.name` (requried): Specify which of the spark dataframe columns names are dimensions.
+* `schema.dim.<N>.min` (optional): Specify the lower bound for the TileDB array schema.
+* `schema.dim.<N>.max` (optional): Specify the upper bound for the TileDB array schema.
+* `schema.dim.<N>.extent` (optional): Specify the schema dimension domain extent (tile size).
+* `schema.attr.<NAME>.filter_list` (optional): Specfify filter list for attribute NAME.  Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
+* `schema.capacity` (optional): Specify the sparse array tile capacity.
+* `schema.cell_order` (optional): Specify the cell order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
+* `schema.tile_order` (optional): Specify the tile order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
+* `schema.coords_filter_list` (optional): Specify the coordinate filter list.
+* `schema.offsets_filter_list` (optional): Specify the offsets filter list.
 
 ## Semantics
 
