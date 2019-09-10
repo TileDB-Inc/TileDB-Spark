@@ -360,6 +360,50 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           nativeArrayBufferElements[bufferIdx] += bytesLen;
           break;
         }
+        // Handle spark date fields
+      case TILEDB_DATETIME_DAY:
+        {
+          if (isArray) {
+            int[] array = record.getArray(ordinal).toIntArray();
+            int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+              return true;
+            }
+            for (int i = 0; i < array.length; i++) {
+              buffer.setItem(bufferOffset + i, ((Integer) array[i]).longValue());
+            }
+            offsets.setItem(bufferElement, (long) bufferOffset);
+            nativeArrayOffsetElements[bufferIdx] += 1;
+            nativeArrayBufferElements[bufferIdx] += array.length;
+          } else {
+            buffer.setItem(bufferElement, ((Integer) record.getInt(ordinal)).longValue());
+            nativeArrayBufferElements[bufferIdx] += 1;
+          }
+          break;
+        }
+        // Handle spark timestamp fields
+      case TILEDB_DATETIME_MS:
+        {
+          if (isArray) {
+            long[] array = record.getArray(ordinal).toLongArray();
+            int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+              return true;
+            }
+            for (int i = 0; i < array.length; i++) {
+              buffer.setItem(bufferOffset + i, array[i]);
+            }
+            offsets.setItem(bufferElement, (long) bufferOffset);
+            nativeArrayOffsetElements[bufferIdx] += 1;
+            nativeArrayBufferElements[bufferIdx] += array.length;
+          } else {
+            buffer.setItem(bufferElement, record.getLong(ordinal));
+            nativeArrayBufferElements[bufferIdx] += 1;
+          }
+          break;
+        }
       default:
         this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
         throw new TileDBError("Unimplemented attribute type for Spark writes: " + dtype);

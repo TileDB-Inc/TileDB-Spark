@@ -8,6 +8,7 @@ import java.util.Optional;
 import javax.swing.*;
 import org.apache.spark.sql.types.*;
 import org.apache.spark.sql.types.ArrayType;
+import scala.annotation.meta.field;
 
 public class TileDBWriteSchema {
 
@@ -157,6 +158,41 @@ public class TileDBWriteSchema {
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_UINT8, new Pair<>(min, max), extent);
+      } else if (dataType instanceof DateType) {
+        Long min = Long.MIN_VALUE + 1l;
+        if (longMin.isPresent()) {
+          min = longMin.get();
+        }
+        Long max = Long.MAX_VALUE - 1l;
+        if (longMax.isPresent()) {
+          max = longMax.get();
+        }
+        Long extent;
+        if (longExtent.isPresent()) {
+          extent = longExtent.get();
+        } else {
+          extent = max;
+        }
+        return new Dimension(
+            ctx, field.name(), Datatype.TILEDB_DATETIME_DAY, new Pair<>(min, max), extent);
+
+      } else if (dataType instanceof TimestampType) {
+        Long min = Long.MIN_VALUE + 1l;
+        if (longMin.isPresent()) {
+          min = longMin.get();
+        }
+        Long max = Long.MAX_VALUE - 1l;
+        if (longMax.isPresent()) {
+          max = longMax.get();
+        }
+        Long extent;
+        if (longExtent.isPresent()) {
+          extent = longExtent.get();
+        } else {
+          extent = max;
+        }
+        return new Dimension(
+            ctx, field.name(), Datatype.TILEDB_DATETIME_MS, new Pair<>(min, max), extent);
       }
     }
     throw new TileDBError(
@@ -179,6 +215,10 @@ public class TileDBWriteSchema {
       attribute = new Attribute(ctx, field.name(), Float.class);
     } else if (dataType instanceof DoubleType) {
       attribute = new Attribute(ctx, field.name(), Double.class);
+    } else if (dataType instanceof DateType) {
+      attribute = new Attribute(ctx, field.name(), Datatype.TILEDB_DATETIME_DAY);
+    } else if (dataType instanceof TimestampType) {
+      attribute = new Attribute(ctx, field.name(), Datatype.TILEDB_DATETIME_MS);
     } else if (dataType instanceof StringType) {
       attribute = new Attribute(ctx, field.name(), String.class).setCellVar();
     } else if (dataType instanceof ArrayType) {
