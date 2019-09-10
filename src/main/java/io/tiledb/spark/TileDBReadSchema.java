@@ -167,6 +167,16 @@ public class TileDBReadSchema implements Serializable {
           field = new StructField(name, DataTypes.StringType, isNullable, metadata);
           break;
         }
+      case TILEDB_DATETIME_DAY:
+        {
+          field = new StructField(name, DataTypes.DateType, isNullable, metadata);
+          break;
+        }
+      case TILEDB_DATETIME_SEC:
+        {
+          field = new StructField(name, DataTypes.TimestampType, isNullable, metadata);
+          break;
+        }
       default:
         {
           throw new TileDBError(
