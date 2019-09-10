@@ -140,7 +140,7 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
           arraySchema.setCoodsFilterList(filterList);
         }
       }
-      Optional<List<Pair<String, Integer>>> offsetsFilters = options.getSchemaCoordsFilterList();
+      Optional<List<Pair<String, Integer>>> offsetsFilters = options.getSchemaOffsetsFilterList();
       if (coordsFilters.isPresent()) {
         try (FilterList filterList =
             TileDBWriteSchema.createTileDBFilterList(ctx, offsetsFilters.get())) {
