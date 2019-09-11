@@ -402,6 +402,8 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     } catch (TileDBError err) {
       throw new IOException(err.getMessage());
     }
+
+    this.closeTileDBResources();
     return null;
   }
 
