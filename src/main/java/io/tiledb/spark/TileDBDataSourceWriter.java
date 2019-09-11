@@ -62,6 +62,7 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
         if (!arrayExists) {
           writeArraySchema(ctx, uri, sparkSchema, options);
         }
+        return true;
       } else if (saveMode == SaveMode.Overwrite) {
         if (arrayExists) {
           TileDBObject.remove(ctx, uri.toString());
