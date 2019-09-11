@@ -84,7 +84,7 @@ public class TileDBDataSourceReader
   @Override
   public Filter[] pushFilters(Filter[] filters) {
     metricsUpdater.startTimer(dataSourcePushFiltersTimerName);
-    log.info("size of filters " + filters.length);
+    log.trace("size of filters " + filters.length);
     ArrayList<Filter> pushedFiltersList = new ArrayList<>();
     ArrayList<Filter> leftOverFilters = new ArrayList<>();
 
