@@ -5,6 +5,8 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+
+import org.apache.log4j.Logger;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
@@ -14,6 +16,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 public class TileDBDataSourceWriter implements DataSourceWriter {
+  static Logger log = Logger.getLogger(TileDBDataSourceWriter.class.getName());
   public final URI uri;
   public final StructType sparkSchema;
   public final SaveMode saveMode;
@@ -85,7 +88,7 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
         }
       }
     } catch (TileDBError err) {
-      err.printStackTrace();
+      log.error(err.getMessage(),err);
       throw new RuntimeException(err.getMessage());
     }
     return false;
