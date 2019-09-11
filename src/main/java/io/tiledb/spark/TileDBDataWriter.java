@@ -1,8 +1,20 @@
 package io.tiledb.spark;
 
+import static org.apache.spark.metrics.TileDBMetricsSource.queryResetWriteQueryAndBuffersTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteCloseTileDBResourcesTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteCommitTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteFlushBuffersTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteRecordToBufferTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteRowTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteTaskTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteTimerName;
+
 import io.tiledb.java.api.*;
 import java.io.IOException;
 import java.net.URI;
+import org.apache.log4j.Logger;
+import org.apache.spark.TaskContext;
+import org.apache.spark.metrics.TileDBWriteMetricsUpdater;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
@@ -11,6 +23,9 @@ import org.apache.spark.sql.types.StructType;
 
 public class TileDBDataWriter implements DataWriter<InternalRow> {
 
+  static Logger log = Logger.getLogger(TileDBDataWriter.class.getName());
+
+  private final TileDBWriteMetricsUpdater metricsUpdater;
   private URI uri;
   private StructType sparkSchema;
 
@@ -40,6 +55,16 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     this.sparkSchema = schema;
     // set write options
     writeBufferSize = options.getWriteBufferSize();
+    this.metricsUpdater = new TileDBWriteMetricsUpdater(TaskContext.get());
+    this.metricsUpdater.startTimer(queryWriteTimerName);
+    this.metricsUpdater.startTimer(queryWriteTaskTimerName);
+
+    TaskContext task = TaskContext.get();
+    task.addTaskCompletionListener(
+        context -> {
+          double duration = metricsUpdater.finish(queryWriteTaskTimerName) / 1000000000d;
+          log.info("duration of write: " + duration);
+        });
 
     // mapping of fields to dimension / attributes in TileDB schema
     StructField[] sparkSchemaFields = schema.fields();
@@ -99,6 +124,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   }
 
   private void resetWriteQueryAndBuffers() throws TileDBError {
+    this.metricsUpdater.startTimer(queryResetWriteQueryAndBuffersTimerName);
     if (query != null) {
       query.close();
     }
@@ -145,6 +171,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       }
     }
     nRecordsBuffered = 0;
+    this.metricsUpdater.finish(queryResetWriteQueryAndBuffersTimerName);
     return;
   }
 
@@ -165,18 +192,21 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
   private boolean writeRecordToBuffer(
       int bufferIdx, int bufferElement, InternalRow record, int ordinal) throws TileDBError {
+    this.metricsUpdater.startTimer(queryWriteRecordToBufferTimerName);
     Datatype dtype = bufferDatatypes[bufferIdx];
     NativeArray buffer = nativeArrayBuffers[bufferIdx];
     NativeArray offsets = nativeArrayOffsetBuffers[bufferIdx];
     boolean isArray = bufferValNum[bufferIdx] > 1l;
     int maxBufferElements = buffer.getSize();
     if (bufferElement >= maxBufferElements) {
+      this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
       return true;
     }
     if (isArray) {
       // rare, would have to be a repeat of zero sized values
       int maxOffsetElements = offsets.getSize();
       if (bufferElement >= maxOffsetElements) {
+        this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
         return true;
       }
     }
@@ -187,6 +217,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             byte[] array = record.getArray(ordinal).toByteArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
             if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -200,7 +231,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getByte(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return false;
+          break;
         }
       case TILEDB_UINT8:
       case TILEDB_INT16:
@@ -209,6 +240,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             short[] array = record.getArray(ordinal).toShortArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
             if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -222,7 +254,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getShort(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return false;
+          break;
         }
       case TILEDB_UINT16:
       case TILEDB_INT32:
@@ -231,6 +263,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             int[] array = record.getArray(ordinal).toIntArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
             if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -243,7 +276,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getInt(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return false;
+          break;
         }
       case TILEDB_UINT32:
       case TILEDB_UINT64:
@@ -253,6 +286,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             long[] array = record.getArray(ordinal).toLongArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
             if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -265,7 +299,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getLong(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return false;
+          break;
         }
       case TILEDB_FLOAT32:
         {
@@ -273,6 +307,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             float[] array = record.getArray(ordinal).toFloatArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
             if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -285,7 +320,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getFloat(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return false;
+          break;
         }
       case TILEDB_FLOAT64:
         {
@@ -293,6 +328,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             double[] array = record.getArray(ordinal).toDoubleArray();
             int bufferOffset = nativeArrayBufferElements[bufferElement];
             if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
               return true;
             }
             for (int i = 0; i < array.length; i++) {
@@ -305,7 +341,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             buffer.setItem(bufferElement, record.getDouble(ordinal));
             nativeArrayBufferElements[bufferIdx] += 1;
           }
-          return false;
+          break;
         }
       case TILEDB_CHAR:
       case TILEDB_STRING_ASCII:
@@ -315,21 +351,26 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           int bytesLen = val.getBytes().length;
           int bufferOffset = nativeArrayBufferElements[bufferIdx];
           if ((bufferOffset + bytesLen) > maxBufferElements) {
+            this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
             return true;
           }
           buffer.setItem(bufferOffset, val);
           offsets.setItem(bufferElement, (long) bufferOffset);
           nativeArrayOffsetElements[bufferIdx] += 1;
           nativeArrayBufferElements[bufferIdx] += bytesLen;
-          return false;
+          break;
         }
       default:
+        this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
         throw new TileDBError("Unimplemented attribute type for Spark writes: " + dtype);
     }
+    this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+    return false;
   }
 
   @Override
   public void write(InternalRow record) throws IOException {
+    this.metricsUpdater.startTimer(queryWriteRowTimerName);
     try {
       for (int flushAttempts = 0; flushAttempts < 2; flushAttempts++) {
         boolean retryAfterFlush = false;
@@ -365,14 +406,23 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       }
       nRecordsBuffered++;
     } catch (TileDBError err) {
+      this.metricsUpdater.finish(queryWriteRowTimerName);
       throw new IOException(err.getMessage());
     }
+    this.metricsUpdater.finish(queryWriteRowTimerName);
   }
 
   private void flushBuffers() throws TileDBError {
+    this.metricsUpdater.startTimer(queryWriteFlushBuffersTimerName);
+    long buffersInBytes = 0;
     query.setBufferElements(Constants.TILEDB_COORDS, nRecordsBuffered * nDims);
+    // Calculate bytes we are writing for metrics starting with dimension
+    buffersInBytes += nRecordsBuffered * nDims * bufferDatatypes[nDims - 1].getNativeSize();
     for (int i = nDims; i < bufferNames.length; i++) {
       String name = bufferNames[i];
+      // Calculate bytes we are writing for metrics
+      buffersInBytes += nRecordsBuffered * nDims * bufferDatatypes[i].getNativeSize();
+
       boolean isVar = (bufferValNum[i] == Constants.TILEDB_VAR_NUM);
       if (isVar) {
         query.setBufferElements(name, nativeArrayOffsetElements[i], nativeArrayBufferElements[i]);
@@ -382,28 +432,39 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     }
     QueryStatus status = query.submit();
     if (status != QueryStatus.TILEDB_COMPLETED) {
+      this.metricsUpdater.finish(queryWriteFlushBuffersTimerName);
       throw new TileDBError("Query write error: " + status);
     }
+
+    this.metricsUpdater.appendTaskMetrics(nRecordsBuffered, buffersInBytes);
+    this.metricsUpdater.finish(queryWriteFlushBuffersTimerName);
   }
 
   private void closeTileDBResources() {
+    this.metricsUpdater.startTimer(queryWriteCloseTileDBResourcesTimerName);
     query.close();
     array.close();
     ctx.close();
+    this.metricsUpdater.finish(queryWriteCloseTileDBResourcesTimerName);
   }
 
   @Override
   public WriterCommitMessage commit() throws IOException {
+    this.metricsUpdater.startTimer(queryWriteCommitTimerName);
     try {
       // flush remaining records
       if (nRecordsBuffered >= 1) {
         flushBuffers();
       }
     } catch (TileDBError err) {
+      this.metricsUpdater.finish(queryWriteCommitTimerName);
+      this.metricsUpdater.finish(queryWriteTimerName);
       throw new IOException(err.getMessage());
     }
 
     this.closeTileDBResources();
+    this.metricsUpdater.finish(queryWriteCommitTimerName);
+    this.metricsUpdater.finish(queryWriteTimerName);
     return null;
   }
 
@@ -411,5 +472,6 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   public void abort() throws IOException {
     // clean up buffered resources
     closeTileDBResources();
+    this.metricsUpdater.finish(queryWriteTimerName);
   };
 }

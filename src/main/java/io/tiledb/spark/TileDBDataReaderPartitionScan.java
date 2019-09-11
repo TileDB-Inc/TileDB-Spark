@@ -14,6 +14,7 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryGetVariableLengt
 import static org.apache.spark.metrics.TileDBMetricsSource.queryInitTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryNextTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryReadTimerName;
+import static org.apache.spark.metrics.TileDBMetricsSource.queryReadTimerTaskName;
 import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmitTimerName;
 
 import io.tiledb.java.api.*;
@@ -94,10 +95,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
     metricsUpdater = new TileDBReadMetricsUpdater(task);
     metricsUpdater.startTimer(queryReadTimerName);
+    metricsUpdater.startTimer(queryReadTimerTaskName);
 
     task.addTaskCompletionListener(
         context -> {
-          double duration = metricsUpdater.finish(queryReadTimerName) / 1000000000d;
+          double duration = metricsUpdater.finish(queryReadTimerTaskName) / 1000000000d;
           log.info("duration of read: " + duration);
         });
 
@@ -246,6 +248,9 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
     // Close out spark buffers
     closeOnHeapColumnVectors();
+
+    // Finish timer
+    metricsUpdater.finish(queryReadTimerName);
   }
 
   /**
