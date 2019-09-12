@@ -79,6 +79,11 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     return dataClassType;
   }
 
+  @Override
+  public String toString() {
+    return range.getFirst() + ", " + range.getSecond();
+  }
+
   public Object getFirst() {
     return range.getFirst();
   }

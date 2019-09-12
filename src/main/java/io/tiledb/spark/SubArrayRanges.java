@@ -3,13 +3,12 @@ package io.tiledb.spark;
 import static io.tiledb.spark.util.generateAllSubarrays;
 
 import io.tiledb.java.api.TileDBError;
-import org.apache.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.log4j.Logger;
 
 public class SubArrayRanges implements Comparable<SubArrayRanges> {
   private List<Range> ranges;
@@ -34,11 +33,8 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
   public String toString() {
     StringBuilder s = new StringBuilder();
     s.append("[");
-    for (Range r : ranges) {
-      s.append(r.getRange().getFirst().toString());
-      s.append(", ");
-      s.append(r.getRange().getSecond().toString());
-    }
+    s.append(String.join(", ", ranges.stream().map(Range::toString).collect(Collectors.toList())));
+    s.delete(s.length(), s.length());
     s.append("]");
     return s.toString();
   }
@@ -269,9 +265,12 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
       int dimIndex = 0;
       for (List<Range> split : newSplits) {
         for (Range r : split) {
-          String s = "[" +r.getRange().getFirst().toString() +
-              ", " +
-              r.getRange().getSecond().toString() + "]";
+          String s =
+              " ["
+                  + r.getRange().getFirst().toString()
+                  + ", "
+                  + r.getRange().getSecond().toString()
+                  + "] ";
           log.trace("new split for dim " + dimIndex + ": " + s);
         }
         dimIndex++;
