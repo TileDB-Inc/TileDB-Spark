@@ -19,6 +19,17 @@ public class TileDBDataSource implements DataSourceV2, ReadSupport, WriteSupport
 
   @Override
   public DataSourceReader createReader(DataSourceOptions options) {
+    if (options.tableName().isPresent()) {
+      log.info("tableName=" + options.tableName().get());
+    }
+    if (options.databaseName().isPresent()) {
+      log.info("databaseName=" + options.databaseName().get());
+    }
+
+    String[] paths = options.paths();
+    for (int i = 0; i < paths.length; i++) {
+      log.info("paths[" + i + "]=" + paths[i]);
+    }
     TileDBDataSourceOptions tiledbOptions = new TileDBDataSourceOptions(options);
     URI arrayURI = tryGetArrayURI(tiledbOptions);
     log.trace("Creating TileDBDataSourceReader for " + arrayURI);
