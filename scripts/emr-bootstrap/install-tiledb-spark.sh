@@ -2,7 +2,7 @@
 
 sudo yum install -y cmake3 gcc g++ git &&
 sudo ln -s /usr/bin/cmake3 /usr/bin/cmake &&
-git clone https://github.com/TileDB-Inc/TileDB-Java.git &&
+git clone https://github.com/TileDB-Inc/TileDB-Java.git -b 0.1.9 &&
 cd TileDB-Java &&
 ./gradlew -PTILEDB_S3=ON -PTILEDB_VERBOSE=ON assemble &&
 ./gradlew -PTILEDB_S3=ON -PTILEDB_VERBOSE=ON publishToMavenLocal &&
