@@ -26,6 +26,19 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     return ranges;
   }
 
+  @Override
+  public String toString() {
+    StringBuilder s = new StringBuilder();
+    s.append("[");
+    for (Range r : ranges) {
+      s.append(r.getRange().getFirst().toString());
+      s.append(", ");
+      s.append(r.getRange().getSecond().toString());
+    }
+    s.append("]");
+    return s.toString();
+  }
+
   /**
    * Finds the dimension with the largest width
    *

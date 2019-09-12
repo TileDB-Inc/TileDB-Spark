@@ -285,6 +285,7 @@ public class TileDBDataSourceReader
         // I.E. don't over partition like we probably are doing now
         List<List<Range>> subarrayRanges = new ArrayList<>();
         subarrayRanges.add(subarray.getRanges());
+        log.trace("Creating partitiong for subarray: " + subarray.toString());
         readerPartitions.add(
             new TileDBDataReaderPartition(uri, tileDBReadSchema, tiledbOptions, subarrayRanges));
       }
