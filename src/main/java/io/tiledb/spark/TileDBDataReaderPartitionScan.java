@@ -25,8 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBReadMetricsUpdater;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
@@ -100,7 +99,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     task.addTaskCompletionListener(
         context -> {
           double duration = metricsUpdater.finish(queryReadTimerTaskName) / 1000000000d;
-          log.info("duration of read: " + duration);
+          log.debug("duration of read task " + task.toString() + " : " + duration + "s");
         });
 
     this.read_query_buffer_size = options.getReadBufferSizes();
@@ -250,7 +249,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     closeOnHeapColumnVectors();
 
     // Finish timer
-    metricsUpdater.finish(queryReadTimerName);
+    double duration = metricsUpdater.finish(queryReadTimerName) / 1000000000d;
+    log.debug("duration of read-to-close" + task.toString() + " : " + duration + "s");
   }
 
   /**
@@ -331,8 +331,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       }
       bufferCount++;
     }
-    log.log(
-        Level.INFO,
+    log.info(
         "Largest single buffer is "
             + largestSingleBuffer
             + " total buffer count is "
@@ -351,8 +350,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
     long totalBufferSizes = calculateNativeArrayByteSizes();
 
-    log.log(
-        Level.INFO,
+    log.info(
         "Checking to realloc buffers from "
             + totalBufferSizes
             + " to "

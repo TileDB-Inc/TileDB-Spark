@@ -26,6 +26,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   static Logger log = Logger.getLogger(TileDBDataWriter.class.getName());
 
   private final TileDBWriteMetricsUpdater metricsUpdater;
+  private final TaskContext task;
   private URI uri;
   private StructType sparkSchema;
 
@@ -59,11 +60,11 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     this.metricsUpdater.startTimer(queryWriteTimerName);
     this.metricsUpdater.startTimer(queryWriteTaskTimerName);
 
-    TaskContext task = TaskContext.get();
+    task = TaskContext.get();
     task.addTaskCompletionListener(
         context -> {
           double duration = metricsUpdater.finish(queryWriteTaskTimerName) / 1000000000d;
-          log.info("duration of write: " + duration);
+          log.debug("duration of write task " + task.toString() + " : " + duration + "s");
         });
 
     // mapping of fields to dimension / attributes in TileDB schema
@@ -464,7 +465,8 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
     this.closeTileDBResources();
     this.metricsUpdater.finish(queryWriteCommitTimerName);
-    this.metricsUpdater.finish(queryWriteTimerName);
+    double duration = this.metricsUpdater.finish(queryWriteTimerName) / 1000000000d;
+    log.debug("duration of write-to-commit " + task.toString() + " : " + duration + "s");
     return null;
   }
 
