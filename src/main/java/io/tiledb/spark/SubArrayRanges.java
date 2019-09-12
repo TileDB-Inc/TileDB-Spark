@@ -3,6 +3,8 @@ package io.tiledb.spark;
 import static io.tiledb.spark.util.generateAllSubarrays;
 
 import io.tiledb.java.api.TileDBError;
+import org.apache.log4j.Logger;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -12,6 +14,8 @@ import java.util.stream.IntStream;
 public class SubArrayRanges implements Comparable<SubArrayRanges> {
   private List<Range> ranges;
   private Class datatype;
+
+  static Logger log = Logger.getLogger(SubArrayRanges.class.getName());
 
   SubArrayRanges(List<Range> ranges, Class datatype) {
     this.ranges = ranges;
@@ -261,6 +265,16 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
           // Split the given range for a dimension into x splits
           newSplits.add(new ArrayList<>(ranges.get(i).splitRange(dimensionWeightedSplits)));
         }
+      }
+      int dimIndex = 0;
+      for (List<Range> split : newSplits) {
+        for (Range r : split) {
+          String s = "[" +r.getRange().getFirst().toString() +
+              ", " +
+              r.getRange().getSecond().toString() + "]";
+          log.trace("new split for dim " + dimIndex + ": " + s);
+        }
+        dimIndex++;
       }
       generateAllSubarrays(newSplits, newSubarrays, 0, new ArrayList<>());
     }
