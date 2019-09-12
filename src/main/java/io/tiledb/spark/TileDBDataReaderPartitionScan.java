@@ -20,6 +20,7 @@ import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmit
 import io.tiledb.java.api.*;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -560,6 +561,25 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           resultVectors[index].putLongs(0, bufferLength, buff, 0);
           break;
         }
+      case TILEDB_DATETIME_DAY:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          int[] buffConverted = Arrays.stream(buff).mapToInt(i -> ((Long) i).intValue()).toArray();
+          numValues = bufferLength;
+          resultVectors[index].reset();
+          resultVectors[index].putInts(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_MS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          resultVectors[index].reset();
+          resultVectors[index].putLongs(0, bufferLength, buff, 0);
+          break;
+        }
       default:
         {
           throw new TileDBError("Not supported getDomain getType " + attribute.getType());
@@ -628,6 +648,23 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       case TILEDB_INT64:
       case TILEDB_UINT32:
       case TILEDB_UINT64:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          break;
+        }
+      case TILEDB_DATETIME_DAY:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          int[] buffConverted = Arrays.stream(buff).mapToInt(i -> ((Long) i).intValue()).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putInts(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_MS:
         {
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
@@ -751,6 +788,34 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         case TILEDB_INT64:
         case TILEDB_UINT32:
         case TILEDB_UINT64:
+          {
+            long[] coords = (long[]) query.getCoordinates();
+            bufferLength = coords.length;
+            numValues = bufferLength / ndim;
+            if (resultVectors.length > 0) {
+              resultVectors[index].reset();
+              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
+                resultVectors[index].putLong(row, coords[i]);
+              }
+            }
+            break;
+          }
+        case TILEDB_DATETIME_DAY:
+          {
+            long[] coords = (long[]) query.getCoordinates();
+            bufferLength = coords.length;
+            int[] coordsConverted =
+                Arrays.stream(coords).mapToInt(i -> ((Long) i).intValue()).toArray();
+            numValues = bufferLength / ndim;
+            if (resultVectors.length > 0) {
+              resultVectors[index].reset();
+              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
+                resultVectors[index].putInt(row, coordsConverted[i]);
+              }
+            }
+            break;
+          }
+        case TILEDB_DATETIME_MS:
           {
             long[] coords = (long[]) query.getCoordinates();
             bufferLength = coords.length;
