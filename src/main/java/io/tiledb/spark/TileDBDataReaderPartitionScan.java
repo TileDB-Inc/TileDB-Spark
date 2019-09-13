@@ -279,6 +279,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       if (pushedRanges.size() > 0) {
         for (List<Range> ranges : pushedRanges) {
           for (int i = 0; i < ranges.size(); i++) {
+            log.trace(
+                "Adding range ["
+                    + ranges.get(i).getFirst()
+                    + ", "
+                    + ranges.get(i).getSecond()
+                    + "] for dimension "
+                    + i);
             query.addRange(i, ranges.get(i).getFirst(), ranges.get(i).getSecond());
           }
         }
@@ -290,6 +297,16 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             Pair extent = nonEmptyDomain.get(dim.getName());
             nativeSubArray.setItem(i * 2, extent.getFirst());
             nativeSubArray.setItem(i * 2 + 1, extent.getSecond());
+            log.trace(
+                "Adding nonEmptyDomain range ["
+                    + extent.getFirst()
+                    + ", "
+                    + extent.getSecond()
+                    + "] for dimension "
+                    + dim.getName()
+                    + " ("
+                    + i
+                    + ")");
           }
         }
         query.setSubarray(nativeSubArray);
