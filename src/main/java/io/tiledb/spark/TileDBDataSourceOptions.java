@@ -72,7 +72,7 @@ public class TileDBDataSourceOptions implements Serializable {
       Optional<Layout> arrayResultLayout = tryParseOptionLayout(val);
       if (!arrayResultLayout.isPresent()) {
         throw new IllegalArgumentException(
-            "Unknown TileDB result layout order, valid values are 'row-major', 'col-major' and 'unordered', got: "
+            "Unknown TileDB result layout order, valid values are 'row-major', 'col-major', 'global-order' and 'unordered', got: "
                 + val);
       }
       return arrayResultLayout;
@@ -226,6 +226,9 @@ public class TileDBDataSourceOptions implements Serializable {
       return Optional.of(Layout.TILEDB_COL_MAJOR);
     } else if (val.equalsIgnoreCase("unordered") || val.equalsIgnoreCase("TILEDB_UNORDERED")) {
       return Optional.of(Layout.TILEDB_UNORDERED);
+    } else if (val.equalsIgnoreCase("global-order")
+        || val.equalsIgnoreCase("TILEDB_GLOBAL_ORDER")) {
+      return Optional.of(Layout.TILEDB_GLOBAL_ORDER);
     }
     return Optional.empty();
   }
