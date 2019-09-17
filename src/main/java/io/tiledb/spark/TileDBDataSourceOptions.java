@@ -245,7 +245,7 @@ public class TileDBDataSourceOptions implements Serializable {
       }
       // remove parens
       String filterName = filterPair[0].substring(1);
-      if (filterName.equalsIgnoreCase("NONE")) {
+      if (filterName.equalsIgnoreCase("NONE") || filterName.equalsIgnoreCase("NOOP")) {
       } else if (filterName.equalsIgnoreCase("GZIP")) {
       } else if (filterName.equalsIgnoreCase("ZSTD")) {
       } else if (filterName.equalsIgnoreCase("LZ4")) {
