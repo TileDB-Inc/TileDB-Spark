@@ -226,7 +226,7 @@ public class TileDBDataSourceReader
         // Base case where we don't have any (or just single) pushdown per dimension
         if (subarrays.size() == 1 && subarrays.get(0).splittable()) {
           // Split the single subarray into the available partitions
-          subarrays = subarrays.get(0).split(availablePartitions);
+          subarrays = subarrays.get(0).split(tiledbOptions.getPartitionCount());
         } else {
           // Sort subarrays based on volume so largest volume is first
           subarrays.sort(Collections.reverseOrder());
