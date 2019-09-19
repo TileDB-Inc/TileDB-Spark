@@ -13,8 +13,11 @@ import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePushFilters
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceReadSchemaTimerName;
 
 import io.tiledb.java.api.Array;
+import io.tiledb.java.api.ArraySchema;
 import io.tiledb.java.api.Context;
 import io.tiledb.java.api.Datatype;
+import io.tiledb.java.api.Dimension;
+import io.tiledb.java.api.Domain;
 import io.tiledb.java.api.Pair;
 import io.tiledb.java.api.TileDBError;
 import java.net.URI;
@@ -176,13 +179,34 @@ public class TileDBDataSourceReader
 
     try (Context ctx = new Context(tiledbOptions.getTileDBConfigMap());
         // fetch and load the array to get nonEmptyDomain
-        Array array = new Array(ctx, uri.toString()); ) {
+        Array array = new Array(ctx, uri.toString());
+        ArraySchema arraySchema = array.getSchema();
+        Domain domain = arraySchema.getDomain()) {
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
       List<List<Range>> ranges = new ArrayList<>();
       // Populate initial range list
       for (int i = 0; i < nonEmptyDomain.size(); i++) {
         ranges.add(new ArrayList<>());
       }
+
+      // TODO: Testing only: generate N partitions on first dim only
+      Pair<Integer, Integer> rowDom;
+      Pair<Integer, Integer> colDom;
+      try (Dimension dim = domain.getDimension(0)) {
+          rowDom = nonEmptyDomain.get(dim.getName());
+      }
+      try (Dimension dim = domain.getDimension(1)) {
+          colDom = nonEmptyDomain.get(dim.getName());
+      }
+      int nparts = tiledbOptions.getPartitionCount();
+      int nrows = rowDom.getSecond() - rowDom.getFirst() + 1;
+      int rowsPerPartition = Math.max(1, (int)Math.ceil(nrows / nparts));
+      for (int i = 0; i < nparts; i++) {
+          int rowMin = rowDom.getFirst() + i * rowsPerPartition;
+          int rowMax = Math.min(rowMin + rowsPerPartition - 1, rowDom.getSecond());
+          ranges.get(0).add(new Range(new Pair<>(rowMin, rowMax)));
+      }
+      ranges.get(1).add(new Range(colDom));
 
       // Build range from all pushed filters
       for (Filter filter : pushedFilters) {
