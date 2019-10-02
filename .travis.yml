@@ -28,7 +28,9 @@ deploy:
   api_key:
     secure: ZGKz9rwkumtI29xIBFvvY2yTJybxBRrodDBHTcsZTYY7oaHuWLYgSWRbghBATE32Xu2vQQ4F7ZjHnL4O4mMT/DACjimcNOeFaXubs/X7BItu3ReTYxFZCPdYfbwLK9a9KVd5D3AT7Rxnagjr5taxTlAoGusJE4sgac0EhQuMMmndLhpuuasGrGhKIjdp+Qb8a9Yp/vHPCuRmv3NBZt14MmGLBWgrDQH+MWdOoGB4ZcRAWm1ll3FrsayKRFj0G/5TVvPfZqD1vgK4z5Y7uCsWVi/9EeTpit06qOj891s6/aa9ja9P42Cn06coDEYFI/y0lkYE8zjf+sLQpob9DvpPnIFpvOvoD7tFhSGGeVYhoEBV24r2hBEovtR/e1NcTDXawPQDMzIwkrXcvFoQVVd7NXJnfx/cCAOGkympvSpVa5kcwh5GvdlH/xEYuK187TQeh9anJefEh/jDIhYmgWIkWYzSbgKc67G2NP4rO1NX1uk7vWBGLntrRC0M5Q6+xwDOV92HRIqIH63loEBKW4RcKQXLzUUbKcVA6Uc9QkUPO36V+JOkNeifGvYGpBZX9LIbLc+3CnQSoRHHyezCpJjP8q04JyyhJZ955ZHTg93v3iWCTZr/24mJTVXONa0PTAAzE3R2we9kgooM+KqEfUZLK1IWZAT77M5OaFI4dbli2X8=
   skip_cleanup: true
-  file: build/libs/tiledb-spark-${PROJECT_VERSION}.jar
+  file:
+    - build/libs/tiledb-spark-${PROJECT_VERSION}.jar
+    - build/libs/tiledb-spark-metrics-${PROJECT_VERSION}.jar
   on:
     repo: TileDB-Inc/TileDB-Spark
     tags: true
