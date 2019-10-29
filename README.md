@@ -17,7 +17,7 @@ To build and install
     ./gradlew test
 ```
 
-This will create a `build/libs/TileDB-Spark-0.0.1-SNAPSHOT.jar` JAR as well as build a TileDB-Java Jar that
+This will create a `build/libs/TileDB-Spark-0.0.2-SNAPSHOT.jar` JAR as well as build a TileDB-Java Jar that
 
 ### Amazon-Linux / EMR
 
@@ -26,7 +26,7 @@ This will create a `build/libs/TileDB-Spark-0.0.1-SNAPSHOT.jar` JAR as well as b
 To load the TileDB Spark Datasource reader, 
 you need to specify the path to built project jar with `--jars` to upload to the Spark cluster.
 
-    $ spark-shell --jars build/libs/TileDB-Spark-0.0.1-SNAPSHOT.jar,/path/to/TileDB-Java-0.1.7-SNAPSHOT.jar
+    $ spark-shell --jars build/libs/TileDB-Spark-0.0.2-SNAPSHOT.jar,/path/to/TileDB-Java-0.1.7-SNAPSHOT.jar
 
 To read TileDB data to a dataframe in the TileDB format, specify the `format` and `uri` option.
 Optionally include the `read_buffer_size` to set the off heap tiledb buffer sizes per attribute (include coordinates).
