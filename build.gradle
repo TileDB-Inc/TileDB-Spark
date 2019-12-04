@@ -17,7 +17,7 @@ plugins {
 }
 
 group 'io.tiledb'
-version '0.0.2'
+version '0.0.3'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -48,7 +48,7 @@ dependencies {
     compile 'org.apache.spark:spark-sql_2.12:2.4.3'
     compile 'org.apache.spark:spark-core_2.12:2.4.3'
 
-    compile 'io.tiledb:tiledb-java:0.1.9'
+    compile 'io.tiledb:tiledb-java:0.2.0'
 
     compile 'commons-beanutils:commons-beanutils:1.9.4'
 
