@@ -13,5 +13,5 @@ cd TileDB-Spark &&
 ./gradlew assemble &&
 ./gradlew shadowJar &&
 sudo mkdir -p /usr/lib/spark/jars &&
-sudo cp -r build/libs/tiledb-spark-metrics-0.0.2.jar /usr/lib/spark/jars &&
+sudo cp -r build/libs/tiledb-spark-metrics-0.0.3.jar /usr/lib/spark/jars &&
 cd ../
