@@ -139,7 +139,6 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
         NativeArray coordsBuffer = new NativeArray(ctx, numElements, domain.getType());
         nativeArrayBuffers[bufferIdx] = coordsBuffer;
         nativeArrayBufferElements[bufferIdx] = numElements;
-        query.setBuffer(Constants.TILEDB_COORDS, coordsBuffer);
         // we just skip over all dims for now (special case zipped coordinates)
         bufferIdx += nDims;
       }
@@ -158,14 +157,12 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             nativeArrayBuffers[bufferIdx] = bufferData;
             nativeArrayBufferElements[bufferIdx] = 0;
 
-            query.setBuffer(attrName, bufferOff, bufferData);
             bufferIdx += 1;
           } else {
             int numElements = Math.toIntExact(writeBufferSize / attr.getType().getNativeSize());
             NativeArray bufferData = new NativeArray(ctx, numElements, attr.getType());
             nativeArrayBuffers[bufferIdx] = bufferData;
             nativeArrayBufferElements[bufferIdx] = 0;
-            query.setBuffer(attrName, bufferData);
             bufferIdx += 1;
           }
         }
@@ -460,7 +457,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private void flushBuffers() throws TileDBError {
     this.metricsUpdater.startTimer(queryWriteFlushBuffersTimerName);
     long buffersInBytes = 0;
-    query.setBufferElements(Constants.TILEDB_COORDS, nRecordsBuffered * nDims);
+    query.setBuffer(Constants.TILEDB_COORDS, nativeArrayBuffers[0], nRecordsBuffered * nDims);
     // Calculate bytes we are writing for metrics starting with dimension
     buffersInBytes += nRecordsBuffered * nDims * bufferDatatypes[nDims - 1].getNativeSize();
     for (int i = nDims; i < bufferNames.length; i++) {
@@ -470,9 +467,14 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
       boolean isVar = (bufferValNum[i] == Constants.TILEDB_VAR_NUM);
       if (isVar) {
-        query.setBufferElements(name, nativeArrayOffsetElements[i], nativeArrayBufferElements[i]);
+        query.setBuffer(
+            name,
+            nativeArrayOffsetBuffers[i],
+            nativeArrayBuffers[i],
+            nativeArrayOffsetElements[i],
+            nativeArrayBufferElements[i]);
       } else {
-        query.setBufferElements(name, nativeArrayBufferElements[i]);
+        query.setBuffer(name, nativeArrayBuffers[i], nativeArrayBufferElements[i]);
       }
     }
     QueryStatus status = query.submit();
