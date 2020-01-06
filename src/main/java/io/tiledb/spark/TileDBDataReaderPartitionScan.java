@@ -18,6 +18,11 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryReadTimerTaskNam
 import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmitTimerName;
 
 import io.tiledb.java.api.*;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,6 +86,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    */
   private final ArrayList<Pair<NativeArray, NativeArray>> queryBuffers;
 
+  private double queryReadTime = 0.0;
+
   public TileDBDataReaderPartitionScan(
       URI uri,
       TileDBReadSchema schema,
@@ -93,16 +100,30 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     this.pushedRanges = pushedRanges;
     this.task = TaskContext.get();
 
+
     metricsUpdater = new TileDBReadMetricsUpdater(task);
     metricsUpdater.startTimer(queryReadTimerName);
     metricsUpdater.startTimer(queryReadTimerTaskName);
 
     task.addTaskCompletionListener(
         context -> {
-          double duration = metricsUpdater.finish(queryReadTimerTaskName) / 1000000000d;
-          log.debug("duration of read task " + task.toString() + " : " + duration + "s");
-        });
+          long durationNanos = metricsUpdater.finish(queryReadTimerTaskName);
+          double duration = durationNanos / 1000000000d;
+          log.info("duration of read task " + task.taskAttemptId() + " : " + duration + "s");
 
+          try {
+            File f = new File("/Users/victor/Dev/sparktiledb-playground/perf_metrics");
+            FileWriter fw = new FileWriter(f, true);
+            String s = String.format("read,%d,%f\n", task.taskAttemptId(), queryReadTime);
+            fw.append(s);
+            System.out.println("Appended: "+s);
+            fw.close();
+          }
+          catch (IOException ioe) {
+            System.out.println("error: "+ioe);
+          }
+
+        });
     this.read_query_buffer_size = options.getReadBufferSizes();
 
     oshi.SystemInfo systemInfo = new oshi.SystemInfo();
@@ -122,6 +143,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   @Override
   public boolean next() {
     metricsUpdater.startTimer(queryNextTimerName);
+    long start = System.currentTimeMillis();
     try (Domain domain = arraySchema.getDomain()) {
       // first submission initialize the query and see if we can fast fail;
       if (query == null) {
@@ -134,12 +156,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         metricsUpdater.finish(queryNextTimerName);
         return false;
       }
-
       do {
         metricsUpdater.startTimer(tileDBReadQuerySubmitTimerName);
         query.submit();
-        metricsUpdater.finish(tileDBReadQuerySubmitTimerName);
-
+        double tmp = metricsUpdater.finish(tileDBReadQuerySubmitTimerName) / 1000000000d; ;
+        queryReadTime += tmp;
         queryStatus = query.getQueryStatus();
 
         // Compute the number of cells (records) that were returned by the query.
@@ -161,6 +182,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           return true;
         }
       } while (queryStatus == TILEDB_INCOMPLETE);
+
     } catch (TileDBError err) {
       throw new RuntimeException(err.getMessage());
     }
@@ -251,7 +273,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
     // Finish timer
     double duration = metricsUpdater.finish(queryReadTimerName) / 1000000000d;
-    log.debug("duration of read-to-close" + task.toString() + " : " + duration + "s");
+    log.info("duration of read-to-close" + task.toString() + " : " + duration + "s");
   }
 
   /**
