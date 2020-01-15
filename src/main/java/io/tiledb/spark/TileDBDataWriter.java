@@ -130,7 +130,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       query.close();
     }
     query = new Query(array, QueryType.TILEDB_WRITE);
-    query.setLayout(Layout.TILEDB_UNORDERED);
+    query.setLayout(Layout.TILEDB_GLOBAL_ORDER);
 
     int bufferIdx = 0;
     try (ArraySchema arraySchema = array.getSchema()) {
