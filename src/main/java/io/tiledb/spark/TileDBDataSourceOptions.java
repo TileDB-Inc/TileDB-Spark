@@ -1,5 +1,6 @@
 package io.tiledb.spark;
 
+import io.tiledb.java.api.ArrayType;
 import io.tiledb.java.api.Layout;
 import io.tiledb.java.api.Pair;
 import java.io.Serializable;
@@ -8,6 +9,8 @@ import java.net.URISyntaxException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import io.tiledb.java.api.TileDBError;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TileDBDataSourceOptions implements Serializable {
@@ -195,6 +198,14 @@ public class TileDBDataSourceOptions implements Serializable {
     return tryParseOptionKeyLong(optionMap, capacityKey);
   }
 
+  public Optional<ArrayType> getArrayType() throws TileDBError {
+    String arrayType = "schema.array_type";
+    if (!optionMap.containsKey(arrayType)){
+      return Optional.empty();
+    }
+    return tryParseOptionArrayType(optionMap.get(arrayType));
+  }
+
   public long getWriteBufferSize() {
     Optional<Long> bufferSize = tryParseOptionKeyLong(optionMap, "write_buffer_size");
     if (bufferSize.isPresent()) {
@@ -231,6 +242,16 @@ public class TileDBDataSourceOptions implements Serializable {
       return Optional.of(Layout.TILEDB_GLOBAL_ORDER);
     }
     return Optional.empty();
+  }
+
+  private static Optional<ArrayType> tryParseOptionArrayType(String arrayType) throws TileDBError {
+    if (arrayType.equalsIgnoreCase("TILEDB_SPARSE"))
+      return Optional.of(ArrayType.TILEDB_SPARSE);
+    else if (arrayType.equalsIgnoreCase("TILEDB_DENSE"))
+      return Optional.of(ArrayType.TILEDB_DENSE);
+    else
+      throw new TileDBError(String.format("Array Type %s is not supported. Supported formats are: " +
+              "TILEDB_DENSE, TILEDB_SPARSE", arrayType));
   }
 
   public static Optional<List<Pair<String, Integer>>> tryParseFilterList(String csvList)

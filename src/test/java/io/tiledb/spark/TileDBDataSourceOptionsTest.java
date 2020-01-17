@@ -1,5 +1,6 @@
 package io.tiledb.spark;
 
+import io.tiledb.java.api.ArrayType;
 import io.tiledb.java.api.Layout;
 import io.tiledb.java.api.Pair;
 import java.net.URI;
@@ -196,5 +197,17 @@ public class TileDBDataSourceOptionsTest {
     Assert.assertEquals(Integer.valueOf(-1), filterList.get().get(0).getSecond());
     Assert.assertEquals("gzip", filterList.get().get(1).getFirst());
     Assert.assertEquals(Integer.valueOf(2), filterList.get().get(1).getSecond());
+  }
+
+  @Test
+  public void testArrayType() throws Exception {
+    HashMap<String, String> optionMap = new HashMap<>();
+    optionMap.put("schema.array_type", "tiledb_dense");
+
+    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
+
+    Optional<ArrayType> at = options.getArrayType();
+    Assert.assertTrue(at.isPresent());
+    Assert.assertEquals(at.get(), ArrayType.TILEDB_DENSE);
   }
 }
