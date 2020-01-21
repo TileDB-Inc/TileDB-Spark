@@ -12,6 +12,8 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteTimerName;
 import io.tiledb.java.api.*;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Arrays;
+
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBWriteMetricsUpdater;
@@ -29,6 +31,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private final TaskContext task;
   private URI uri;
   private StructType sparkSchema;
+  private Layout queryLayout;
 
   private Context ctx;
   private Array array;
@@ -51,14 +54,18 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private long writeBufferSize;
   private int nRecordsBuffered;
 
+  private TileDBDataSourceOptions options;
+
   public TileDBDataWriter(URI uri, StructType schema, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.sparkSchema = schema;
+    this.queryLayout = options.getArrayLayout().orElse(Layout.TILEDB_UNORDERED);
     // set write options
     writeBufferSize = options.getWriteBufferSize();
     this.metricsUpdater = new TileDBWriteMetricsUpdater(TaskContext.get());
     this.metricsUpdater.startTimer(queryWriteTimerName);
     this.metricsUpdater.startTimer(queryWriteTaskTimerName);
+    this.options = options;
 
     task = TaskContext.get();
     task.addTaskCompletionListener(
@@ -130,7 +137,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       query.close();
     }
     query = new Query(array, QueryType.TILEDB_WRITE);
-    query.setLayout(Layout.TILEDB_GLOBAL_ORDER);
+    query.setLayout(this.queryLayout);
 
     int bufferIdx = 0;
     try (ArraySchema arraySchema = array.getSchema()) {
@@ -462,16 +469,20 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     JavaArray jArray;
     long buffersInBytes = 0;
 
-    query.setBuffer(
-        Constants.TILEDB_COORDS,
-        new NativeArray(
-            ctx,
-            javaArrayBuffers[0].get(),
-            javaArrayBuffers[0].getDataType(),
-            javaArrayBuffers[0].getNumElements()),
-        nRecordsBuffered * nDims);
-    // Calculate bytes we are writing for metrics starting with dimension
-    buffersInBytes += nRecordsBuffered * nDims * bufferDatatypes[nDims - 1].getNativeSize();
+    // Set coordinate buffers only for sparse arrays
+    if (array.getSchema().isSparse() || queryLayout.equals(Layout.TILEDB_UNORDERED)) {
+      query.setBuffer(
+          Constants.TILEDB_COORDS,
+          new NativeArray(
+              ctx,
+              javaArrayBuffers[0].get(),
+              javaArrayBuffers[0].getDataType(),
+              javaArrayBuffers[0].getNumElements()),
+          nRecordsBuffered * nDims);
+      // Calculate bytes we are writing for metrics starting with dimension
+      buffersInBytes += nRecordsBuffered * nDims * bufferDatatypes[nDims - 1].getNativeSize();
+    }
+
     for (int i = nDims; i < bufferNames.length; i++) {
       String name = bufferNames[i];
       // Calculate bytes we are writing for metrics
@@ -498,7 +509,41 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
             nativeArrayBufferElements[i]);
       }
     }
-    QueryStatus status = query.submit();
+
+    QueryStatus status;
+
+    try {
+      long[] a = new long[nDims*2];
+      int idx=0;
+
+      for (int i=0; i<nDims; ++i) {
+        Datatype dt = bufferDatatypes[i];
+          Class c = Types.getJavaType(dt);
+          if (c == Integer.class) {
+              int[] arr = (int[]) javaArrayBuffers[i].get();
+              Arrays.sort(arr);
+              a[idx++] = arr[0];
+              a[idx++] = arr[arr.length-1];
+          }
+          else if (c == Long.class) {
+              long[] arr = (long[]) javaArrayBuffers[i].get();
+              Arrays.sort(arr, 0, nRecordsBuffered);
+
+              long min = arr[0];
+              long max = arr[nRecordsBuffered-1];
+
+              a[idx++] = min;
+              a[idx++] = max;
+
+          }
+      }
+      query.setSubarray(new NativeArray(ctx, a, Datatype.TILEDB_INT64));
+      status = query.submit();
+    }
+    catch (TileDBError error){
+      throw error;
+    }
+
     if (status != QueryStatus.TILEDB_COMPLETED) {
       this.metricsUpdater.finish(queryWriteFlushBuffersTimerName);
       throw new TileDBError("Query write error: " + status);
