@@ -222,11 +222,11 @@ public class TileDBDataSourceReader
       generateAllSubarrays(ranges, subarrays, 0, new ArrayList<>());
 
       int availablePartitions = tiledbOptions.getPartitionCount() - subarrays.size();
-      if (availablePartitions > 1) {
+      while (availablePartitions > 1) {
         // Base case where we don't have any (or just single) pushdown per dimension
         if (subarrays.size() == 1 && subarrays.get(0).splittable()) {
           // Split the single subarray into the available partitions
-          subarrays = subarrays.get(0).split(tiledbOptions.getPartitionCount());
+          subarrays = subarrays.get(0).split(availablePartitions+1);
         } else {
           // Sort subarrays based on volume so largest volume is first
           subarrays.sort(Collections.reverseOrder());
@@ -244,11 +244,22 @@ public class TileDBDataSourceReader
           int sumOfNeededSplitsForEvenDistributed =
               neededSplitsToReduceToMedianVolume.stream().mapToInt(Integer::intValue).sum();
 
+          List<SubArrayRanges> newSubarrays = new ArrayList<>(subarrays.subList(neededSplitsToReduceToMedianVolume.size()-1, subarrays.size()-1));
           for (int i = 0; i < neededSplitsToReduceToMedianVolume.size(); i++) {
+
+            if (availablePartitions < 1) {
+              if (i < neededSplitsToReduceToMedianVolume.size()-2) {
+                newSubarrays.addAll(subarrays.subList(i, neededSplitsToReduceToMedianVolume.size() - 2));
+              } else {
+                newSubarrays.add(subarrays.get(i));
+              }
+              break;
+            }
             SubArrayRanges subarray = subarrays.get(i);
 
             // Don't try to split unsplittable subarrays
             if (!subarray.splittable()) {
+              newSubarrays.add(subarray);
               continue;
             }
 
@@ -258,7 +269,8 @@ public class TileDBDataSourceReader
              The weights are computed based on the percentage of needed splits to reduce to the median.
              For example if we have 5 subarrays each with volumes of 10, 15, 50, 200, 400
              The median is 50
-             The number of splits to reduce to the median is 400 / 50 = 8 AND 200 / 50 = 4
+             The number of splits to reduce to the subarray volume to the median subarray volume is
+             400 / 50 = 8 AND 200 / 50 = 4
              The weights are computed to be
              8 / (8+4) = 0.66 and 4 / (8+4) = 0.33 for subarrays 400 and 200 respectively.
              If the number of available splits is 3 (thus we can not give the full 8 + 4 splits needed for the median)
@@ -271,12 +283,16 @@ public class TileDBDataSourceReader
                         neededSplitsToReduceToMedianVolume.get(i).doubleValue()
                             / sumOfNeededSplitsForEvenDistributed
                             * availablePartitions);
-            List<SubArrayRanges> splitSubarray = subarray.split(numberOfWeightedSplits);
+            List<SubArrayRanges> splitSubarray = subarray.split(numberOfWeightedSplits+1);
 
-            subarrays.remove(i);
-            subarrays.addAll(splitSubarray);
+            newSubarrays.addAll(splitSubarray);
+            // Compute available partitions if we stopped splitting now
+            availablePartitions = tiledbOptions.getPartitionCount() - newSubarrays.size() + (neededSplitsToReduceToMedianVolume.size() - i);
           }
+
+          subarrays = newSubarrays;
         }
+        availablePartitions = tiledbOptions.getPartitionCount() - subarrays.size();
       }
 
       for (SubArrayRanges subarray : subarrays) {

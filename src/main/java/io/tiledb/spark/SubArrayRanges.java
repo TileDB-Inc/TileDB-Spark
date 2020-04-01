@@ -246,7 +246,7 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
           int dimensionWeightedSplits = dimensionSplits.get(i);
 
           // Split the given range for a dimension into x splits
-          newSplits.add(new ArrayList<>(ranges.get(i).splitRange(dimensionWeightedSplits)));
+          newSplits.add(new ArrayList<>(ranges.get(i).splitRange(dimensionWeightedSplits+1)));
         }
       }
       generateAllSubarrays(newSplits, newSubarrays, 0, new ArrayList<>());
