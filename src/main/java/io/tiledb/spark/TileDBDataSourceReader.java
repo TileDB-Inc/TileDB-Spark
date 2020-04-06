@@ -12,11 +12,8 @@ import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePruneColumn
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePushFiltersTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceReadSchemaTimerName;
 
-import io.tiledb.java.api.Array;
-import io.tiledb.java.api.Context;
-import io.tiledb.java.api.Datatype;
-import io.tiledb.java.api.Pair;
-import io.tiledb.java.api.TileDBError;
+import io.tiledb.java.api.*;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -120,37 +117,37 @@ public class TileDBDataSourceReader
       }
     } else if (filter instanceof EqualNullSafe) {
       EqualNullSafe f = (EqualNullSafe) filter;
-      if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
         return true;
       }
     } else if (filter instanceof EqualTo) {
       EqualTo f = (EqualTo) filter;
-      if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
         return true;
       }
     } else if (filter instanceof GreaterThan) {
       GreaterThan f = (GreaterThan) filter;
-      if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
         return true;
       }
     } else if (filter instanceof GreaterThanOrEqual) {
       GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
-      if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+      if (this.tileDBReadSchema.getDimensionId((f.attribute())).isPresent()) {
         return true;
       }
     } else if (filter instanceof In) {
       In f = (In) filter;
-      if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
         return true;
       }
     } else if (filter instanceof LessThan) {
       LessThan f = (LessThan) filter;
-      if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
         return true;
       }
     } else if (filter instanceof LessThanOrEqual) {
       LessThanOrEqual f = (LessThanOrEqual) filter;
-      if (this.tileDBReadSchema.dimensionIndexes.containsKey(f.attribute())) {
+      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
         return true;
       }
     }
@@ -175,12 +172,14 @@ public class TileDBDataSourceReader
     ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
 
     try (Context ctx = new Context(tiledbOptions.getTileDBConfigMap());
-        // fetch and load the array to get nonEmptyDomain
-        Array array = new Array(ctx, uri.toString()); ) {
+      // Fetch the array and load its metadata
+      Array array = new Array(ctx, uri.toString()); ) {
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
+      Domain domain = array.getSchema().getDomain();
+
       List<List<Range>> ranges = new ArrayList<>();
       // Populate initial range list
-      for (int i = 0; i < nonEmptyDomain.size(); i++) {
+      for (int i = 0; i < domain.getNDim(); i++) {
         ranges.add(new ArrayList<>());
       }
 
@@ -197,19 +196,10 @@ public class TileDBDataSourceReader
 
       // Add nonEmptyDomain to any dimension that does not have a range from pushdown
       // For any existing ranges we try to merge into super ranges
-      for (int i = 0; i < ranges.size(); i++) {
+      for (int i = 0; i < domain.getNDim(); i++) {
         List<Range> range = ranges.get(i);
         if (range.isEmpty()) {
-          int finalI = i;
-          String dimensionName =
-              this.tileDBReadSchema
-                  .dimensionIndexes
-                  .entrySet()
-                  .stream()
-                  .filter(entry -> Objects.equals(entry.getValue(), finalI))
-                  .map(Map.Entry::getKey)
-                  .findFirst()
-                  .get();
+          String dimensionName = this.tileDBReadSchema.getDimensionName(i).get();
           range.add(new Range(nonEmptyDomain.get(dimensionName)));
         } else {
           List<Range> mergedRanges = checkAndMergeRanges(range);
@@ -396,7 +386,7 @@ public class TileDBDataSourceReader
     // Map<String, Integer> dimensionIndexing = new HashMap<>();
     List<List<Range>> ranges = new ArrayList<>();
     // Build mapping for dimension name to index
-    for (int i = 0; i < this.tileDBReadSchema.dimensionIndexes.size(); i++) {
+    for (int i = 0; i < this.tileDBReadSchema.dimensionIndex.size(); i++) {
       ranges.add(new ArrayList<>());
     }
     // First handle filter that are AND this is something like dim1 >= 1 AND dim1 <= 10
@@ -462,17 +452,17 @@ public class TileDBDataSourceReader
       // value
     } else if (filter instanceof EqualNullSafe) {
       EqualNullSafe f = (EqualNullSafe) filter;
-      int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
+      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
       ranges.get(dimIndex).add(new Range(new Pair<>(f.value(), f.value())));
     } else if (filter instanceof EqualTo) {
       EqualTo f = (EqualTo) filter;
-      int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
+      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
       ranges.get(dimIndex).add(new Range(new Pair<>(f.value(), f.value())));
 
       // GreaterThan is ranges which are in the form of `dim > 1`
     } else if (filter instanceof GreaterThan) {
       GreaterThan f = (GreaterThan) filter;
-      int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
+      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
       ranges
           .get(dimIndex)
           .add(
@@ -483,7 +473,7 @@ public class TileDBDataSourceReader
       // GreaterThanOrEqual is ranges which are in the form of `dim >= 1`
     } else if (filter instanceof GreaterThanOrEqual) {
       GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
-      int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
+      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
       ranges
           .get(dimIndex)
           .add(new Range(new Pair<>(f.value(), nonEmptyDomain.get(f.attribute()).getSecond())));
@@ -493,14 +483,14 @@ public class TileDBDataSourceReader
       In f = (In) filter;
       // Add every value as a new range, TileDB will collapse into super ranges for us
       for (Object value : f.values()) {
-        int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
+        int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
         ranges.get(dimIndex).add(new Range(new Pair<>(value, value)));
       }
 
       // LessThan is ranges which are in the form of `dim < 1`
     } else if (filter instanceof LessThan) {
       LessThan f = (LessThan) filter;
-      int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
+      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
       ranges
           .get(dimIndex)
           .add(
@@ -511,7 +501,7 @@ public class TileDBDataSourceReader
       // LessThanOrEqual is ranges which are in the form of `dim <= 1`
     } else if (filter instanceof LessThanOrEqual) {
       LessThanOrEqual f = (LessThanOrEqual) filter;
-      int dimIndex = this.tileDBReadSchema.dimensionIndexes.get(f.attribute());
+      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
       ranges
           .get(dimIndex)
           .add(new Range(new Pair<>(nonEmptyDomain.get(f.attribute()).getFirst(), f.value())));
