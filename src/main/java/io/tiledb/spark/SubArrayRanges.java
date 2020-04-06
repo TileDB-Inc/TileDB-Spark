@@ -2,6 +2,7 @@ package io.tiledb.spark;
 
 import static io.tiledb.spark.util.generateAllSubarrays;
 
+import io.tiledb.java.api.Domain;
 import io.tiledb.java.api.TileDBError;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -254,6 +255,24 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
 
     return newSubarrays;
   }
+
+  public List<SubArrayRanges> splitWithExtent(Domain domain) throws TileDBError {
+    List<SubArrayRanges> newSubarrays = new ArrayList<>();
+
+    // Handle base case where there is a single dimension
+    if (ranges.size() == 1) {
+      if (ranges.get(0).splittable()) {
+        for (Range newRange : ranges.get(0).splitRangeWithExtent(domain.getDimension(0).getTileExtent())) {
+          List<Range> dimRanges = new ArrayList<>();
+          dimRanges.add(newRange);
+          newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
+        }
+      }
+      }
+
+      return newSubarrays;
+    }
+
 
   /**
    * Compute the percentage of width that each dimension gives based on the total summation of

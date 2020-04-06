@@ -129,9 +129,9 @@ public class util {
     } else if (dataClassType == Short.class) {
       return (Short) a / (Short) b;
     } else if (dataClassType == Integer.class) {
-      return (Integer) a / (Integer) b;
+      return (int) Math.ceil((Integer) a * 1.0 / (Integer) b);
     } else if (dataClassType == Long.class) {
-      return (Long) a / (Long) b;
+      return (long) Math.ceil((Long) a * 1.0 / (Long) b);
     } else if (dataClassType == Float.class) {
       return (Float) a / (Float) b;
     }
@@ -209,4 +209,118 @@ public class util {
     // Else assume double
     return (Double) a >= (Double) b;
   }
+
+  public static boolean lessThan(Object a, Object b, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return (Byte) a < (Byte) b;
+    } else if (dataClassType == Short.class) {
+      return (Short) a < (Short) b;
+    } else if (dataClassType == Integer.class) {
+      return (Integer) a < (Integer) b;
+    } else if (dataClassType == Long.class) {
+      return (Long) a < (Long) b;
+    } else if (dataClassType == Float.class) {
+      return (Float) a < (Float) b;
+    }
+
+    return (Double) a < (Double) b;
+  }
+
+  /**
+   * Finds the least multiple of x larger than n.
+   * @param n
+   * @param x
+   * @return
+   */
+
+  /**
+   * Finds the least multiple of x that is greatest than or equal to n.
+   * For example, for n=55 and x=16, the result will be 64.
+   * @param a
+   * @param b
+   * @return The least multiple
+   */
+  public static Object findClosestMultiple(Object a, Object b, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return null;
+    } else if (dataClassType == Short.class) {
+      short initN = (Short) a;
+      short n = (Short) a;
+      short x = (Short) b;
+
+      if(x>n)
+        return x;
+
+      n = (short)(n + x/2);
+      n = (short)(n - (n%x));
+
+      if (n < initN)
+        return n+x;
+      else
+        return n;
+    } else if (dataClassType == Integer.class) {
+      int initN = (int) a;
+      int n = (int) a;
+      int x = (int) b;
+
+      if(x>n)
+        return x;
+
+      n = (n + x/2);
+      n = (n - (n%x));
+
+      if (n < initN)
+        return n+x;
+      else
+        return n;
+    } else if (dataClassType == Long.class) {
+      long initN = (long) a;
+      long n = (long) a;
+      long x = (long) b;
+
+      if(x>n)
+        return x;
+
+      n = (n + x/2);
+      n = (n - (n%x));
+
+      if (n < initN)
+        return n+x;
+      else
+        return n;
+    } else if (dataClassType == Double.class) {
+      double initN = (double) a;
+      double n = (double) a;
+      double x = (double) b;
+
+      if(x>n)
+        return x;
+
+      n = (n + x/2);
+      n = (n - (n%x));
+
+      if (n < initN)
+        return n+x;
+      else
+        return n;
+    } else if (dataClassType == Float.class) {
+      float initN = (float) a;
+      float n = (float) a;
+      float x = (float) b;
+
+      if(x>n)
+        return x;
+
+      n = (n + x/2);
+      n = (n - (n%x));
+
+      if (n < initN)
+        return n+x;
+      else
+        return n;
+    }
+
+    return null;
+  }
+
 }
