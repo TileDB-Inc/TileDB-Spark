@@ -208,7 +208,7 @@ public class TileDBDataSourceReader
 
       generateAllSubarrays(ranges, subarrays, 0, new ArrayList<>());
 
-      int availablePartitions = tiledbOptions.getPartitionCount() - subarrays.size();
+      int availablePartitions = tiledbOptions.getPartitionCount();
       if (availablePartitions > 1) {
         // Base case where we don't have any (or just single) pushdown per dimension
         if (subarrays.size() == 1 && subarrays.get(0).splittable()) {

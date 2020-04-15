@@ -2,7 +2,6 @@ package io.tiledb.spark;
 
 import static io.tiledb.spark.util.generateAllSubarrays;
 
-import io.tiledb.java.api.Domain;
 import io.tiledb.java.api.TileDBError;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -256,38 +255,28 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     return newSubarrays;
   }
 
-  public List<SubArrayRanges> splitWithExtent(Domain domain) throws TileDBError {
-    List<SubArrayRanges> newSubarrays = new ArrayList<>();
-
-    // Handle base case where there is a single dimension
-    if (ranges.size() == 1) {
-      if (ranges.get(0).splittable()) {
-        for (Range newRange :
-            ranges.get(0).splitRangeWithExtent(domain.getDimension(0).getTileExtent())) {
-          List<Range> dimRanges = new ArrayList<>();
-          dimRanges.add(newRange);
-          newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
-        }
-      }
-    }
-
-    return newSubarrays;
-  }
-
+    /**
+     * Splits the subarray ranges into partitions
+     * @param partitions The number of partitions
+     * @return A list of SubArrayRanges
+     * @throws TileDBError
+     */
   public List<SubArrayRanges> splitToPartitions(int partitions) throws TileDBError {
     List<SubArrayRanges> newSubarrays = new ArrayList<>();
 
     long actualWidth = ranges.get(0).width().longValue();
     double exactEffectiveWidth = actualWidth * 1.0 / partitions;
-    long effectiveWidth = (long) exactEffectiveWidth;
+
+    long partitionWidth = (long) exactEffectiveWidth;
 
     if (exactEffectiveWidth < 1) {
-      effectiveWidth = 1;
+      partitions = (int) actualWidth;
+      partitionWidth = 1;
     }
 
     // Split the first dimension
     if (ranges.get(0).splittable()) {
-      for (Range newRange : ranges.get(0).splitRangeWithExtent(effectiveWidth)) {
+      for (Range newRange : ranges.get(0).splitRangeToPartitions(partitions, partitionWidth)) {
         List<Range> dimRanges = new ArrayList<>();
         dimRanges.add(newRange);
         newSubarrays.add(new SubArrayRanges(dimRanges, datatype));

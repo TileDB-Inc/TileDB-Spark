@@ -599,11 +599,13 @@ public class Range implements java.io.Serializable, Comparable<Range> {
   /**
    * Split a range. Will split upto N buckets
    *
-   * @param extent The tile extent
-   * @return
+   * @param partitions The number of partitions
+   * @param partitionWidth The number of elements in the partition
+   * @return The list of ranges, one per partition
    * @throws TileDBError
    */
-  public List<Range> splitRangeWithExtent(Object extent) throws TileDBError {
+  public List<Range> splitRangeToPartitions(Object partitions, Object partitionWidth)
+      throws TileDBError {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
     // Only long dimensions can be split with naive algorithm
@@ -611,8 +613,6 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     Object max = range.getSecond();
     Object currentMin;
     Object currentMax;
-
-    Number numSplits = (Number) util.divideCeilingObjects(this.width(), extent, dataClassType);
 
     // If the min is the max this range is not splittable
     if (!this.splittable()) {
@@ -638,15 +638,15 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     currentMin = min;
     currentMax =
         util.subtractObjects(
-            util.addObjects(currentMin, extent, dataClassType), one, dataClassType);
+            util.addObjects(currentMin, partitionWidth, dataClassType), one, dataClassType);
     ranges.add(new Range(new Pair(currentMin, currentMax)));
 
-    for (int i = 1; i < numSplits.intValue(); ++i) {
+    for (int i = 1; i < ((Number) partitions).intValue(); ++i) {
       currentMin = util.addObjects(currentMax, one, dataClassType);
 
       currentMax =
           util.subtractObjects(
-              util.addObjects(currentMin, extent, dataClassType), one, dataClassType);
+              util.addObjects(currentMin, partitionWidth, dataClassType), one, dataClassType);
       if (util.greaterThanOrEqual(currentMax, max, dataClassType)) currentMax = max;
 
       ranges.add(new Range(new Pair(currentMin, currentMax)));
