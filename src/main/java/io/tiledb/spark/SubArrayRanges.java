@@ -255,12 +255,13 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     return newSubarrays;
   }
 
-    /**
-     * Splits the subarray ranges into partitions
-     * @param partitions The number of partitions
-     * @return A list of SubArrayRanges
-     * @throws TileDBError
-     */
+  /**
+   * Splits the subarray ranges into partitions
+   *
+   * @param partitions The number of partitions
+   * @return A list of SubArrayRanges
+   * @throws TileDBError
+   */
   public List<SubArrayRanges> splitToPartitions(int partitions) throws TileDBError {
     List<SubArrayRanges> newSubarrays = new ArrayList<>();
 

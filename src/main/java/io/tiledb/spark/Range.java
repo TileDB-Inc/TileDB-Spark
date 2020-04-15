@@ -528,7 +528,7 @@ public class Range implements java.io.Serializable, Comparable<Range> {
    */
   public List<Range> splitRange(int buckets) throws TileDBError {
     List<Range> ranges = new ArrayList<>();
-    // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
+    // Number of buckets is 1 more than number of splits (i.e. split 1 time into two buckets)
     // Only long dimensions can be split with naive algorithm
     Object min = range.getFirst();
     Object max = range.getSecond();
@@ -620,34 +620,25 @@ public class Range implements java.io.Serializable, Comparable<Range> {
       return ranges;
     }
 
-    Object one = null;
-    if (dataClassType == Byte.class) {
-      one = (byte) 1;
-    } else if (dataClassType == Short.class) {
-      one = (short) 1;
-    } else if (dataClassType == Integer.class) {
-      one = 1;
-    } else if (dataClassType == Long.class) {
-      one = 1L;
-    } else if (dataClassType == Float.class) {
-      one = 1f;
-    } else if (dataClassType == Double.class) {
-      one = 1d;
-    }
-
     currentMin = min;
     currentMax =
-        util.subtractObjects(
-            util.addObjects(currentMin, partitionWidth, dataClassType), one, dataClassType);
+        util.subtractEpsilon(
+            util.addObjects(currentMin, partitionWidth, dataClassType), tileDBDatatype());
     ranges.add(new Range(new Pair(currentMin, currentMax)));
 
     for (int i = 1; i < ((Number) partitions).intValue(); ++i) {
-      currentMin = util.addObjects(currentMax, one, dataClassType);
+      currentMin = util.addEpsilon(currentMax, tileDBDatatype());
 
       currentMax =
-          util.subtractObjects(
-              util.addObjects(currentMin, partitionWidth, dataClassType), one, dataClassType);
-      if (util.greaterThanOrEqual(currentMax, max, dataClassType)) currentMax = max;
+          util.subtractEpsilon(
+              util.addObjects(currentMin, partitionWidth, dataClassType), tileDBDatatype());
+
+      // Check if we reach max before we run out of partitions
+      if (util.greaterThanOrEqual(currentMax, max, dataClassType)) {
+        currentMax = max;
+        ranges.add(new Range(new Pair(currentMin, currentMax)));
+        break;
+      }
 
       ranges.add(new Range(new Pair(currentMin, currentMax)));
     }
