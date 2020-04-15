@@ -13,14 +13,11 @@ import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePushFilters
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceReadSchemaTimerName;
 
 import io.tiledb.java.api.*;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.stream.IntStream;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
@@ -172,8 +169,8 @@ public class TileDBDataSourceReader
     ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
 
     try (Context ctx = new Context(tiledbOptions.getTileDBConfigMap());
-      // Fetch the array and load its metadata
-      Array array = new Array(ctx, uri.toString()); ) {
+        // Fetch the array and load its metadata
+        Array array = new Array(ctx, uri.toString()); ) {
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
       Domain domain = array.getSchema().getDomain();
 
@@ -217,8 +214,7 @@ public class TileDBDataSourceReader
         if (subarrays.size() == 1 && subarrays.get(0).splittable()) {
 
           if (domain.getNDim() == 1) {
-            subarrays = subarrays.get(0).splitWithExtent(domain
-            );
+            subarrays = subarrays.get(0).splitToPartitions(availablePartitions);
           } else {
             // Split the single subarray into the available partitions
             subarrays = subarrays.get(0).split(tiledbOptions.getPartitionCount());

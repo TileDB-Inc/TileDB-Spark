@@ -262,17 +262,40 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
     // Handle base case where there is a single dimension
     if (ranges.size() == 1) {
       if (ranges.get(0).splittable()) {
-        for (Range newRange : ranges.get(0).splitRangeWithExtent(domain.getDimension(0).getTileExtent())) {
+        for (Range newRange :
+            ranges.get(0).splitRangeWithExtent(domain.getDimension(0).getTileExtent())) {
           List<Range> dimRanges = new ArrayList<>();
           dimRanges.add(newRange);
           newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
         }
       }
-      }
-
-      return newSubarrays;
     }
 
+    return newSubarrays;
+  }
+
+  public List<SubArrayRanges> splitToPartitions(int partitions) throws TileDBError {
+    List<SubArrayRanges> newSubarrays = new ArrayList<>();
+
+    long actualWidth = ranges.get(0).width().longValue();
+    double exactEffectiveWidth = actualWidth * 1.0 / partitions;
+    long effectiveWidth = (long) exactEffectiveWidth;
+
+    if (exactEffectiveWidth < 1) {
+      effectiveWidth = 1;
+    }
+
+    // Split the first dimension
+    if (ranges.get(0).splittable()) {
+      for (Range newRange : ranges.get(0).splitRangeWithExtent(effectiveWidth)) {
+        List<Range> dimRanges = new ArrayList<>();
+        dimRanges.add(newRange);
+        newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
+      }
+    }
+
+    return newSubarrays;
+  }
 
   /**
    * Compute the percentage of width that each dimension gives based on the total summation of

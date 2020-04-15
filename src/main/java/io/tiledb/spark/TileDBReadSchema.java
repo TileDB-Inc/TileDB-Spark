@@ -5,7 +5,6 @@ import java.io.Serializable;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Optional;
-
 import org.apache.spark.sql.types.*;
 
 public class TileDBReadSchema implements Serializable {
@@ -92,8 +91,7 @@ public class TileDBReadSchema implements Serializable {
   }
 
   public Optional<String> getDimensionName(Integer id) {
-    if (this.dimensionName.containsKey(id))
-      return Optional.of(this.dimensionName.get(id));
+    if (this.dimensionName.containsKey(id)) return Optional.of(this.dimensionName.get(id));
 
     return Optional.empty();
   }

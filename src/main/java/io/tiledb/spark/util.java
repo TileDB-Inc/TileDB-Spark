@@ -129,6 +129,33 @@ public class util {
     } else if (dataClassType == Short.class) {
       return (Short) a / (Short) b;
     } else if (dataClassType == Integer.class) {
+      return (Integer) a / (Integer) b;
+    } else if (dataClassType == Long.class) {
+      return (Long) a / (Long) b;
+    } else if (dataClassType == Float.class) {
+      return (Float) a / (Float) b;
+    }
+
+    // Else assume double
+    return (Double) a / (Double) b;
+  }
+
+  /**
+   * Division with ceiling property for non-floating point numbers For example, while usually a
+   * division like 4/3 results into floor (1.333)=1, with this function, it will result into ceil
+   * (1.333)=2.
+   *
+   * @param a first value to operate on
+   * @param b second value to operate on
+   * @param dataClassType class type, used to cast objects
+   * @return operatior results
+   */
+  public static Object divideCeilingObjects(Object a, Object b, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return (Byte) a / (Byte) b;
+    } else if (dataClassType == Short.class) {
+      return (Short) a / (Short) b;
+    } else if (dataClassType == Integer.class) {
       return (int) Math.ceil((Integer) a * 1.0 / (Integer) b);
     } else if (dataClassType == Long.class) {
       return (long) Math.ceil((Long) a * 1.0 / (Long) b);
@@ -228,14 +255,16 @@ public class util {
 
   /**
    * Finds the least multiple of x larger than n.
+   *
    * @param n
    * @param x
    * @return
    */
 
   /**
-   * Finds the least multiple of x that is greatest than or equal to n.
-   * For example, for n=55 and x=16, the result will be 64.
+   * Finds the least multiple of x that is greatest than or equal to n. For example, for n=55 and
+   * x=16, the result will be 64.
+   *
    * @param a
    * @param b
    * @return The least multiple
@@ -248,79 +277,63 @@ public class util {
       short n = (Short) a;
       short x = (Short) b;
 
-      if(x>n)
-        return x;
+      if (x > n) return x;
 
-      n = (short)(n + x/2);
-      n = (short)(n - (n%x));
+      n = (short) (n + x / 2);
+      n = (short) (n - (n % x));
 
-      if (n < initN)
-        return n+x;
-      else
-        return n;
+      if (n < initN) return n + x;
+      else return n;
     } else if (dataClassType == Integer.class) {
       int initN = (int) a;
       int n = (int) a;
       int x = (int) b;
 
-      if(x>n)
-        return x;
+      if (x > n) return x;
 
-      n = (n + x/2);
-      n = (n - (n%x));
+      n = (n + x / 2);
+      n = (n - (n % x));
 
-      if (n < initN)
-        return n+x;
-      else
-        return n;
+      if (n < initN) return n + x;
+      else return n;
     } else if (dataClassType == Long.class) {
       long initN = (long) a;
       long n = (long) a;
       long x = (long) b;
 
-      if(x>n)
-        return x;
+      if (x > n) return x;
 
-      n = (n + x/2);
-      n = (n - (n%x));
+      n = (n + x / 2);
+      n = (n - (n % x));
 
-      if (n < initN)
-        return n+x;
-      else
-        return n;
+      if (n < initN) return n + x;
+      else return n;
     } else if (dataClassType == Double.class) {
       double initN = (double) a;
       double n = (double) a;
       double x = (double) b;
 
-      if(x>n)
-        return x;
+      if (x > n) return x;
 
-      n = (n + x/2);
-      n = (n - (n%x));
+      n = (n + x / 2);
+      n = (n - (n % x));
 
-      if (n < initN)
-        return n+x;
-      else
-        return n;
+      if (n < initN) return n + x;
+      else return n;
     } else if (dataClassType == Float.class) {
       float initN = (float) a;
       float n = (float) a;
       float x = (float) b;
 
-      if(x>n)
-        return x;
+      if (x > n) return x;
 
-      n = (n + x/2);
-      n = (n - (n%x));
+      n = (n + x / 2);
+      n = (n - (n % x));
 
-      if (n < initN)
-        return n+x;
-      else
-        return n;
+      if (n < initN) return n + x;
+      else return n;
     }
 
     return null;
   }
-
 }

@@ -1,7 +1,6 @@
 package io.tiledb.spark;
 
 import static io.tiledb.spark.util.addEpsilon;
-import static io.tiledb.spark.util.findClosestMultiple;
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -600,22 +599,20 @@ public class Range implements java.io.Serializable, Comparable<Range> {
   /**
    * Split a range. Will split upto N buckets
    *
-   * @param tileExtent The tile extent
+   * @param extent The tile extent
    * @return
    * @throws TileDBError
    */
-  public List<Range> splitRangeWithExtent(Object tileExtent) throws TileDBError {
+  public List<Range> splitRangeWithExtent(Object extent) throws TileDBError {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
     // Only long dimensions can be split with naive algorithm
     Object min = range.getFirst();
     Object max = range.getSecond();
-    Object leastMultiple = util.findClosestMultiple(min, tileExtent, dataClassType);
+    Object currentMin;
+    Object currentMax;
 
-    Object currentMin = min;
-    Object currentMax = max;
-
-    Number numSplits = (Number) util.divideObjects( util.subtractObjects(max, min, dataClassType), tileExtent, dataClassType);
+    Number numSplits = (Number) util.divideCeilingObjects(this.width(), extent, dataClassType);
 
     // If the min is the max this range is not splittable
     if (!this.splittable()) {
@@ -634,31 +631,26 @@ public class Range implements java.io.Serializable, Comparable<Range> {
       one = 1L;
     } else if (dataClassType == Float.class) {
       one = 1f;
-    }
-    else if (dataClassType == Double.class) {
+    } else if (dataClassType == Double.class) {
       one = 1d;
     }
 
-    /* Align query with tile extent - Determine the first range */
-    if (util.lessThan(min, leastMultiple, dataClassType)){
-      currentMax = util.subtractObjects(leastMultiple, one, dataClassType);
-      ranges.add(new Range(new Pair(currentMin, currentMax)));
-    }
-    else {
-      currentMax = util.subtractObjects(util.addObjects(currentMin, tileExtent, dataClassType), one, dataClassType);
-      ranges.add(new Range(new Pair(currentMin, currentMax)));
-    }
+    currentMin = min;
+    currentMax =
+        util.subtractObjects(
+            util.addObjects(currentMin, extent, dataClassType), one, dataClassType);
+    ranges.add(new Range(new Pair(currentMin, currentMax)));
 
-    for (int i=1; i< numSplits.intValue(); ++i) {
+    for (int i = 1; i < numSplits.intValue(); ++i) {
       currentMin = util.addObjects(currentMax, one, dataClassType);
 
-      currentMax = util.subtractObjects(util.addObjects(currentMin, tileExtent, dataClassType), one, dataClassType);
-      if (util.greaterThanOrEqual(currentMax, max, dataClassType))
-        currentMax = max;
+      currentMax =
+          util.subtractObjects(
+              util.addObjects(currentMin, extent, dataClassType), one, dataClassType);
+      if (util.greaterThanOrEqual(currentMax, max, dataClassType)) currentMax = max;
 
       ranges.add(new Range(new Pair(currentMin, currentMax)));
     }
-
 
     return ranges;
   }
