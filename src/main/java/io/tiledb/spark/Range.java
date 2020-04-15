@@ -626,15 +626,16 @@ public class Range implements java.io.Serializable, Comparable<Range> {
             util.addObjects(currentMin, partitionWidth, dataClassType), tileDBDatatype());
     ranges.add(new Range(new Pair(currentMin, currentMax)));
 
-    for (int i = 1; i < ((Number) partitions).intValue(); ++i) {
+    int partitionCount = ((Number) partitions).intValue();
+    for (int i = 1; i < partitionCount; ++i) {
       currentMin = util.addEpsilon(currentMax, tileDBDatatype());
 
       currentMax =
           util.subtractEpsilon(
               util.addObjects(currentMin, partitionWidth, dataClassType), tileDBDatatype());
 
-      // Check if we reach max before we run out of partitions
-      if (util.greaterThanOrEqual(currentMax, max, dataClassType)) {
+      // Check if we reach max before we run out of partitions or if we reach the last partition
+      if (util.greaterThanOrEqual(currentMax, max, dataClassType) || i == (partitionCount - 1)) {
         currentMax = max;
         ranges.add(new Range(new Pair(currentMin, currentMax)));
         break;

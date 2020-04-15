@@ -277,9 +277,17 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
 
     // Split the first dimension
     if (ranges.get(0).splittable()) {
+      List<Range> dimRanges;
       for (Range newRange : ranges.get(0).splitRangeToPartitions(partitions, partitionWidth)) {
-        List<Range> dimRanges = new ArrayList<>();
+        dimRanges = new ArrayList<>();
         dimRanges.add(newRange);
+        newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
+      }
+
+      // Add the rest of the dimension ranges
+      for (int i = 1; i < ranges.size(); i++) {
+        dimRanges = new ArrayList<>();
+        dimRanges.add(ranges.get(i));
         newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
       }
     }
