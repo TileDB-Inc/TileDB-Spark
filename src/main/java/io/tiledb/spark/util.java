@@ -191,6 +191,51 @@ public class util {
     // Else assume double
     return (Double) a % (Double) b;
   }
+  /**
+   * Casts an input integer to a specific numeric type
+   *
+   * @param srcNum The integer to be casted
+   * @param dataClassType class type, used to cast objects
+   * @return The casted number
+   */
+  public static Object castInt(Integer srcNum, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return srcNum.byteValue();
+    } else if (dataClassType == Short.class) {
+      return srcNum.shortValue();
+    } else if (dataClassType == Long.class) {
+      return srcNum.longValue();
+    } else if (dataClassType == Float.class) {
+      return srcNum.floatValue();
+    } else if (dataClassType == Double.class) {
+      return srcNum.doubleValue();
+    }
+
+    return srcNum;
+  }
+
+  /**
+   * Casts an input integer to a specific numeric type
+   *
+   * @param srcNum The integer to be casted
+   * @param dataClassType class type, used to cast objects
+   * @return The casted number
+   */
+  public static Object castLong(long srcNum, Class dataClassType) {
+    if (dataClassType == Byte.class) {
+      return (byte) srcNum;
+    } else if (dataClassType == Short.class) {
+      return (short) srcNum;
+    } else if (dataClassType == Integer.class) {
+      return (int) srcNum;
+    } else if (dataClassType == Float.class) {
+      return (float) srcNum;
+    } else if (dataClassType == Double.class) {
+      return (double) srcNum;
+    }
+
+    return srcNum;
+  }
 
   /**
    * Generate all combination of subarrays from a list of ranges per dimension That is if we have

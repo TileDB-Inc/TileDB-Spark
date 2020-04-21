@@ -37,6 +37,27 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
     Assert.assertEquals(inputDF.rdd().partitions().length, expectedPartitions);
   }
 
+  protected void testWriteRead2Dim(Dataset<Row> persistedDF, int partitions, int expectedPartitions) {
+    String arrayURI = temp.getRoot().toString();
+    persistedDF
+        .write()
+        .format("io.tiledb.spark")
+        .option("uri", arrayURI)
+        .option("schema.dim.0.name", "a1")
+        .option("schema.dim.1.name", "a2")
+        .mode(SaveMode.ErrorIfExists)
+        .save();
+
+    Dataset<Row> inputDF =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("partition_count", partitions)
+            .option("uri", arrayURI)
+            .load();
+    Assert.assertEquals(inputDF.rdd().partitions().length, expectedPartitions);
+  }
+
   public Dataset<Row> createByteDataset(SparkSession ss) {
     StructField[] structFields =
         new StructField[] {
@@ -192,6 +213,36 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
     return df.withColumn("id", functions.monotonically_increasing_id()).repartition(1);
   }
 
+    public Dataset<Row> createIntegerDatasetMultiDim(SparkSession ss) {
+        StructField[] structFields =
+                new StructField[] {
+                        new StructField("a1", DataTypes.IntegerType, false, Metadata.empty()),
+                };
+        List<Row> rows = new ArrayList<>();
+        rows.add(RowFactory.create(1));
+        rows.add(RowFactory.create(2));
+        rows.add(RowFactory.create(3));
+        rows.add(RowFactory.create(10));
+        StructType structType = new StructType(structFields);
+        Dataset<Row> df = ss.createDataFrame(rows, structType);
+        return df.withColumn("id", functions.monotonically_increasing_id());
+    }
+
+    @Test
+    public void testPartitioningIntegerMultiDim1() {
+        testWriteRead(createIntegerDatasetMultiDim(session()), 3, 3);
+    }
+
+    @Test
+    public void testPartitioningIntegerMultiDim2() {
+        testWriteRead(createIntegerDatasetMultiDim(session()), 10, 4);
+    }
+
+    @Test
+    public void testPartitioningIntegerMultiDim3() {
+        testWriteRead(createIntegerDatasetMultiDim(session()), 2, 2);
+    }
+
   @Test
   public void testWriteStringDataset1() {
     testWriteRead(createStringDataset(session()), 3, 3);
@@ -206,4 +257,91 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
   public void testWriteStringDataset3() {
     testWriteRead(createStringDataset(session()), 2, 2);
   }
+
+
+  /* Multidimensional arrays */
+
+  public Dataset<Row> createLongDatasetMultiDim(SparkSession ss) {
+    StructField[] structFields =
+            new StructField[] {
+                    new StructField("a1", DataTypes.LongType, false, Metadata.empty()),
+                    new StructField("a2", DataTypes.LongType, false, Metadata.empty()),
+            };
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(1L, 1L));
+    rows.add(RowFactory.create(2L, 2L));
+    rows.add(RowFactory.create(3L, 3L));
+    rows.add(RowFactory.create(10L, 10L));
+    StructType structType = new StructType(structFields);
+    Dataset<Row> df = ss.createDataFrame(rows, structType);
+    return df.withColumn("id", functions.monotonically_increasing_id());
+  }
+
+  @Test
+  public void testPartitioningLongMultiDim1() {
+    Dataset ds = createLongDatasetMultiDim(session());
+    testWriteRead2Dim(ds, 3, 3);
+  }
+
+  @Test
+  public void testPartitioningLongMultiDim2() {
+    testWriteRead(createLongDataset(session()), 10, 4);
+  }
+
+  @Test
+  public void testPartitioningLongMultiDim3() {
+    testWriteRead(createLongDataset(session()), 2, 2);
+  }
+
+  public Dataset<Row> createDoubleDatasetMultiDim(SparkSession ss) {
+    StructField[] structFields =
+            new StructField[] {
+                    new StructField("a1", DataTypes.DoubleType, false, Metadata.empty()),
+                    new StructField("a2", DataTypes.DoubleType, false, Metadata.empty()),
+            };
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(1.0, 1.1));
+    rows.add(RowFactory.create(2.0, 2.0));
+    rows.add(RowFactory.create(3.0, 3.0));
+    rows.add(RowFactory.create(10.0, 10.0));
+    StructType structType = new StructType(structFields);
+    Dataset<Row> df = ss.createDataFrame(rows, structType);
+    return df.withColumn("id", functions.monotonically_increasing_id());
+  }
+
+  @Test
+  public void testPartitioningDoubleMultiDim1() {
+    testWriteRead2Dim(createDoubleDatasetMultiDim(session()), 3, 3);
+  }
+
+  @Test
+  public void testPartitioningDoubleMultiDim2() {
+    testWriteRead(createDoubleDataset(session()), 10, 4);
+  }
+
+  @Test
+  public void testPartitioningDoubleMultiDim3() {
+    testWriteRead(createDoubleDataset(session()), 2, 2);
+  }
+
+    public Dataset<Row> createByteDatasetMultiDim(SparkSession ss) {
+        StructField[] structFields =
+                new StructField[] {
+                        new StructField("a1", DataTypes.ByteType, false, Metadata.empty()),
+                        new StructField("a2", DataTypes.ByteType, false, Metadata.empty()),
+                };
+        List<Row> rows = new ArrayList<>();
+        rows.add(RowFactory.create((byte) 0, (byte) 0));
+        rows.add(RowFactory.create((byte) 2, (byte) 2));
+        rows.add(RowFactory.create((byte) 3, (byte) 3));
+        rows.add(RowFactory.create((byte) 10, (byte) 10));
+        StructType structType = new StructType(structFields);
+        Dataset<Row> df = ss.createDataFrame(rows, structType);
+        return df.withColumn("id", functions.monotonically_increasing_id());
+    }
+
+    @Test
+    public void testWriteByteMultiDim1() {
+        testWriteRead2Dim(createByteDatasetMultiDim(session()), 3, 3);
+    }
 }

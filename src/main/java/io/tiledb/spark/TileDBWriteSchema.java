@@ -156,8 +156,7 @@ public class TileDBWriteSchema {
         } else {
           extent = Byte.valueOf((byte) (max - min));
         }
-        return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_UINT8, new Pair<>(min, max), extent);
+        return new Dimension(ctx, field.name(), Datatype.TILEDB_INT8, new Pair<>(min, max), extent);
       } else if (dataType instanceof DateType) {
         Long min = Long.MIN_VALUE + 1l;
         if (longMin.isPresent()) {

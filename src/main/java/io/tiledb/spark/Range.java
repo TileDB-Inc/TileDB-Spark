@@ -604,7 +604,7 @@ public class Range implements java.io.Serializable, Comparable<Range> {
    * @return The list of ranges, one per partition
    * @throws TileDBError
    */
-  public List<Range> splitRangeToPartitions(Object partitions, Object partitionWidth)
+  public List<Range> splitRangeToPartitions(int partitions, long partitionWidth)
       throws TileDBError {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
@@ -613,6 +613,7 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     Object max = range.getSecond();
     Object currentMin;
     Object currentMax;
+    Object pWidth = util.castLong(partitionWidth, dataClassType);
 
     // If the min is the max this range is not splittable
     if (!this.splittable()) {
@@ -622,20 +623,18 @@ public class Range implements java.io.Serializable, Comparable<Range> {
 
     currentMin = min;
     currentMax =
-        util.subtractEpsilon(
-            util.addObjects(currentMin, partitionWidth, dataClassType), tileDBDatatype());
+        util.subtractEpsilon(util.addObjects(currentMin, pWidth, dataClassType), tileDBDatatype());
     ranges.add(new Range(new Pair(currentMin, currentMax)));
 
-    int partitionCount = ((Number) partitions).intValue();
-    for (int i = 1; i < partitionCount; ++i) {
+    for (int i = 1; i < partitions; ++i) {
       currentMin = util.addEpsilon(currentMax, tileDBDatatype());
 
       currentMax =
           util.subtractEpsilon(
-              util.addObjects(currentMin, partitionWidth, dataClassType), tileDBDatatype());
+              util.addObjects(currentMin, pWidth, dataClassType), tileDBDatatype());
 
       // Check if we reach max before we run out of partitions or if we reach the last partition
-      if (util.greaterThanOrEqual(currentMax, max, dataClassType) || i == (partitionCount - 1)) {
+      if (util.greaterThanOrEqual(currentMax, max, dataClassType) || i == (partitions - 1)) {
         currentMax = max;
         ranges.add(new Range(new Pair(currentMin, currentMax)));
         break;
