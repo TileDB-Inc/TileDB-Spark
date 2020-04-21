@@ -8,58 +8,62 @@ import java.util.List;
 public class util {
 
   /* Returns v + eps, where eps is the smallest value for the datatype such that v + eps > v. */
-  public static Object addEpsilon(Object value, Datatype type) throws TileDBError {
+  public static Number addEpsilon(Number value, Datatype type) throws TileDBError {
     switch (type) {
       case TILEDB_CHAR:
       case TILEDB_INT8:
-        return ((byte) value) < Byte.MAX_VALUE ? ((byte) value + 1) : value;
+        return value.byteValue() < Byte.MAX_VALUE ? (value.byteValue() + 1) : value;
       case TILEDB_INT16:
-        return ((short) value) < Short.MAX_VALUE ? ((short) value + 1) : value;
+        return value.shortValue() < Short.MAX_VALUE ? (value.shortValue() + 1) : value;
       case TILEDB_INT32:
-        return ((int) value) < Integer.MAX_VALUE ? ((int) value + 1) : value;
+        return value.intValue() < Integer.MAX_VALUE ? (value.intValue() + 1) : value;
       case TILEDB_INT64:
-        return ((long) value) < Long.MAX_VALUE ? ((long) value + 1) : value;
+        return value.longValue() < Long.MAX_VALUE ? (value.longValue() + 1) : value;
       case TILEDB_UINT8:
-        return ((short) value) < ((short) Byte.MAX_VALUE + 1) ? ((short) value + 1) : value;
+        return value.shortValue() < ((short) Byte.MAX_VALUE + 1) ? (value.shortValue() + 1) : value;
       case TILEDB_UINT16:
-        return ((int) value) < ((int) Short.MAX_VALUE + 1) ? ((int) value + 1) : value;
+        return value.intValue() < ((int) Short.MAX_VALUE + 1) ? (value.intValue() + 1) : value;
       case TILEDB_UINT32:
-        return ((long) value) < ((long) Integer.MAX_VALUE + 1) ? ((long) value + 1) : value;
+        return value.longValue() < ((long) Integer.MAX_VALUE + 1) ? (value.longValue() + 1) : value;
       case TILEDB_UINT64:
-        return ((long) value) < ((long) Integer.MAX_VALUE + 1) ? ((long) value + 1) : value;
+        return value.longValue() < ((long) Integer.MAX_VALUE + 1) ? (value.longValue() + 1) : value;
       case TILEDB_FLOAT32:
-        return ((float) value) < Float.MAX_VALUE ? Math.nextUp((float) value) : value;
+        return value.floatValue() < Float.MAX_VALUE ? Math.nextUp(value.floatValue()) : value;
       case TILEDB_FLOAT64:
-        return ((double) value) < Double.MAX_VALUE ? Math.nextUp((double) value) : value;
+        return value.doubleValue() < Double.MAX_VALUE ? Math.nextUp(value.doubleValue()) : value;
       default:
         throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
     }
   }
 
   /* Returns v - eps, where eps is the smallest value for the datatype such that v - eps < v. */
-  public static Object subtractEpsilon(Object value, Datatype type) throws TileDBError {
+  public static Number subtractEpsilon(Number value, Datatype type) throws TileDBError {
     switch (type) {
       case TILEDB_CHAR:
       case TILEDB_INT8:
-        return ((byte) value) > Byte.MIN_VALUE ? ((byte) value - 1) : value;
+        return ((Number) value).byteValue() > Byte.MIN_VALUE
+            ? (((Number) value).byteValue() - 1)
+            : value;
       case TILEDB_INT16:
-        return ((short) value) > Short.MIN_VALUE ? ((short) value - 1) : value;
+        return value.shortValue() > Short.MIN_VALUE ? (value.shortValue() - 1) : value;
       case TILEDB_INT32:
-        return ((int) value) > Integer.MIN_VALUE ? ((int) value - 1) : value;
+        return value.intValue() > Integer.MIN_VALUE ? (value.intValue() - 1) : value;
       case TILEDB_INT64:
-        return ((long) value) > Long.MIN_VALUE ? ((long) value - 1) : value;
+        return value.longValue() > Long.MIN_VALUE ? (value.longValue() - 1) : value;
       case TILEDB_UINT8:
-        return ((short) value) > ((short) Byte.MIN_VALUE - 1) ? ((short) value - 1) : value;
+        return value.shortValue() > ((short) Byte.MIN_VALUE - 1) ? (value.shortValue() - 1) : value;
       case TILEDB_UINT16:
-        return ((int) value) > ((int) Short.MIN_VALUE - 1) ? ((int) value - 1) : value;
+        return value.intValue() > ((int) Short.MIN_VALUE - 1) ? (value.intValue() - 1) : value;
       case TILEDB_UINT32:
-        return ((long) value) > ((long) Integer.MIN_VALUE - 1) ? ((long) value - 1) : value;
+        return value.longValue() > ((long) Integer.MIN_VALUE - 1) ? (value.longValue() - 1) : value;
       case TILEDB_UINT64:
-        return ((long) value) > ((long) Integer.MIN_VALUE - 1) ? ((long) value - 1) : value;
+        return value.longValue() > ((long) Integer.MIN_VALUE - 1) ? (value.longValue() - 1) : value;
       case TILEDB_FLOAT32:
-        return ((float) value) > Float.MIN_VALUE ? Math.nextDown((float) value) : value;
+        return (value.floatValue()) > Float.MIN_VALUE ? Math.nextDown(value.floatValue()) : value;
       case TILEDB_FLOAT64:
-        return ((double) value) > Double.MIN_VALUE ? Math.nextDown((double) value) : value;
+        return (value.doubleValue()) > Double.MIN_VALUE
+            ? Math.nextDown(value.doubleValue())
+            : value;
       default:
         throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
     }
@@ -73,21 +77,21 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operatior results
    */
-  public static Object addObjects(Object a, Object b, Class dataClassType) {
+  public static Number addObjects(Number a, Number b, Class dataClassType) {
     if (dataClassType == Byte.class) {
-      return (Byte) a + (Byte) b;
+      return a.byteValue() + b.byteValue();
     } else if (dataClassType == Short.class) {
-      return (Short) a + (Short) b;
+      return a.shortValue() + b.shortValue();
     } else if (dataClassType == Integer.class) {
-      return (Integer) a + (Integer) b;
+      return a.intValue() + b.intValue();
     } else if (dataClassType == Long.class) {
-      return (Long) a + (Long) b;
+      return a.longValue() + b.longValue();
     } else if (dataClassType == Float.class) {
-      return (Float) a + (Float) b;
+      return a.floatValue() + b.floatValue();
     }
 
     // Else assume double
-    return (Double) a + (Double) b;
+    return a.doubleValue() + b.doubleValue();
   }
 
   /**
@@ -98,17 +102,17 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operatior results
    */
-  public static Object subtractObjects(Object a, Object b, Class dataClassType) {
+  public static Number subtractObjects(Number a, Number b, Class dataClassType) {
     if (dataClassType == Byte.class) {
-      return (Byte) a - (Byte) b;
+      return a.byteValue() - b.byteValue();
     } else if (dataClassType == Short.class) {
-      return (Short) a - (Short) b;
+      return a.shortValue() - b.shortValue();
     } else if (dataClassType == Integer.class) {
-      return (Integer) a - (Integer) b;
+      return a.intValue() - b.intValue();
     } else if (dataClassType == Long.class) {
       return (Long) a - (Long) b;
     } else if (dataClassType == Float.class) {
-      return (Float) a - (Float) b;
+      return a.floatValue() - b.floatValue();
     }
 
     // Else assume double
@@ -123,17 +127,17 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operatior results
    */
-  public static Object divideObjects(Object a, Object b, Class dataClassType) {
+  public static Number divideObjects(Number a, Number b, Class dataClassType) {
     if (dataClassType == Byte.class) {
-      return (Byte) a / (Byte) b;
+      return a.byteValue() / b.byteValue();
     } else if (dataClassType == Short.class) {
-      return (Short) a / (Short) b;
+      return a.shortValue() / b.shortValue();
     } else if (dataClassType == Integer.class) {
-      return (Integer) a / (Integer) b;
+      return a.intValue() / b.intValue();
     } else if (dataClassType == Long.class) {
       return (Long) a / (Long) b;
     } else if (dataClassType == Float.class) {
-      return (Float) a / (Float) b;
+      return a.floatValue() / b.floatValue();
     }
 
     // Else assume double
@@ -150,17 +154,17 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operatior results
    */
-  public static Object divideCeilingObjects(Object a, Object b, Class dataClassType) {
+  public static Object divideCeilingObjects(Number a, Number b, Class dataClassType) {
     if (dataClassType == Byte.class) {
-      return (Byte) a / (Byte) b;
+      return a.byteValue() / b.byteValue();
     } else if (dataClassType == Short.class) {
-      return (Short) a / (Short) b;
+      return a.shortValue() / b.shortValue();
     } else if (dataClassType == Integer.class) {
-      return (int) Math.ceil((Integer) a * 1.0 / (Integer) b);
+      return (int) Math.ceil(a.intValue() * 1.0 / b.intValue());
     } else if (dataClassType == Long.class) {
       return (long) Math.ceil((Long) a * 1.0 / (Long) b);
     } else if (dataClassType == Float.class) {
-      return (Float) a / (Float) b;
+      return a.floatValue() / b.floatValue();
     }
 
     // Else assume double
@@ -175,17 +179,17 @@ public class util {
    * @param dataClassType class type, used to cast objects
    * @return operation results
    */
-  public static Object moduloObjects(Object a, Object b, Class dataClassType) {
+  public static Object moduloObjects(Number a, Number b, Class dataClassType) {
     if (dataClassType == Byte.class) {
-      return (Byte) a % (Byte) b;
+      return a.byteValue() % b.byteValue();
     } else if (dataClassType == Short.class) {
-      return (Short) a % (Short) b;
+      return a.shortValue() % b.shortValue();
     } else if (dataClassType == Integer.class) {
-      return (Integer) a % (Integer) b;
+      return a.intValue() % b.intValue();
     } else if (dataClassType == Long.class) {
       return (Long) a % (Long) b;
     } else if (dataClassType == Float.class) {
-      return (Float) a % (Float) b;
+      return a.floatValue() % b.floatValue();
     }
 
     // Else assume double
@@ -265,34 +269,34 @@ public class util {
     }
   }
 
-  public static boolean greaterThanOrEqual(Object a, Object b, Class dataClassType) {
+  public static boolean greaterThanOrEqual(Number a, Number b, Class dataClassType) {
     if (dataClassType == Byte.class) {
-      return (Byte) a >= (Byte) b;
+      return a.byteValue() >= b.byteValue();
     } else if (dataClassType == Short.class) {
-      return (Short) a >= (Short) b;
+      return a.shortValue() >= b.shortValue();
     } else if (dataClassType == Integer.class) {
-      return (Integer) a >= (Integer) b;
+      return a.intValue() >= b.intValue();
     } else if (dataClassType == Long.class) {
       return (Long) a >= (Long) b;
     } else if (dataClassType == Float.class) {
-      return (Float) a >= (Float) b;
+      return a.floatValue() >= b.floatValue();
     }
 
     // Else assume double
     return (Double) a >= (Double) b;
   }
 
-  public static boolean lessThan(Object a, Object b, Class dataClassType) {
+  public static boolean lessThan(Number a, Number b, Class dataClassType) {
     if (dataClassType == Byte.class) {
-      return (Byte) a < (Byte) b;
+      return a.byteValue() < b.byteValue();
     } else if (dataClassType == Short.class) {
-      return (Short) a < (Short) b;
+      return a.shortValue() < b.shortValue();
     } else if (dataClassType == Integer.class) {
-      return (Integer) a < (Integer) b;
+      return a.intValue() < b.intValue();
     } else if (dataClassType == Long.class) {
       return (Long) a < (Long) b;
     } else if (dataClassType == Float.class) {
-      return (Float) a < (Float) b;
+      return a.floatValue() < b.floatValue();
     }
 
     return (Double) a < (Double) b;
@@ -314,13 +318,13 @@ public class util {
    * @param b
    * @return The least multiple
    */
-  public static Object findClosestMultiple(Object a, Object b, Class dataClassType) {
+  public static Object findClosestMultiple(Number a, Number b, Class dataClassType) {
     if (dataClassType == Byte.class) {
       return null;
     } else if (dataClassType == Short.class) {
-      short initN = (Short) a;
-      short n = (Short) a;
-      short x = (Short) b;
+      short initN = a.shortValue();
+      short n = a.shortValue();
+      short x = b.shortValue();
 
       if (x > n) return x;
 

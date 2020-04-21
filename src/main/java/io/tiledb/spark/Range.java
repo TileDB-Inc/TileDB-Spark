@@ -45,14 +45,12 @@ public class Range implements java.io.Serializable, Comparable<Range> {
 
   private Integer widthByte() throws TileDBError {
     Pair<Byte, Byte> tmp = range;
-    return ((Byte) addEpsilon(abs(tmp.getSecond() - tmp.getFirst()), Datatype.TILEDB_INT8))
-        .intValue();
+    return (addEpsilon(abs(tmp.getSecond() - tmp.getFirst()), Datatype.TILEDB_INT8)).intValue();
   }
 
   private Integer widthShort() throws TileDBError {
     Pair<Short, Short> tmp = range;
-    return ((Short) addEpsilon(abs(tmp.getSecond() - tmp.getFirst()), Datatype.TILEDB_INT16))
-        .intValue();
+    return (addEpsilon(abs(tmp.getSecond() - tmp.getFirst()), Datatype.TILEDB_INT16)).intValue();
   }
 
   private Integer widthInteger() throws TileDBError {
@@ -530,8 +528,8 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more than number of splits (i.e. split 1 time into two buckets)
     // Only long dimensions can be split with naive algorithm
-    Object min = range.getFirst();
-    Object max = range.getSecond();
+    Number min = (Number) range.getFirst();
+    Number max = (Number) range.getSecond();
 
     // If the min is the max this range is not splittable
     if (min == max) {
@@ -542,26 +540,25 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     //    Long rangeLength = (Long)
     // ConvertUtils.convert(util.divide_objects(util.subtract_objects(max, min, dataClassType),
     // buckets, dataClassType), Long.class);
-    Object bucketsObj = ConvertUtils.convert(buckets, dataClassType);
-    Object rangeLength =
+    Number rangeLength =
         util.divideObjects(
             util.subtractObjects(max, min, dataClassType),
-            ConvertUtils.convert(buckets, dataClassType),
+            (Number) ConvertUtils.convert(buckets, dataClassType),
             dataClassType);
     Long leftOvers =
         (Long)
             ConvertUtils.convert(
                 util.moduloObjects(
                     util.subtractObjects(max, min, dataClassType),
-                    ConvertUtils.convert(buckets, dataClassType),
+                    (Number) ConvertUtils.convert(buckets, dataClassType),
                     dataClassType),
                 Long.class);
 
-    Object low = min;
+    Number low = min;
     for (int i = 0; i < buckets; i++) {
       // We want to set the high of the split range to be the low value of the range + the length -
       // 1
-      Object high =
+      Number high =
           util.subtractEpsilon(util.addObjects(low, rangeLength, dataClassType), tileDBDatatype());
       // Handle base case where range length is 1, so we don't need to subtract one to account for
       // inclusiveness
@@ -609,11 +606,11 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
     // Only long dimensions can be split with naive algorithm
-    Object min = range.getFirst();
-    Object max = range.getSecond();
-    Object currentMin;
-    Object currentMax;
-    Object pWidth = util.castLong(partitionWidth, dataClassType);
+    Number min = (Number) range.getFirst();
+    Number max = (Number) range.getSecond();
+    Number currentMin;
+    Number currentMax;
+    Number pWidth = (Number) util.castLong(partitionWidth, dataClassType);
 
     // If the min is the max this range is not splittable
     if (!this.splittable()) {

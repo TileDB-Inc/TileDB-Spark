@@ -464,7 +464,7 @@ public class TileDBDataSourceReader
           .add(
               new Range(
                   new Pair<>(
-                      addEpsilon(f.value(), domainType),
+                      addEpsilon((Number) f.value(), domainType),
                       nonEmptyDomain.get(f.attribute()).getSecond())));
       // GreaterThanOrEqual is ranges which are in the form of `dim >= 1`
     } else if (filter instanceof GreaterThanOrEqual) {
@@ -493,7 +493,7 @@ public class TileDBDataSourceReader
               new Range(
                   new Pair<>(
                       nonEmptyDomain.get(f.attribute()).getFirst(),
-                      subtractEpsilon(f.value(), domainType))));
+                      subtractEpsilon((Number) f.value(), domainType))));
       // LessThanOrEqual is ranges which are in the form of `dim <= 1`
     } else if (filter instanceof LessThanOrEqual) {
       LessThanOrEqual f = (LessThanOrEqual) filter;

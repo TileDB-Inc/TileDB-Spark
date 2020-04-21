@@ -63,7 +63,7 @@ public class TileDBWriteSchema {
         if (realExtent.isPresent()) {
           extent = BigDecimal.valueOf(realExtent.get()).floatValue();
         } else {
-          extent = min - max;
+          extent = max - min;
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_FLOAT32, new Pair<>(min, max), extent);
@@ -137,7 +137,7 @@ public class TileDBWriteSchema {
         if (longExtent.isPresent()) {
           extent = Short.valueOf(longExtent.get().toString());
         } else {
-          extent = Short.valueOf((short) (max - min));
+          extent = Short.MAX_VALUE;
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_INT16, new Pair<>(min, max), extent);
@@ -154,7 +154,7 @@ public class TileDBWriteSchema {
         if (longExtent.isPresent()) {
           extent = Byte.valueOf(longExtent.get().toString());
         } else {
-          extent = Byte.valueOf((byte) (max - min));
+          extent = Byte.MAX_VALUE;
         }
         return new Dimension(ctx, field.name(), Datatype.TILEDB_INT8, new Pair<>(min, max), extent);
       } else if (dataType instanceof DateType) {
