@@ -12,25 +12,41 @@ public class util {
     switch (type) {
       case TILEDB_CHAR:
       case TILEDB_INT8:
-        return value.byteValue() < Byte.MAX_VALUE ? (value.byteValue() + 1) : value;
+        return value.byteValue() < Byte.MAX_VALUE
+            ? (byte) (value.byteValue() + 1)
+            : value.byteValue();
       case TILEDB_INT16:
-        return value.shortValue() < Short.MAX_VALUE ? (value.shortValue() + 1) : value;
+        return value.shortValue() < Short.MAX_VALUE
+            ? (short) (value.shortValue() + 1)
+            : value.byteValue();
       case TILEDB_INT32:
-        return value.intValue() < Integer.MAX_VALUE ? (value.intValue() + 1) : value;
+        return value.intValue() < Integer.MAX_VALUE ? (value.intValue() + 1) : value.intValue();
       case TILEDB_INT64:
         return value.longValue() < Long.MAX_VALUE ? (value.longValue() + 1) : value;
       case TILEDB_UINT8:
-        return value.shortValue() < ((short) Byte.MAX_VALUE + 1) ? (value.shortValue() + 1) : value;
+        return value.shortValue() < ((short) Byte.MAX_VALUE + 1)
+            ? (short) (value.shortValue() + 1)
+            : value.shortValue();
       case TILEDB_UINT16:
-        return value.intValue() < ((int) Short.MAX_VALUE + 1) ? (value.intValue() + 1) : value;
+        return value.intValue() < ((int) Short.MAX_VALUE + 1)
+            ? (value.intValue() + 1)
+            : value.intValue();
       case TILEDB_UINT32:
-        return value.longValue() < ((long) Integer.MAX_VALUE + 1) ? (value.longValue() + 1) : value;
+        return value.longValue() < ((long) Integer.MAX_VALUE + 1)
+            ? (value.longValue() + 1)
+            : value.longValue();
       case TILEDB_UINT64:
-        return value.longValue() < ((long) Integer.MAX_VALUE + 1) ? (value.longValue() + 1) : value;
+        return value.longValue() < ((long) Integer.MAX_VALUE + 1)
+            ? (value.longValue() + 1)
+            : value.longValue();
       case TILEDB_FLOAT32:
-        return value.floatValue() < Float.MAX_VALUE ? Math.nextUp(value.floatValue()) : value;
+        return value.floatValue() < Float.MAX_VALUE
+            ? Math.nextUp(value.floatValue())
+            : value.floatValue();
       case TILEDB_FLOAT64:
-        return value.doubleValue() < Double.MAX_VALUE ? Math.nextUp(value.doubleValue()) : value;
+        return value.doubleValue() < Double.MAX_VALUE
+            ? Math.nextUp(value.doubleValue())
+            : value.doubleValue();
       default:
         throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
     }
@@ -41,29 +57,41 @@ public class util {
     switch (type) {
       case TILEDB_CHAR:
       case TILEDB_INT8:
-        return ((Number) value).byteValue() > Byte.MIN_VALUE
-            ? (((Number) value).byteValue() - 1)
-            : value;
+        return value.byteValue() > Byte.MIN_VALUE
+            ? (byte) (value.byteValue() - 1)
+            : value.byteValue();
       case TILEDB_INT16:
-        return value.shortValue() > Short.MIN_VALUE ? (value.shortValue() - 1) : value;
+        return value.shortValue() > Short.MIN_VALUE
+            ? (short) (value.shortValue() - 1)
+            : value.shortValue();
       case TILEDB_INT32:
-        return value.intValue() > Integer.MIN_VALUE ? (value.intValue() - 1) : value;
+        return value.intValue() > Integer.MIN_VALUE ? (value.intValue() - 1) : value.intValue();
       case TILEDB_INT64:
-        return value.longValue() > Long.MIN_VALUE ? (value.longValue() - 1) : value;
+        return value.longValue() > Long.MIN_VALUE ? (value.longValue() - 1) : value.longValue();
       case TILEDB_UINT8:
-        return value.shortValue() > ((short) Byte.MIN_VALUE - 1) ? (value.shortValue() - 1) : value;
+        return value.shortValue() > ((short) Byte.MIN_VALUE - 1)
+            ? (short) (value.shortValue() - 1)
+            : value.shortValue();
       case TILEDB_UINT16:
-        return value.intValue() > ((int) Short.MIN_VALUE - 1) ? (value.intValue() - 1) : value;
+        return value.intValue() > ((int) Short.MIN_VALUE - 1)
+            ? (value.intValue() - 1)
+            : value.intValue();
       case TILEDB_UINT32:
-        return value.longValue() > ((long) Integer.MIN_VALUE - 1) ? (value.longValue() - 1) : value;
+        return value.longValue() > ((long) Integer.MIN_VALUE - 1)
+            ? (value.longValue() - 1)
+            : value.longValue();
       case TILEDB_UINT64:
-        return value.longValue() > ((long) Integer.MIN_VALUE - 1) ? (value.longValue() - 1) : value;
+        return value.longValue() > ((long) Integer.MIN_VALUE - 1)
+            ? (value.longValue() - 1)
+            : value.longValue();
       case TILEDB_FLOAT32:
-        return (value.floatValue()) > Float.MIN_VALUE ? Math.nextDown(value.floatValue()) : value;
+        return (value.floatValue()) > Float.MIN_VALUE
+            ? Math.nextDown(value.floatValue())
+            : value.floatValue();
       case TILEDB_FLOAT64:
         return (value.doubleValue()) > Double.MIN_VALUE
             ? Math.nextDown(value.doubleValue())
-            : value;
+            : value.doubleValue();
       default:
         throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
     }
