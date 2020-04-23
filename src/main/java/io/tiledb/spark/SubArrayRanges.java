@@ -256,6 +256,44 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
   }
 
   /**
+   * Splits the subarray ranges into partitions
+   *
+   * @param partitions The number of partitions
+   * @return A list of SubArrayRanges
+   * @throws TileDBError
+   */
+  public List<SubArrayRanges> splitToPartitions(int partitions) throws TileDBError {
+    List<SubArrayRanges> newSubarrays = new ArrayList<>();
+
+    long actualWidth = ranges.get(0).width().longValue();
+    double exactEffectiveWidth = actualWidth * 1.0 / partitions;
+
+    long partitionWidth = (long) exactEffectiveWidth;
+
+    if (exactEffectiveWidth < 1) {
+      partitions = (int) actualWidth;
+      partitionWidth = 1;
+    }
+
+    // Split the first dimension
+    if (ranges.get(0).splittable()) {
+      for (Range newRange : ranges.get(0).splitRangeToPartitions(partitions, partitionWidth)) {
+        List<Range> dimRanges = new ArrayList<>();
+        dimRanges.add(newRange);
+
+        // Add the rest of the dimension ranges
+        for (int i = 1; i < ranges.size(); i++) {
+          dimRanges.add(ranges.get(i));
+        }
+
+        newSubarrays.add(new SubArrayRanges(dimRanges, datatype));
+      }
+    }
+
+    return newSubarrays;
+  }
+
+  /**
    * Compute the percentage of width that each dimension gives based on the total summation of
    * widths For example if we have 3 ranges with widths 10, 15 and 35 then the computation is: 10 /
    * (10+15+35) = 0.16666, 15/(10+15+35) = 0.25, 35 / (10+15+35) = 0.58333

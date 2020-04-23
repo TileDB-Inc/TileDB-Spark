@@ -4,6 +4,7 @@ import io.tiledb.java.api.*;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.Optional;
 import org.apache.spark.sql.types.*;
 
 public class TileDBReadSchema implements Serializable {
@@ -12,13 +13,15 @@ public class TileDBReadSchema implements Serializable {
   private TileDBDataSourceOptions options;
   private StructType pushDownSparkSchema;
   private StructType tiledbSparkSchema;
-  public HashMap<String, Integer> dimensionIndexes;
+  public HashMap<String, Integer> dimensionIndex;
+  public HashMap<Integer, String> dimensionName;
   public Datatype domainType;
 
   public TileDBReadSchema(URI uri, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.options = options;
-    this.dimensionIndexes = new HashMap<>();
+    this.dimensionIndex = new HashMap<>();
+    this.dimensionName = new HashMap<>();
     this.getSparkSchema();
   }
 
@@ -61,7 +64,8 @@ public class TileDBReadSchema implements Serializable {
       for (int i = 0; i < arrayDomain.getNDim(); i++) {
         try (Dimension dim = arrayDomain.getDimension(i)) {
           String dimName = dim.getName();
-          dimensionIndexes.put(dimName, i);
+          this.dimensionIndex.put(dimName, i);
+          this.dimensionName.put(i, dimName);
           // schema is immutable so to iteratively add we need to re-assign
           sparkSchema = sparkSchema.add(toStructField(dimName, true, dim.getType(), 1l, false));
         }
@@ -77,6 +81,19 @@ public class TileDBReadSchema implements Serializable {
       }
     }
     return sparkSchema;
+  }
+
+  public Optional<Integer> getDimensionId(String dimensionName) {
+    if (this.dimensionIndex.containsKey(dimensionName))
+      return Optional.of(this.dimensionIndex.get(dimensionName));
+
+    return Optional.empty();
+  }
+
+  public Optional<String> getDimensionName(Integer id) {
+    if (this.dimensionName.containsKey(id)) return Optional.of(this.dimensionName.get(id));
+
+    return Optional.empty();
   }
 
   private StructField toStructField(
