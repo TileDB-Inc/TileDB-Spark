@@ -173,7 +173,7 @@ public class TileDBWriteSchema {
           extent = max;
         }
         return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_DATETIME_DAY, new Pair<>(min, max), extent);
+            ctx, field.name(), Datatype.TILEDB_DATETIME_DAY, new Pair<>(min, max), max);
 
       } else if (dataType instanceof TimestampType) {
         Long min = Long.MIN_VALUE + 1l;
