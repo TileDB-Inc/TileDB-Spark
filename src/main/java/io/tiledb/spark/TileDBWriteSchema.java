@@ -91,19 +91,19 @@ public class TileDBWriteSchema {
       Optional<Long> longMax = options.getSchemaDimensionMaxDomainLong(dimIdx);
       Optional<Long> longExtent = options.getSchemaDimensionExtentLong(dimIdx);
       if (dataType instanceof IntegerType) {
-        Integer min = Integer.MIN_VALUE;
-        if (longMin.isPresent()) {
-          min = Math.toIntExact(longMin.get());
-        }
-        Integer max = Integer.MAX_VALUE - 1;
-        if (longMax.isPresent()) {
-          max = Math.toIntExact(longMax.get());
-        }
         Integer extent;
         if (longExtent.isPresent()) {
           extent = Math.toIntExact(longExtent.get());
         } else {
-          extent = max;
+          extent = (int) Short.MAX_VALUE;
+        }
+        Integer min = (int) Short.MIN_VALUE;
+        if (longMin.isPresent()) {
+          min = Math.toIntExact(longMin.get());
+        }
+        Integer max = (int) Short.MAX_VALUE;
+        if (longMax.isPresent()) {
+          max = Math.toIntExact(longMax.get());
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_INT32, new Pair<>(min, max), extent);
