@@ -26,7 +26,7 @@ This will create a `build/libs/TileDB-Spark-0.0.5-SNAPSHOT.jar` JAR as well as b
 To load the TileDB Spark Datasource reader, 
 you need to specify the path to built project jar with `--jars` to upload to the Spark cluster.
 
-    $ spark-shell --jars build/libs/TileDB-Spark-0.0.5-SNAPSHOT.jar,/path/to/TileDB-Java-0.2.3.jar
+    $ spark-shell --jars build/libs/TileDB-Spark-0.0.5-SNAPSHOT.jar,/path/to/TileDB-Java-0.2.4.jar
 
 To read TileDB data to a dataframe in the TileDB format, specify the `format` and `uri` option.
 Optionally include the `read_buffer_size` to set the off heap tiledb buffer sizes per attribute (include coordinates).
