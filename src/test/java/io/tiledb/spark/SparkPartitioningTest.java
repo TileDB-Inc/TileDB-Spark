@@ -297,8 +297,7 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
 
   @Test
   public void testPartitioningLongMultiDim1() {
-    Dataset ds = createLongDatasetMultiDim(session());
-    testWriteRead2Dim(ds, 3, 3);
+    testWriteRead2Dim(createLongDatasetMultiDim(session()), 3, 3);
   }
 
   @Test
