@@ -95,7 +95,7 @@ public class TileDBWriteSchema {
         if (longMin.isPresent()) {
           min = Math.toIntExact(longMin.get());
         }
-        Integer max = Integer.MAX_VALUE;
+        Integer max = Integer.MAX_VALUE - 1;
         if (longMax.isPresent()) {
           max = Math.toIntExact(longMax.get());
         }
@@ -103,7 +103,7 @@ public class TileDBWriteSchema {
         if (longExtent.isPresent()) {
           extent = Math.toIntExact(longExtent.get());
         } else {
-          extent = max - min;
+          extent = (int) Short.MAX_VALUE;
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_INT32, new Pair<>(min, max), extent);

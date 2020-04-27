@@ -139,21 +139,20 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
     return df.withColumn("id", functions.monotonically_increasing_id());
   }
 
-  // Comment-out for now to prevent CI failure
-  //  @Test
-  //  public void testPartitioningInteger1() {
-  //    testWriteRead(createIntegerDataset(session()), 3, 3, "a1");
-  //  }
-  //
-  //  @Test
-  //  public void testPartitioningInteger2() {
-  //    testWriteRead(createIntegerDataset(session()), 10, 4, "a1");
-  //  }
-  //
-  //  @Test
-  //  public void testPartitioningInteger3() {
-  //    testWriteRead(createIntegerDataset(session()), 2, 2, "a1");
-  //  }
+  @Test
+  public void testPartitioningInteger1() {
+    testWriteRead(createIntegerDataset(session()), 3, 3, "a1");
+  }
+
+  @Test
+  public void testPartitioningInteger2() {
+    testWriteRead(createIntegerDataset(session()), 10, 10, "a1");
+  }
+
+  @Test
+  public void testPartitioningInteger3() {
+    testWriteRead(createIntegerDataset(session()), 2, 2, "a1");
+  }
 
   public Dataset<Row> createLongDataset(SparkSession ss) {
     StructField[] structFields =
@@ -246,21 +245,21 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
     return df.withColumn("id", functions.monotonically_increasing_id());
   }
 
-  // Comment-out for now to prevent CI failure
-  //  @Test
-  //  public void testPartitioningIntegerMultiDim1() {
-  //    testWriteRead(createIntegerDatasetMultiDim(session()), 3, 3, "a1");
-  //  }
+  //   Comment-out for now to prevent CI failure
+  //    @Test
+  //    public void testPartitioningIntegerMultiDim1() {
+  //      testWriteRead(createIntegerDatasetMultiDim(session()), 3, 3, "a1");
+  //    }
   //
-  //  @Test
-  //  public void testPartitioningIntegerMultiDim2() {
-  //    testWriteRead(createIntegerDatasetMultiDim(session()), 10, 4, "a1");
-  //  }
+  //    @Test
+  //    public void testPartitioningIntegerMultiDim2() {
+  //      testWriteRead(createIntegerDatasetMultiDim(session()), 10, 4, "a1");
+  //    }
   //
-  //  @Test
-  //  public void testPartitioningIntegerMultiDim3() {
-  //    testWriteRead(createIntegerDatasetMultiDim(session()), 2, 2, "a1");
-  //  }
+  //    @Test
+  //    public void testPartitioningIntegerMultiDim3() {
+  //      testWriteRead(createIntegerDatasetMultiDim(session()), 2, 2, "a1");
+  //    }
 
   @Test
   public void testWriteStringDataset1() {
