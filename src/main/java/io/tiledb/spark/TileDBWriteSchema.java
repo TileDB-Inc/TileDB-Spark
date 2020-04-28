@@ -91,19 +91,19 @@ public class TileDBWriteSchema {
       Optional<Long> longMax = options.getSchemaDimensionMaxDomainLong(dimIdx);
       Optional<Long> longExtent = options.getSchemaDimensionExtentLong(dimIdx);
       if (dataType instanceof IntegerType) {
-        Integer min = Integer.MIN_VALUE;
-        if (longMin.isPresent()) {
-          min = Math.toIntExact(longMin.get());
-        }
-        Integer max = Integer.MAX_VALUE;
-        if (longMax.isPresent()) {
-          max = Math.toIntExact(longMax.get());
-        }
         Integer extent;
         if (longExtent.isPresent()) {
           extent = Math.toIntExact(longExtent.get());
         } else {
-          extent = max - min;
+          extent = (int) Short.MAX_VALUE;
+        }
+        Integer min = (int) Short.MIN_VALUE;
+        if (longMin.isPresent()) {
+          min = Math.toIntExact(longMin.get());
+        }
+        Integer max = (int) Short.MAX_VALUE;
+        if (longMax.isPresent()) {
+          max = Math.toIntExact(longMax.get());
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_INT32, new Pair<>(min, max), extent);
@@ -173,7 +173,7 @@ public class TileDBWriteSchema {
           extent = max;
         }
         return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_DATETIME_DAY, new Pair<>(min, max), extent);
+            ctx, field.name(), Datatype.TILEDB_DATETIME_DAY, new Pair<>(min, max), max);
 
       } else if (dataType instanceof TimestampType) {
         Long min = Long.MIN_VALUE + 1l;
@@ -188,7 +188,7 @@ public class TileDBWriteSchema {
         if (longExtent.isPresent()) {
           extent = longExtent.get();
         } else {
-          extent = max;
+          extent = max - min;
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_DATETIME_MS, new Pair<>(min, max), extent);
