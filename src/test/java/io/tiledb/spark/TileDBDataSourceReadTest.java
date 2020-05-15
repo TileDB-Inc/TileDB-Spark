@@ -1,18 +1,82 @@
 package io.tiledb.spark;
 
+import static io.tiledb.java.api.ArrayType.TILEDB_DENSE;
+import static io.tiledb.java.api.Layout.*;
+import static io.tiledb.java.api.QueryType.TILEDB_WRITE;
+
+import io.tiledb.java.api.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
+  private Context ctx;
+  private String DENSE_ARRAY_URI = "dense";
+
+  @Before
+  public void setup() throws Exception {
+    ctx = new Context();
+
+    if (Files.exists(Paths.get(DENSE_ARRAY_URI))) TileDBObject.remove(ctx, DENSE_ARRAY_URI);
+  }
+
+  @After
+  public void tearDown() throws Exception {
+    if (Files.exists(Paths.get(DENSE_ARRAY_URI))) TileDBObject.remove(ctx, DENSE_ARRAY_URI);
+
+    ctx.close();
+  }
 
   private String testArrayURIString(String arrayName) {
     Path arraysPath = Paths.get("src", "test", "resources", "data", "1.6", arrayName);
     return "file://".concat(arraysPath.toAbsolutePath().toString());
+  }
+
+  public void denseArrayCreate() throws TileDBError {
+    // Create getDimensions
+    Dimension d1 = new Dimension(ctx, "rows", Integer.class, new Pair(1, 4), 2);
+    Dimension d2 = new Dimension(ctx, "cols", Integer.class, new Pair(1, 2), 2);
+
+    // Create and set getDomain
+    Domain domain = new Domain(ctx);
+    domain.addDimension(d1);
+    domain.addDimension(d2);
+
+    // Create and add getAttributes
+    Attribute a1 = new Attribute(ctx, "vals", Integer.class);
+    a1.setFilterList(new FilterList(ctx).addFilter(new LZ4Filter(ctx)));
+
+    ArraySchema schema = new ArraySchema(ctx, TILEDB_DENSE);
+    schema.setTileOrder(TILEDB_ROW_MAJOR);
+    schema.setCellOrder(TILEDB_ROW_MAJOR);
+    schema.setDomain(domain);
+    schema.addAttribute(a1);
+
+    schema.check();
+
+    Array.create(DENSE_ARRAY_URI, schema);
+  }
+
+  public void denseArrayWrite() throws TileDBError {
+    Array my_dense_array = new Array(ctx, DENSE_ARRAY_URI, TILEDB_WRITE);
+
+    NativeArray vals_data = new NativeArray(ctx, new int[] {1, 3, 5, 7, 2, 4, 6, 8}, Integer.class);
+
+    // Create query
+    try (Query query = new Query(my_dense_array, TILEDB_WRITE)) {
+      query.setLayout(TILEDB_GLOBAL_ORDER).setBuffer("vals", vals_data);
+      query.submit();
+      query.finalizeQuery();
+    }
+
+    my_dense_array.close();
   }
 
   @Test
@@ -45,13 +109,16 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
   }
 
   @Test
-  public void testQuickStartDenseRowMajor() {
+  public void testQuickStartDenseRowMajor() throws TileDBError {
+    denseArrayCreate();
+    denseArrayWrite();
+
     for (String order : new String[] {"row-major", "TILEDB_ROW_MAJOR"}) {
       Dataset<Row> dfRead =
           session()
               .read()
               .format("io.tiledb.spark")
-              .option("uri", testArrayURIString("writing_dense_global_array"))
+              .option("uri", DENSE_ARRAY_URI)
               .option("order", order)
               .option("partition_count", 1)
               .load();
@@ -67,7 +134,7 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
       for (int i = 0; i < rows.size(); i++) {
         Assert.assertEquals(expectedCols[i], rows.get(i).getInt(1));
       }
-      int[] expectedVals = new int[] {1, 2, 3, 4, 5, 6, 7, 8};
+      int[] expectedVals = new int[] {1, 3, 5, 7, 2, 4, 6, 8};
       for (int i = 0; i < rows.size(); i++) {
         Assert.assertEquals(expectedVals[i], rows.get(i).getInt(2));
       }
@@ -95,20 +162,25 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
   }
 
   @Test
-  public void testQuickStartDenseColMajor() {
+  public void testQuickStartDenseColMajor() throws TileDBError {
+    denseArrayCreate();
+    denseArrayWrite();
+
     for (String order : new String[] {"col-major", "TILEDB_COL_MAJOR"}) {
       Dataset<Row> dfRead =
           session()
               .read()
               .format("io.tiledb.spark")
-              .option("uri", testArrayURIString("writing_dense_global_array"))
+              .option("uri", DENSE_ARRAY_URI)
               .option("order", order)
               .option("partition_count", 1)
               .load();
       dfRead.createOrReplaceTempView("tmp");
+      dfRead.show();
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
       int[] expectedRows = new int[] {1, 2, 3, 4, 1, 2, 3, 4};
       Assert.assertEquals(expectedRows.length, rows.size());
+
       for (int i = 0; i < rows.size(); i++) {
         Assert.assertEquals(expectedRows[i], rows.get(i).getInt(0));
       }
@@ -117,7 +189,7 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
       for (int i = 0; i < rows.size(); i++) {
         Assert.assertEquals(expectedCols[i], rows.get(i).getInt(1));
       }
-      int[] expectedVals = new int[] {1, 3, 5, 7, 2, 4, 6, 8};
+      int[] expectedVals = new int[] {1, 5, 2, 6, 3, 7, 4, 8};
       for (int i = 0; i < rows.size(); i++) {
         Assert.assertEquals(expectedVals[i], rows.get(i).getInt(2));
       }
