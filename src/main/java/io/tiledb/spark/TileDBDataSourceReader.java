@@ -168,9 +168,10 @@ public class TileDBDataSourceReader
     metricsUpdater.startTimer(dataSourcePlanBatchInputPartitionsTimerName);
     ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
 
-    try (Context ctx = new Context(tiledbOptions.getTileDBConfigMap());
-        // Fetch the array and load its metadata
-        Array array = new Array(ctx, uri.toString()); ) {
+    try {
+      Context ctx = new Context(tiledbOptions.getTileDBConfigMap());
+      // Fetch the array and load its metadata
+      Array array = new Array(ctx, uri.toString());
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
       Domain domain = array.getSchema().getDomain();
 

@@ -1,6 +1,5 @@
 package io.tiledb.spark;
 
-import static io.tiledb.java.api.Constants.TILEDB_COORDS;
 import static io.tiledb.java.api.Datatype.TILEDB_UINT64;
 import static io.tiledb.java.api.QueryStatus.TILEDB_COMPLETED;
 import static io.tiledb.java.api.QueryStatus.TILEDB_INCOMPLETE;
@@ -26,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBReadMetricsUpdater;
@@ -61,6 +61,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private ArraySchema arraySchema;
   private Array array;
   private Query query;
+  private Domain domain;
 
   // Spark schema object associated with this projection (if any) for the query
   private StructType sparkSchema;
@@ -75,11 +76,14 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private QueryStatus queryStatus;
 
   private TaskContext task;
+
+  private List<String> fieldNames;
+
   /**
    * List of NativeArray buffers used in the query object. This is indexed based on columnHandles
    * indexing (aka query field indexes)
    */
-  private final ArrayList<Pair<NativeArray, NativeArray>> queryBuffers;
+  private ArrayList<Pair<NativeArray, NativeArray>> queryBuffers;
 
   public TileDBDataReaderPartitionScan(
       URI uri,
@@ -108,10 +112,37 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     oshi.SystemInfo systemInfo = new oshi.SystemInfo();
 
     this.hardwareAbstractionLayer = systemInfo.getHardware();
-    this.queryBuffers =
-        new ArrayList<>(Collections.nCopies(schema.getSparkSchema().fields().length, null));
 
     try {
+      // Init TileDB resources
+      ctx = new Context(options.getTileDBConfigMap());
+      array = new Array(ctx, arrayURI.toString(), QueryType.TILEDB_READ);
+      arraySchema = array.getSchema();
+      domain = arraySchema.getDomain();
+
+      if (sparkSchema.fields().length != 0)
+        fieldNames =
+            Arrays.stream(sparkSchema.fields())
+                .map(field -> field.name())
+                .collect(Collectors.toList());
+      else {
+        fieldNames =
+            domain
+                .getDimensions()
+                .stream()
+                .map(
+                    dimension -> {
+                      try {
+                        return dimension.getName();
+                      } catch (TileDBError error) {
+                        return null;
+                      }
+                    })
+                .collect(Collectors.toList());
+      }
+
+      this.queryBuffers = new ArrayList<>(Collections.nCopies(fieldNames.size(), null));
+
       // init query
       this.initQuery();
     } catch (TileDBError tileDBError) {
@@ -122,7 +153,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   @Override
   public boolean next() {
     metricsUpdater.startTimer(queryNextTimerName);
-    try (Domain domain = arraySchema.getDomain()) {
+    try {
       // first submission initialize the query and see if we can fast fail;
       if (query == null) {
         initQuery();
@@ -144,8 +175,15 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
         // Compute the number of cells (records) that were returned by the query.
         HashMap<String, Pair<Long, Long>> queryResultBufferElements = query.resultBufferElements();
-        long currentNumRecords =
-            queryResultBufferElements.get(TILEDB_COORDS).getSecond() / domain.getNDim();
+        long currentNumRecords;
+
+        String fieldName = fieldNames.get(0);
+        boolean isVar;
+        if (domain.hasDimension(fieldName)) isVar = domain.getDimension(fieldName).isVar();
+        else isVar = arraySchema.getAttribute(fieldName).isVar();
+
+        if (isVar) currentNumRecords = queryResultBufferElements.get(fieldNames.get(0)).getFirst();
+        else currentNumRecords = queryResultBufferElements.get(fieldNames.get(0)).getSecond();
 
         // Increase the buffer allocation and resubmit if necessary.
         if (queryStatus == TILEDB_INCOMPLETE && currentNumRecords == 0) { // VERY IMPORTANT!!
@@ -178,8 +216,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       // This is a special case for COUNT() on the table where no columns are materialized
       if (sparkSchema.fields().length == 0) {
         // TODO: materialize the first dimension and count the result set size
-        try (Domain domain = arraySchema.getDomain();
-            Dimension dim = domain.getDimension(0)) {
+        try (Dimension dim = domain.getDimension(0)) {
           nRows = getDimensionColumn(dim.getName(), 0);
         }
       } else {
@@ -262,12 +299,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    */
   private boolean initQuery() throws TileDBError {
     metricsUpdater.startTimer(queryInitTimerName);
-    ctx = new Context(options.getTileDBConfigMap());
-    array = new Array(ctx, arrayURI.toString(), QueryType.TILEDB_READ);
-    arraySchema = array.getSchema();
-    try (Domain domain = arraySchema.getDomain();
-        NativeArray nativeSubArray =
-            new NativeArray(ctx, 2 * (int) domain.getNDim(), domain.getType())) {
+    try (NativeArray nativeSubArray =
+        new NativeArray(ctx, 2 * (int) domain.getNDim(), domain.getType())) {
 
       // TODO: Init with one subarray spanning the domain for now
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
@@ -387,47 +420,47 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   private void allocateQuerybuffers(long readBufferSize) throws TileDBError {
     metricsUpdater.startTimer(queryAllocBufferTimerName);
-    try (Domain domain = arraySchema.getDomain(); ) {
-      // Create coordinate buffers
-      int ncoords = Math.toIntExact(readBufferSize / domain.getType().getNativeSize());
-      NativeArray coordBuffer = new NativeArray(ctx, ncoords, domain.getType());
+    // Create coordinate buffers
+    int ncoords = Math.toIntExact(readBufferSize / domain.getType().getNativeSize());
 
-      // loop over all attributes and set the query buffers based on buffer size
-      // the query object handles the lifetime of the allocated (offheap) NativeArrays
-      int i = 0;
-      for (StructField field : sparkSchema.fields()) {
-        // get the spark column name and match to array schema
-        String name = field.name();
-        if (domain.hasDimension(name)) {
-          queryBuffers.set(i++, new Pair<>(null, coordBuffer));
-          // dimension column (coordinate buffer allocation handled at the end)
-          continue;
-        }
-        try (Attribute attr = arraySchema.getAttribute(name)) {
-          int nvalues = Math.toIntExact(readBufferSize / attr.getType().getNativeSize());
-          NativeArray data = new NativeArray(ctx, nvalues, attr.getType());
-          // attribute is variable length, init the varlen result buffers using the est num offsets
-          if (attr.isVar()) {
-            int noffsets = Math.toIntExact(readBufferSize / TILEDB_UINT64.getNativeSize());
-            NativeArray offsets = new NativeArray(ctx, noffsets, TILEDB_UINT64);
-            query.setBuffer(name, offsets, data);
-            queryBuffers.set(i++, new Pair<>(offsets, data));
-          } else {
-            // attribute is fixed length, use the result size estimate for allocation
-            query.setBuffer(name, new NativeArray(ctx, nvalues, attr.getType()));
-            queryBuffers.set(i++, new Pair<>(null, data));
-          }
-        }
+    // loop over all attributes and set the query buffers based on buffer size
+    // the query object handles the lifetime of the allocated (offheap) NativeArrays
+    int i = 0;
+
+    for (String fieldName : fieldNames) {
+      // get the spark column name and match to array schema
+      String name = fieldName;
+      Boolean isVar;
+      Datatype type;
+
+      if (domain.hasDimension(name)) {
+        Dimension dim = domain.getDimension(name);
+        type = dim.getType();
+        isVar = dim.isVar();
+      } else {
+        Attribute attr = arraySchema.getAttribute(name);
+        type = attr.getType();
+        isVar = attr.isVar();
       }
-      // set the coordinate buffer result buffer
-      query.setCoordinates(coordBuffer);
 
-      // Allocate result set batch based on the estimated (upper bound) number of rows / cells
-      resultVectors =
-          OnHeapColumnVector.allocateColumns(
-              Math.toIntExact(ncoords / domain.getNDim()), sparkSchema);
-      resultBatch = new ColumnarBatch(resultVectors);
+      int nvalues = Math.toIntExact(readBufferSize / type.getNativeSize());
+      NativeArray data = new NativeArray(ctx, nvalues, type);
+      // attribute is variable length, init the varlen result buffers using the est num offsets
+      if (isVar) {
+        int noffsets = Math.toIntExact(readBufferSize / TILEDB_UINT64.getNativeSize());
+        NativeArray offsets = new NativeArray(ctx, noffsets, TILEDB_UINT64);
+        query.setBuffer(name, offsets, data);
+        queryBuffers.set(i++, new Pair<>(offsets, data));
+      } else {
+        // attribute is fixed length, use the result size estimate for allocation
+        query.setBuffer(name, new NativeArray(ctx, nvalues, type));
+        queryBuffers.set(i++, new Pair<>(null, data));
+      }
     }
+
+    // Allocate result set batch based on the estimated (upper bound) number of rows / cells
+    resultVectors = OnHeapColumnVector.allocateColumns(Math.toIntExact(ncoords), sparkSchema);
+    resultBatch = new ColumnarBatch(resultVectors);
 
     metricsUpdater.finish(queryAllocBufferTimerName);
   }
@@ -703,139 +736,105 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   private int getDimensionColumn(String name, int index) throws TileDBError {
     metricsUpdater.startTimer(queryGetDimensionTimerName);
-    int numValues = 0;
     int bufferLength = 0;
-    try (Domain domain = arraySchema.getDomain()) {
-      int ndim = Math.toIntExact(domain.getNDim());
-      int dimIdx = 0;
-      // map
-      for (; dimIdx < ndim; dimIdx++) {
-        try (Dimension dim = domain.getDimension(dimIdx)) {
-          if (dim.getName().equals(name)) {
-            break;
+    Dimension dim = domain.getDimension(name);
+    Datatype type = dim.getType();
+    int ndim = Math.toIntExact(domain.getNDim());
+
+    // perform a strided copy for dimension columnar buffers startng a dimIdx offset (slow path)
+    switch (type) {
+      case TILEDB_FLOAT32:
+        {
+          float[] buffer = (float[]) query.getBuffer(name);
+          bufferLength = buffer.length;
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putFloats(0, bufferLength, buffer, 0);
           }
+          break;
         }
-      }
-      // perform a strided copy for dimension columnar buffers startng a dimIdx offset (slow path)
-      switch (domain.getType()) {
-        case TILEDB_FLOAT32:
-          {
-            float[] coords = (float[]) query.getCoordinates();
-            bufferLength = coords.length;
-            numValues = bufferLength / ndim;
-            if (resultVectors.length > 0) {
-              resultVectors[index].reset();
-              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
-                resultVectors[index].putFloat(row, coords[i]);
-              }
-            }
-            break;
+      case TILEDB_FLOAT64:
+        {
+          double[] buffer = (double[]) query.getBuffer(name);
+          bufferLength = buffer.length;
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putDoubles(0, bufferLength, buffer, 0);
           }
-        case TILEDB_FLOAT64:
-          {
-            double[] coords = (double[]) query.getCoordinates();
-            bufferLength = coords.length;
-            numValues = bufferLength / ndim;
-            if (resultVectors.length > 0) {
-              resultVectors[index].reset();
-              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
-                resultVectors[index].putDouble(row, coords[i]);
-              }
-            }
-            break;
+          break;
+        }
+      case TILEDB_INT8:
+        {
+          byte[] buffer = (byte[]) query.getBuffer(name);
+          bufferLength = buffer.length;
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putBytes(0, bufferLength, buffer, 0);
           }
-        case TILEDB_INT8:
-          {
-            byte[] coords = (byte[]) query.getCoordinates();
-            bufferLength = coords.length;
-            numValues = bufferLength / ndim;
-            if (resultVectors.length > 0) {
-              resultVectors[index].reset();
-              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
-                resultVectors[index].putByte(row, coords[i]);
-              }
-            }
-            break;
+          break;
+        }
+      case TILEDB_INT16:
+      case TILEDB_UINT8:
+        {
+          short[] buffer = (short[]) query.getBuffer(name);
+          bufferLength = buffer.length;
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putShorts(0, bufferLength, buffer, 0);
           }
-        case TILEDB_INT16:
-        case TILEDB_UINT8:
-          {
-            short[] coords = (short[]) query.getCoordinates();
-            bufferLength = coords.length;
-            numValues = bufferLength / ndim;
-            if (resultVectors.length > 0) {
-              resultVectors[index].reset();
-              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
-                resultVectors[index].putShort(row, coords[i]);
-              }
-            }
-            break;
+          break;
+        }
+      case TILEDB_UINT16:
+      case TILEDB_INT32:
+        {
+          int[] buffer = (int[]) query.getBuffer(name);
+          bufferLength = buffer.length;
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putInts(0, bufferLength, buffer, 0);
           }
-        case TILEDB_UINT16:
-        case TILEDB_INT32:
-          {
-            int[] coords = (int[]) query.getCoordinates();
-            bufferLength = coords.length;
-            numValues = bufferLength / ndim;
-            if (resultVectors.length > 0) {
-              resultVectors[index].reset();
-              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
-                resultVectors[index].putInt(row, coords[i]);
-              }
-            }
-            break;
+          break;
+        }
+      case TILEDB_INT64:
+      case TILEDB_UINT32:
+      case TILEDB_UINT64:
+        {
+          long[] buffer = (long[]) query.getBuffer(name);
+          bufferLength = buffer.length;
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffer, 0);
           }
-        case TILEDB_INT64:
-        case TILEDB_UINT32:
-        case TILEDB_UINT64:
-          {
-            long[] coords = (long[]) query.getCoordinates();
-            bufferLength = coords.length;
-            numValues = bufferLength / ndim;
-            if (resultVectors.length > 0) {
-              resultVectors[index].reset();
-              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
-                resultVectors[index].putLong(row, coords[i]);
-              }
-            }
-            break;
+          break;
+        }
+      case TILEDB_DATETIME_DAY:
+        {
+          long[] buffer = (long[]) query.getBuffer(name);
+          bufferLength = bufferLength / ndim;
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffer, 0);
           }
-        case TILEDB_DATETIME_DAY:
-          {
-            long[] coords = (long[]) query.getCoordinates();
-            bufferLength = coords.length;
-            int[] coordsConverted =
-                Arrays.stream(coords).mapToInt(i -> ((Long) i).intValue()).toArray();
-            numValues = bufferLength / ndim;
-            if (resultVectors.length > 0) {
-              resultVectors[index].reset();
-              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
-                resultVectors[index].putInt(row, coordsConverted[i]);
-              }
-            }
-            break;
+          break;
+        }
+      case TILEDB_DATETIME_MS:
+        {
+          long[] buffer = (long[]) query.getBuffer(name);
+          bufferLength = buffer.length;
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffer, 0);
           }
-        case TILEDB_DATETIME_MS:
-          {
-            long[] coords = (long[]) query.getCoordinates();
-            bufferLength = coords.length;
-            numValues = bufferLength / ndim;
-            if (resultVectors.length > 0) {
-              resultVectors[index].reset();
-              for (int i = dimIdx, row = 0; i < bufferLength; i += ndim, row++) {
-                resultVectors[index].putLong(row, coords[i]);
-              }
-            }
-            break;
-          }
-        default:
-          {
-            throw new TileDBError("Unsupported dimension type for domain " + domain.getType());
-          }
-      }
+          break;
+        }
+      default:
+        {
+          throw new TileDBError("Unsupported dimension type for domain " + domain.getType());
+        }
     }
+
     metricsUpdater.finish(queryGetDimensionTimerName);
-    return numValues;
+    return bufferLength;
   }
 
   /** Close out onheap column vectors */
