@@ -1,6 +1,7 @@
 package io.tiledb.spark;
 
 import static io.tiledb.java.api.ArrayType.TILEDB_DENSE;
+import static io.tiledb.java.api.ArrayType.TILEDB_SPARSE;
 import static io.tiledb.java.api.Layout.*;
 import static io.tiledb.java.api.QueryType.TILEDB_WRITE;
 
@@ -8,6 +9,7 @@ import io.tiledb.java.api.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -19,17 +21,19 @@ import org.junit.Test;
 public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
   private Context ctx;
   private String DENSE_ARRAY_URI = "dense";
+  private String SPARSE_ARRAY_URI = "sparse";
 
   @Before
   public void setup() throws Exception {
     ctx = new Context();
-
     if (Files.exists(Paths.get(DENSE_ARRAY_URI))) TileDBObject.remove(ctx, DENSE_ARRAY_URI);
+    if (Files.exists(Paths.get(SPARSE_ARRAY_URI))) TileDBObject.remove(ctx, SPARSE_ARRAY_URI);
   }
 
   @After
   public void tearDown() throws Exception {
     if (Files.exists(Paths.get(DENSE_ARRAY_URI))) TileDBObject.remove(ctx, DENSE_ARRAY_URI);
+    if (Files.exists(Paths.get(SPARSE_ARRAY_URI))) TileDBObject.remove(ctx, SPARSE_ARRAY_URI);
 
     ctx.close();
   }
@@ -62,6 +66,49 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     schema.check();
 
     Array.create(DENSE_ARRAY_URI, schema);
+  }
+
+  public void sparseHeterogeneousArrayCreate(List<Dimension> dimensions) throws TileDBError {
+    // Create and set getDomain
+    Domain domain = new Domain(ctx);
+
+    for (Dimension dimension : dimensions) domain.addDimension(dimension);
+
+    // Add two attributes "a1" and "a2", so each (i,j) cell can store
+    // a character on "a1" and a vector of two floats on "a2".
+    Attribute a1 = new Attribute(ctx, "a1", Integer.class);
+
+    ArraySchema schema = new ArraySchema(ctx, TILEDB_SPARSE);
+    schema.setTileOrder(TILEDB_ROW_MAJOR);
+    schema.setCellOrder(TILEDB_ROW_MAJOR);
+    schema.setDomain(domain);
+    schema.addAttribute(a1);
+
+    Array.create(SPARSE_ARRAY_URI, schema);
+  }
+
+  public void sparseHeterogeneousArrayWrite(List<Pair<String, Pair<NativeArray, NativeArray>>> data)
+      throws TileDBError {
+    // Create query
+    Array array = new Array(ctx, SPARSE_ARRAY_URI, TILEDB_WRITE);
+    Query query = new Query(array);
+    query.setLayout(TILEDB_GLOBAL_ORDER);
+
+    for (Pair<String, Pair<NativeArray, NativeArray>> pair : data) {
+      // Not var-sized
+      if (pair.getSecond().getSecond() == null) {
+        query.setBuffer(pair.getFirst(), pair.getSecond().getFirst());
+      } else {
+        query.setBuffer(pair.getFirst(), pair.getSecond().getSecond(), pair.getSecond().getFirst());
+      }
+    }
+
+    // Submit query
+    query.submit();
+
+    query.finalizeQuery();
+    query.close();
+    array.close();
   }
 
   public void denseArrayWrite() throws TileDBError {
@@ -142,226 +189,101 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
   }
 
   @Test
-  public void testExampleVarlenArray() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("variable_length_array"))
-            .option("partition_count", 1)
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows = session().sql("SELECT a1 FROM tmp").collectAsList();
-    String[] expected =
-        new String[] {
-          "a", "bb", "ccc", "dd", "eee", "f", "g", "hhh", "i", "jjj", "kk", "l", "m", "n", "oo", "p"
-        };
-    for (int i = 0; i < rows.size(); i++) {
-      Assert.assertEquals(expected[i], rows.get(i).getString(0));
-    }
-  }
+  public void testHeterogeneousSparse1() throws TileDBError {
+    List<Dimension> dimensions = new ArrayList<>();
+    dimensions.add(new Dimension(ctx, "d1", Datatype.TILEDB_STRING_ASCII, null, null));
+    dimensions.add(new Dimension(ctx, "d2", Datatype.TILEDB_INT32, new Pair(0, 100), 2));
 
-  @Test
-  public void testQuickStartDenseColMajor() throws TileDBError {
-    denseArrayCreate();
-    denseArrayWrite();
+    NativeArray d1_data =
+        new NativeArray(ctx, "object1object2object3", Datatype.TILEDB_STRING_ASCII);
+    NativeArray d1_off = new NativeArray(ctx, new long[] {0, 7, 14}, Datatype.TILEDB_UINT64);
+    NativeArray d2_data = new NativeArray(ctx, new int[] {12, 40, 50}, Datatype.TILEDB_INT32);
+    NativeArray a1_data = new NativeArray(ctx, new int[] {10, 23, 30}, Datatype.TILEDB_INT32);
 
-    for (String order : new String[] {"col-major", "TILEDB_COL_MAJOR"}) {
+    List<Pair<String, Pair<NativeArray, NativeArray>>> data = new ArrayList<>();
+    data.add(new Pair<>("d1", new Pair<>(d1_data, d1_off)));
+    data.add(new Pair<>("d2", new Pair<>(d2_data, null)));
+    data.add(new Pair<>("a1", new Pair<>(a1_data, null)));
+
+    sparseHeterogeneousArrayCreate(dimensions);
+    sparseHeterogeneousArrayWrite(data);
+
+    for (String order : new String[] {"row-major", "TILEDB_ROW_MAJOR"}) {
       Dataset<Row> dfRead =
           session()
               .read()
               .format("io.tiledb.spark")
-              .option("uri", DENSE_ARRAY_URI)
+              .option("uri", SPARSE_ARRAY_URI)
               .option("order", order)
               .option("partition_count", 1)
               .load();
       dfRead.createOrReplaceTempView("tmp");
       dfRead.show();
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
-      int[] expectedRows = new int[] {1, 2, 3, 4, 1, 2, 3, 4};
-      Assert.assertEquals(expectedRows.length, rows.size());
+
+      String[] d1 = new String[] {"object1", "object2", "object3"};
+      int[] d2 = new int[] {12, 40, 50};
+      int[] a1 = new int[] {10, 23, 30};
+      Assert.assertEquals(d1.length, rows.size());
 
       for (int i = 0; i < rows.size(); i++) {
-        Assert.assertEquals(expectedRows[i], rows.get(i).getInt(0));
-      }
-      int[] expectedCols = new int[] {1, 1, 1, 1, 2, 2, 2, 2};
-      Assert.assertEquals(expectedCols.length, rows.size());
-      for (int i = 0; i < rows.size(); i++) {
-        Assert.assertEquals(expectedCols[i], rows.get(i).getInt(1));
-      }
-      int[] expectedVals = new int[] {1, 5, 2, 6, 3, 7, 4, 8};
-      for (int i = 0; i < rows.size(); i++) {
-        Assert.assertEquals(expectedVals[i], rows.get(i).getInt(2));
+        Assert.assertEquals(d1[i], rows.get(i).getString(0));
+        Assert.assertEquals(d2[i], rows.get(i).getInt(1));
+        Assert.assertEquals(a1[i], rows.get(i).getInt(2));
       }
     }
   }
 
   @Test
-  public void testQuickStartSparseFilterEqual() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows = session().sql("SELECT * FROM tmp WHERE rows = 1 and cols = 1").collectAsList();
-    Assert.assertEquals(1, rows.size());
-    // A[1, 1] == 1
-    Row row = rows.get(0);
-    Assert.assertEquals(1, row.getInt(0));
-    Assert.assertEquals(1, row.getInt(1));
-    Assert.assertEquals(1, row.getInt(2));
-    return;
-  }
+  public void testHeterogeneousSparse2() throws TileDBError {
+    List<Dimension> dimensions = new ArrayList<>();
+    dimensions.add(new Dimension(ctx, "d1", Datatype.TILEDB_STRING_ASCII, null, null));
+    dimensions.add(new Dimension(ctx, "d2", Datatype.TILEDB_STRING_ASCII, null, null));
+    dimensions.add(new Dimension(ctx, "d3", Datatype.TILEDB_INT64, new Pair(0L, 1000L), 2L));
 
-  @Test
-  public void testQuickStartSparseFilterGreaterThan() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows = session().sql("SELECT * FROM tmp WHERE rows > 1").collectAsList();
-    Assert.assertEquals(2, rows.size());
-    // A[2, 3] == 3
-    Row row = rows.get(0);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(3, row.getInt(1));
-    Assert.assertEquals(3, row.getInt(2));
-    // A[2, 4] == 2
-    row = rows.get(1);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(4, row.getInt(1));
-    Assert.assertEquals(2, row.getInt(2));
-    return;
-  }
+    NativeArray d1_data =
+        new NativeArray(ctx, "object1object2object3object4", Datatype.TILEDB_STRING_ASCII);
+    NativeArray d1_off = new NativeArray(ctx, new long[] {0, 7, 14, 21}, Datatype.TILEDB_UINT64);
+    NativeArray d2_data = new NativeArray(ctx, "aabbccdd", Datatype.TILEDB_STRING_ASCII);
+    NativeArray d2_off = new NativeArray(ctx, new long[] {0, 2, 4, 6}, Datatype.TILEDB_UINT64);
+    NativeArray d3_data =
+        new NativeArray(ctx, new long[] {100, 200, 300, 400}, Datatype.TILEDB_INT64);
+    NativeArray a1_data = new NativeArray(ctx, new int[] {10, 23, 30, 60}, Datatype.TILEDB_INT32);
 
-  @Test
-  public void testQuickStartSparseFilterGreaterThanEqual() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows = session().sql("SELECT * FROM tmp WHERE rows >= 2").collectAsList();
-    Assert.assertEquals(2, rows.size());
-    // A[2, 3] == 3
-    Row row = rows.get(0);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(3, row.getInt(1));
-    Assert.assertEquals(3, row.getInt(2));
-    // A[2, 4] == 2
-    row = rows.get(1);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(4, row.getInt(1));
-    Assert.assertEquals(2, row.getInt(2));
-    return;
-  }
+    List<Pair<String, Pair<NativeArray, NativeArray>>> data = new ArrayList<>();
+    data.add(new Pair<>("d1", new Pair<>(d1_data, d1_off)));
+    data.add(new Pair<>("d2", new Pair<>(d2_data, d2_off)));
+    data.add(new Pair<>("d3", new Pair<>(d3_data, null)));
+    data.add(new Pair<>("a1", new Pair<>(a1_data, null)));
 
-  @Test
-  public void testQuickStartSparseFilterLessThan() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows = session().sql("SELECT * FROM tmp WHERE rows < 2").collectAsList();
-    Assert.assertEquals(1, rows.size());
-    // A[1, 1] == 1
-    Row row = rows.get(0);
-    Assert.assertEquals(1, row.getInt(0));
-    Assert.assertEquals(1, row.getInt(1));
-    Assert.assertEquals(1, row.getInt(2));
-    return;
-  }
+    sparseHeterogeneousArrayCreate(dimensions);
+    sparseHeterogeneousArrayWrite(data);
 
-  @Test
-  public void testQuickStartSparseFilterLessThanEqual() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows =
-        session().sql("SELECT * FROM tmp WHERE rows <= 2 AND cols <= 3").collectAsList();
-    Assert.assertEquals(2, rows.size());
-    // A[1, 1] == 1
-    Row row = rows.get(0);
-    Assert.assertEquals(1, row.getInt(0));
-    Assert.assertEquals(1, row.getInt(1));
-    Assert.assertEquals(1, row.getInt(2));
-    // A[2, 3] == 3
-    row = rows.get(1);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(3, row.getInt(1));
-    Assert.assertEquals(3, row.getInt(2));
-    return;
-  }
+    for (String order : new String[] {"row-major", "TILEDB_ROW_MAJOR"}) {
+      Dataset<Row> dfRead =
+          session()
+              .read()
+              .format("io.tiledb.spark")
+              .option("uri", SPARSE_ARRAY_URI)
+              .option("order", order)
+              .option("partition_count", 1)
+              .load();
+      dfRead.createOrReplaceTempView("tmp");
+      dfRead.show();
+      List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
 
-  @Test
-  public void testQuickStartSparseFilterIn() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows =
-        session().sql("SELECT * FROM tmp WHERE rows IN (1, 2) AND cols IN (1,3)").collectAsList();
-    Assert.assertEquals(2, rows.size());
-    // A[1, 1] == 1
-    Row row = rows.get(0);
-    Assert.assertEquals(1, row.getInt(0));
-    Assert.assertEquals(1, row.getInt(1));
-    Assert.assertEquals(1, row.getInt(2));
-    // A[2, 3] == 3
-    row = rows.get(1);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(3, row.getInt(1));
-    Assert.assertEquals(3, row.getInt(2));
-    return;
-  }
+      String[] d1 = new String[] {"object1", "object2", "object3", "object4"};
+      String[] d2 = new String[] {"aa", "bb", "cc", "dd"};
+      int[] d3 = new int[] {100, 200, 300, 400};
+      int[] a1 = new int[] {10, 23, 30, 60};
+      Assert.assertEquals(d1.length, rows.size());
 
-  @Test
-  public void testQuickStartSparseFilterBetween() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows =
-        session()
-            .sql(
-                "SELECT * FROM tmp WHERE rows between 1 and 3 AND (cols = 1 OR cols = 3 OR cols = 4) ORDER BY rows, cols")
-            .collectAsList();
-    Assert.assertEquals(3, rows.size());
-    // A[1, 1] == 1
-    Row row = rows.get(0);
-    Assert.assertEquals(1, row.getInt(0));
-    Assert.assertEquals(1, row.getInt(1));
-    Assert.assertEquals(1, row.getInt(2));
-    // A[2, 3] == 3
-    row = rows.get(1);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(3, row.getInt(1));
-    Assert.assertEquals(3, row.getInt(2));
-    // A[2, 4] == 2
-    row = rows.get(2);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(4, row.getInt(1));
-    Assert.assertEquals(2, row.getInt(2));
-    return;
+      for (int i = 0; i < rows.size(); i++) {
+        Assert.assertEquals(d1[i], rows.get(i).getString(0));
+        Assert.assertEquals(d2[i], rows.get(i).getString(1));
+        Assert.assertEquals(d3[i], rows.get(i).getLong(2));
+        Assert.assertEquals(a1[i], rows.get(i).getInt(3));
+      }
+    }
   }
 }

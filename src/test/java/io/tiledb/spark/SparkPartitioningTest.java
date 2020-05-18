@@ -316,10 +316,10 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
           new StructField("a2", DataTypes.DoubleType, false, Metadata.empty()),
         };
     List<Row> rows = new ArrayList<>();
-    rows.add(RowFactory.create(1.0, 1.0));
-    rows.add(RowFactory.create(2.0, 2.0));
-    rows.add(RowFactory.create(3.0, 3.0));
-    rows.add(RowFactory.create(15.0, 15.0));
+    rows.add(RowFactory.create(1.0, 2.0));
+    rows.add(RowFactory.create(3.0, 4.0));
+    rows.add(RowFactory.create(5.0, 6.0));
+    rows.add(RowFactory.create(15.0, 19.0));
     StructType structType = new StructType(structFields);
     Dataset<Row> df = ss.createDataFrame(rows, structType);
     return df.withColumn("id", functions.monotonically_increasing_id());

@@ -15,13 +15,14 @@ public class TileDBReadSchema implements Serializable {
   private StructType tiledbSparkSchema;
   public HashMap<String, Integer> dimensionIndex;
   public HashMap<Integer, String> dimensionName;
-  public Datatype domainType;
+  public HashMap<Integer, Datatype> dimensionTypes;
 
   public TileDBReadSchema(URI uri, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.options = options;
     this.dimensionIndex = new HashMap<>();
     this.dimensionName = new HashMap<>();
+    this.dimensionTypes = new HashMap<>();
     this.getSparkSchema();
   }
 
@@ -59,13 +60,14 @@ public class TileDBReadSchema implements Serializable {
         // fetch and load the schema (IO)
         ArraySchema arraySchema = new ArraySchema(ctx, uri.toString());
         Domain arrayDomain = arraySchema.getDomain()) {
-      this.domainType = arrayDomain.getType();
+
       // for every dimension add a struct field
       for (int i = 0; i < arrayDomain.getNDim(); i++) {
         try (Dimension dim = arrayDomain.getDimension(i)) {
           String dimName = dim.getName();
           this.dimensionIndex.put(dimName, i);
           this.dimensionName.put(i, dimName);
+          this.dimensionTypes.put(i, dim.getType());
           // schema is immutable so to iteratively add we need to re-assign
           sparkSchema = sparkSchema.add(toStructField(dimName, true, dim.getType(), 1l, false));
         }
