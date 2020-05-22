@@ -12,6 +12,8 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteTimerName;
 import io.tiledb.java.api.*;
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBWriteMetricsUpdater;
@@ -134,37 +136,46 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
     int bufferIdx = 0;
     try (ArraySchema arraySchema = array.getSchema()) {
-      try (Domain domain = arraySchema.getDomain()) {
-        bufferSizes = new int[arraySchema.getAttributes().size() + nDims];
-        int numElements = Math.toIntExact(writeBufferSize / domain.getType().getNativeSize());
-        javaArrayBuffers[bufferIdx] = new JavaArray(domain.getType(), numElements);
-        bufferSizes[bufferIdx] = numElements;
-        nativeArrayBufferElements[bufferIdx] = numElements;
-        // we just skip over all dims for now (special case zipped coordinates)
-        bufferIdx += nDims;
-      }
-      for (int i = 0; i < arraySchema.getAttributeNum(); i++) {
-        try (Attribute attr = arraySchema.getAttribute(i)) {
-          if (attr.isVar()) {
-            int numOffsets =
-                Math.toIntExact(writeBufferSize / Datatype.TILEDB_UINT64.getNativeSize());
-            javaArrayOffsetBuffers[bufferIdx] = new long[numOffsets];
-            nativeArrayOffsetElements[bufferIdx] = 0;
+      List<String> attributeNames = new ArrayList<>();
+      for (Dimension dimension : arraySchema.getDomain().getDimensions())
+        attributeNames.add(dimension.getName());
+      for (String attributeName : arraySchema.getAttributes().keySet())
+        attributeNames.add(attributeName);
 
-            int numElements = Math.toIntExact(writeBufferSize / attr.getType().getNativeSize());
-            javaArrayBuffers[bufferIdx] = new JavaArray(attr.getType(), numElements);
-            bufferSizes[bufferIdx] = numElements;
-            nativeArrayBufferElements[bufferIdx] = 0;
+      bufferSizes = new int[attributeNames.size()];
 
-            bufferIdx += 1;
-          } else {
-            int numElements = Math.toIntExact(writeBufferSize / attr.getType().getNativeSize());
-            javaArrayBuffers[bufferIdx] = new JavaArray(attr.getType(), numElements);
-            bufferSizes[bufferIdx] = numElements;
-            nativeArrayBufferElements[bufferIdx] = 0;
-            bufferIdx += 1;
-          }
+      for (String attributeName : attributeNames) {
+        boolean isVar;
+        Datatype datatype;
+
+        if (arraySchema.hasAttribute(attributeName)) {
+          Attribute attribute = arraySchema.getAttribute(attributeName);
+          isVar = attribute.isVar();
+          datatype = attribute.getType();
+        } else {
+          Dimension dimension = arraySchema.getDomain().getDimension(attributeName);
+          isVar = dimension.isVar();
+          datatype = dimension.getType();
         }
+
+        if (isVar) {
+          int numOffsets =
+              Math.toIntExact(writeBufferSize / Datatype.TILEDB_UINT64.getNativeSize());
+          javaArrayOffsetBuffers[bufferIdx] = new long[numOffsets];
+          nativeArrayOffsetElements[bufferIdx] = 0;
+
+          int numElements = Math.toIntExact(writeBufferSize / datatype.getNativeSize());
+          javaArrayBuffers[bufferIdx] = new JavaArray(datatype, numElements);
+          bufferSizes[bufferIdx] = numElements;
+          nativeArrayBufferElements[bufferIdx] = 0;
+        } else {
+          int numElements = Math.toIntExact(writeBufferSize / datatype.getNativeSize());
+          javaArrayBuffers[bufferIdx] = new JavaArray(datatype, numElements);
+          bufferSizes[bufferIdx] = numElements;
+          nativeArrayBufferElements[bufferIdx] = 0;
+        }
+
+        ++bufferIdx;
       }
     }
     nRecordsBuffered = 0;
@@ -182,9 +193,8 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
   private boolean bufferAttributeValue(int attrIdx, InternalRow record, int ordinal)
       throws TileDBError {
-    int bufferIdx = nDims + attrIdx;
     int bufferElements = nRecordsBuffered;
-    return writeRecordToBuffer(bufferIdx, bufferElements, record, ordinal);
+    return writeRecordToBuffer(attrIdx, bufferElements, record, ordinal);
   }
 
   private boolean writeRecordToBuffer(
@@ -421,13 +431,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
         boolean retryAfterFlush = false;
         for (int ordinal = 0; ordinal < record.numFields(); ordinal++) {
           int buffIdx = bufferIndex[ordinal];
-          if (buffIdx < nDims) {
-            int dimIdx = buffIdx - 0;
-            retryAfterFlush = bufferDimensionValue(dimIdx, record, ordinal);
-          } else {
-            int attrIdx = buffIdx - nDims;
-            retryAfterFlush = bufferAttributeValue(attrIdx, record, ordinal);
-          }
+          retryAfterFlush = bufferAttributeValue(buffIdx, record, ordinal);
           if (retryAfterFlush) {
             // don't write any more parts of the record
             break;
@@ -459,19 +463,24 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
   private void flushBuffers() throws TileDBError {
     this.metricsUpdater.startTimer(queryWriteFlushBuffersTimerName);
-    JavaArray jArray;
     long buffersInBytes = 0;
+    int dimId = 0;
+    int dimSizes = 0;
 
-    query.setBuffer(
-        Constants.TILEDB_COORDS,
-        new NativeArray(
-            ctx,
-            javaArrayBuffers[0].get(),
-            javaArrayBuffers[0].getDataType(),
-            javaArrayBuffers[0].getNumElements()),
-        nRecordsBuffered * nDims);
+    for (Dimension dimension : array.getSchema().getDomain().getDimensions()) {
+      query.setBuffer(
+          dimension.getName(),
+          new NativeArray(
+              ctx,
+              javaArrayBuffers[dimId].get(),
+              javaArrayBuffers[dimId].getDataType(),
+              nRecordsBuffered));
+      dimSizes += dimension.getType().getNativeSize();
+      dimId++;
+    }
+
+    buffersInBytes += nRecordsBuffered * nDims * dimSizes;
     // Calculate bytes we are writing for metrics starting with dimension
-    buffersInBytes += nRecordsBuffered * nDims * bufferDatatypes[nDims - 1].getNativeSize();
     for (int i = nDims; i < bufferNames.length; i++) {
       String name = bufferNames[i];
       // Calculate bytes we are writing for metrics
@@ -488,13 +497,13 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
         query.setBuffer(
             name,
             new NativeArray(ctx, javaArrayOffsetBuffers[i], Datatype.TILEDB_UINT64),
-            new NativeArray(ctx, bufferData, bufferDataType, javaArrayBuffers[i].getNumElements()),
+            new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i] + 1),
             nativeArrayOffsetElements[i],
             nativeArrayBufferElements[i]);
       } else {
         query.setBuffer(
             name,
-            new NativeArray(ctx, bufferData, bufferDataType, javaArrayBuffers[i].getNumElements()),
+            new NativeArray(ctx, bufferData, bufferDataType, nRecordsBuffered),
             nativeArrayBufferElements[i]);
       }
     }

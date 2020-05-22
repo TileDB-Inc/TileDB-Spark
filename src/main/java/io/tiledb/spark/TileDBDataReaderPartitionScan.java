@@ -217,7 +217,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       if (sparkSchema.fields().length == 0) {
         // TODO: materialize the first dimension and count the result set size
         try (Dimension dim = domain.getDimension(0)) {
-          nRows = getDimensionColumn(dim.getName(), 0);
+          if (dim.isVar()) {
+            nRows =
+                getVarLengthAttributeColumn(
+                    dim.getName(), dim.getType(), dim.isVar(), dim.getCellValNum(), 0);
+          } else {
+            nRows = getScalarValueColumn(dim.getName(), dim.getType(), 0);
+          }
         }
       } else {
         // loop over all Spark attributes (DataFrame columns) and copy the query result set
@@ -299,40 +305,30 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    */
   private boolean initQuery() throws TileDBError {
     metricsUpdater.startTimer(queryInitTimerName);
-    try (NativeArray nativeSubArray =
-        new NativeArray(ctx, 2 * (int) domain.getNDim(), domain.getType())) {
 
-      // TODO: Init with one subarray spanning the domain for now
-      HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
+    // TODO: Init with one subarray spanning the domain for now
+    HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
 
-      // Create query and set the subarray for this partition
-      query = new Query(array, QueryType.TILEDB_READ);
+    // Create query and set the subarray for this partition
+    query = new Query(array, QueryType.TILEDB_READ);
 
-      // Pushdown any ranges
-      if (pushedRanges.size() > 0) {
-        for (List<Range> ranges : pushedRanges) {
-          for (int i = 0; i < ranges.size(); i++) {
-            query.addRange(i, ranges.get(i).getFirst(), ranges.get(i).getSecond());
-          }
+    // Pushdown any ranges
+    if (pushedRanges.size() > 0) {
+      for (List<Range> ranges : pushedRanges) {
+        int i = 0;
+        for (Range range : ranges) {
+          if (arraySchema.getDomain().getDimension(i).isVar())
+            query.addRangeVar(i++, range.getFirst().toString(), range.getSecond().toString());
+          else query.addRange(i++, range.getFirst(), range.getSecond());
         }
-      } else {
-        // TODO: Remove this because it should be handled in the partitioning now
-        // If there was no filter to pushdown, we must select the entire nonEmptyDomain
-        for (int i = 0; i < domain.getNDim(); i++) {
-          try (Dimension dim = domain.getDimension(i)) {
-            Pair extent = nonEmptyDomain.get(dim.getName());
-            nativeSubArray.setItem(i * 2, extent.getFirst());
-            nativeSubArray.setItem(i * 2 + 1, extent.getSecond());
-          }
-        }
-        query.setSubarray(nativeSubArray);
       }
-
-      // set query read layout
-      setOptionQueryLayout(options.getArrayLayout());
-
-      allocateQuerybuffers(this.read_query_buffer_size);
     }
+
+    // set query read layout
+    setOptionQueryLayout(options.getArrayLayout());
+
+    allocateQuerybuffers(this.read_query_buffer_size);
+
     // est that there are resuts, so perform a read for this partition
     metricsUpdater.finish(queryInitTimerName);
     return true;
@@ -421,7 +417,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private void allocateQuerybuffers(long readBufferSize) throws TileDBError {
     metricsUpdater.startTimer(queryAllocBufferTimerName);
     // Create coordinate buffers
-    int ncoords = Math.toIntExact(readBufferSize / domain.getType().getNativeSize());
+    int minDimDize = Integer.MAX_VALUE;
+    for (Dimension dimension : arraySchema.getDomain().getDimensions()) {
+      int nativeSize = dimension.getType().getNativeSize();
+      if (nativeSize < minDimDize) minDimDize = nativeSize;
+    }
+
+    int ncoords = Math.toIntExact(readBufferSize / minDimDize);
 
     // loop over all attributes and set the query buffers based on buffer size
     // the query object handles the lifetime of the allocated (offheap) NativeArrays
@@ -459,7 +461,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     }
 
     // Allocate result set batch based on the estimated (upper bound) number of rows / cells
-    resultVectors = OnHeapColumnVector.allocateColumns(Math.toIntExact(ncoords), sparkSchema);
+    resultVectors = OnHeapColumnVector.allocateColumns(ncoords, sparkSchema);
     resultBatch = new ColumnarBatch(resultVectors);
 
     metricsUpdater.finish(queryAllocBufferTimerName);
@@ -501,47 +503,48 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    */
   private int getColumnBatch(StructField field, int index) throws TileDBError {
     String name = field.name();
+
+    Datatype dataType;
+    long cellValNum;
+    boolean isVar;
+
     if (arraySchema.hasAttribute(name)) {
-      return getAttributeColumn(name, index);
+      Attribute attribute = arraySchema.getAttribute(name);
+      dataType = attribute.getType();
+      cellValNum = attribute.getCellValNum();
+      isVar = attribute.isVar();
+    } else if (domain.hasDimension(name)) {
+      Dimension dimension = domain.getDimension(name);
+      dataType = dimension.getType();
+      cellValNum = dimension.getCellValNum();
+      isVar = dimension.isVar();
     } else {
-      // ith dimension column, need to special case zipped coordinate buffers
-      return getDimensionColumn(name, index);
+      throw new TileDBError(
+          "Array " + array.getUri() + " has no attribute/dimension with name " + name);
+    }
+
+    if (cellValNum > 1) {
+      return getVarLengthAttributeColumn(name, dataType, isVar, cellValNum, index);
+    } else {
+      return getScalarValueColumn(name, dataType, index);
     }
   }
 
-  /**
-   * For a given attribute name, dispatch between variable length and scalar buffer copying
-   *
-   * @param name Attribute name
-   * @param index The Attribute index in the columnar buffer array
-   * @return number of values copied into the columnar batch result buffers
-   * @throws TileDBError A TileDB exception
-   */
-  private int getAttributeColumn(String name, int index) throws TileDBError {
-    try (Attribute attribute = arraySchema.getAttribute(name)) {
-      if (attribute.getCellValNum() > 1) {
-        // variable length values added as arrays
-        return getVarLengthAttributeColumn(name, attribute, index);
-      } else {
-        // one value per cell
-        return getScalarValueAttributeColumn(name, attribute, index);
-      }
-    }
-  }
+  private int getScalarValueColumn(String name, Datatype dataType, int index) throws TileDBError {
 
-  private int getScalarValueAttributeColumn(String name, Attribute attribute, int index)
-      throws TileDBError {
     metricsUpdater.startTimer(queryGetScalarAttributeTimerName);
     int numValues;
     int bufferLength;
-    switch (attribute.getType()) {
+    switch (dataType) {
       case TILEDB_FLOAT32:
         {
           float[] buff = (float[]) query.getBuffer(name);
           bufferLength = buff.length;
           numValues = bufferLength;
-          resultVectors[index].reset();
-          resultVectors[index].putFloats(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putFloats(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_FLOAT64:
@@ -549,8 +552,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           double[] buff = (double[]) query.getBuffer(name);
           bufferLength = buff.length;
           numValues = bufferLength;
-          resultVectors[index].reset();
-          resultVectors[index].putDoubles(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putDoubles(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_INT8:
@@ -559,8 +564,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           byte[] buff = (byte[]) query.getBuffer(name);
           bufferLength = buff.length;
           numValues = bufferLength;
-          resultVectors[index].reset();
-          resultVectors[index].putBytes(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putBytes(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_INT16:
@@ -569,8 +576,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           short[] buff = (short[]) query.getBuffer(name);
           bufferLength = buff.length;
           numValues = bufferLength;
-          resultVectors[index].reset();
-          resultVectors[index].putShorts(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putShorts(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_INT32:
@@ -579,8 +588,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           int[] buff = (int[]) query.getBuffer(name);
           bufferLength = buff.length;
           numValues = bufferLength;
-          resultVectors[index].reset();
-          resultVectors[index].putInts(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putInts(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_INT64:
@@ -590,8 +601,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           numValues = bufferLength;
-          resultVectors[index].reset();
-          resultVectors[index].putLongs(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_DAY:
@@ -600,8 +613,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           bufferLength = buff.length;
           int[] buffConverted = Arrays.stream(buff).mapToInt(i -> ((Long) i).intValue()).toArray();
           numValues = bufferLength;
-          resultVectors[index].reset();
-          resultVectors[index].putInts(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putInts(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_MS:
@@ -609,20 +624,23 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           numValues = bufferLength;
-          resultVectors[index].reset();
-          resultVectors[index].putLongs(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buff, 0);
+          }
           break;
         }
       default:
         {
-          throw new TileDBError("Not supported getDomain getType " + attribute.getType());
+          throw new TileDBError("Not supported getDomain getType " + dataType);
         }
     }
     metricsUpdater.finish(queryGetScalarAttributeTimerName);
     return numValues;
   }
 
-  private int getVarLengthAttributeColumn(String name, Attribute attribute, int index)
+  private int getVarLengthAttributeColumn(
+      String name, Datatype dataType, boolean isVar, long cellValNum, int index)
       throws TileDBError {
     metricsUpdater.startTimer(queryGetVariableLengthAttributeTimerName);
     int numValues = 0;
@@ -630,7 +648,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     // reset columnar batch start index
     resultVectors[index].reset();
     resultVectors[index].getChild(0).reset();
-    switch (attribute.getType()) {
+    switch (dataType) {
       case TILEDB_FLOAT32:
         {
           float[] buff = (float[]) query.getBuffer(name);
@@ -707,15 +725,15 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         }
       default:
         {
-          throw new TileDBError("Not supported getDomain getType " + attribute.getType());
+          throw new TileDBError("Not supported getDomain getType " + dataType);
         }
     }
-    if (attribute.isVar()) {
+    if (isVar) {
       // add var length offsets
       long[] offsets = query.getVarBuffer(name);
       numValues = offsets.length;
       // number of bytes per (scalar) element in
-      int typeSize = attribute.getType().getNativeSize();
+      int typeSize = dataType.getNativeSize();
       long numBytes = bufferLength * typeSize;
       for (int j = 0; j < numValues; j++) {
         int off1 = Math.toIntExact(offsets[j] / typeSize);
@@ -724,7 +742,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       }
     } else {
       // fixed sized array attribute
-      int cellNum = (int) attribute.getCellValNum();
+      int cellNum = (int) cellValNum;
       numValues = bufferLength / cellNum;
       for (int j = 0; j < numValues; j++) {
         resultVectors[index].putArray(j, cellNum * j, cellNum);
@@ -734,6 +752,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     return numValues;
   }
 
+  @Deprecated
   private int getDimensionColumn(String name, int index) throws TileDBError {
     metricsUpdater.startTimer(queryGetDimensionTimerName);
     int bufferLength = 0;

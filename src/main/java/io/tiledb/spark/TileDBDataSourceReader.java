@@ -183,9 +183,7 @@ public class TileDBDataSourceReader
 
       // Build range from all pushed filters
       for (Filter filter : pushedFilters) {
-        List<List<Range>> dimRanges =
-            buildRangeFromFilter(filter, this.tileDBReadSchema.domainType, nonEmptyDomain)
-                .getFirst();
+        List<List<Range>> dimRanges = buildRangeFromFilter(filter, nonEmptyDomain).getFirst();
 
         for (int i = 0; i < dimRanges.size(); i++) {
           ranges.get(i).addAll(dimRanges.get(i));
@@ -372,12 +370,11 @@ public class TileDBDataSourceReader
    * Creates range(s) from a filter that has been pushed down
    *
    * @param filter
-   * @param domainType
    * @param nonEmptyDomain
    * @throws TileDBError
    */
   private Pair<List<List<Range>>, Class> buildRangeFromFilter(
-      Filter filter, Datatype domainType, HashMap<String, Pair> nonEmptyDomain) throws TileDBError {
+      Filter filter, HashMap<String, Pair> nonEmptyDomain) throws TileDBError {
     metricsUpdater.startTimer(dataSourceBuildRangeFromFilterTimerName);
     Class filterType = filter.getClass();
     // Map<String, Integer> dimensionIndexing = new HashMap<>();
@@ -390,9 +387,9 @@ public class TileDBDataSourceReader
     // Could also be dim1 between 1 and 10
     if (filter instanceof And) {
       Pair<List<List<Range>>, Class> left =
-          buildRangeFromFilter(((And) filter).left(), domainType, nonEmptyDomain);
+          buildRangeFromFilter(((And) filter).left(), nonEmptyDomain);
       Pair<List<List<Range>>, Class> right =
-          buildRangeFromFilter(((And) filter).right(), domainType, nonEmptyDomain);
+          buildRangeFromFilter(((And) filter).right(), nonEmptyDomain);
 
       int dimIndex =
           IntStream.range(0, left.getFirst().size())
@@ -433,9 +430,9 @@ public class TileDBDataSourceReader
       // Handle Or clauses as recursive calls
     } else if (filter instanceof Or) {
       Pair<List<List<Range>>, Class> left =
-          buildRangeFromFilter(((Or) filter).left(), domainType, nonEmptyDomain);
+          buildRangeFromFilter(((Or) filter).left(), nonEmptyDomain);
       Pair<List<List<Range>>, Class> right =
-          buildRangeFromFilter(((Or) filter).right(), domainType, nonEmptyDomain);
+          buildRangeFromFilter(((Or) filter).right(), nonEmptyDomain);
       for (int i = 0; i < left.getFirst().size(); i++) {
         while (right.getFirst().size() < i) {
           right.getFirst().add(new ArrayList<>());
@@ -465,7 +462,8 @@ public class TileDBDataSourceReader
           .add(
               new Range(
                   new Pair<>(
-                      addEpsilon((Number) f.value(), domainType),
+                      addEpsilon(
+                          (Number) f.value(), this.tileDBReadSchema.dimensionTypes.get(dimIndex)),
                       nonEmptyDomain.get(f.attribute()).getSecond())));
       // GreaterThanOrEqual is ranges which are in the form of `dim >= 1`
     } else if (filter instanceof GreaterThanOrEqual) {
@@ -494,7 +492,9 @@ public class TileDBDataSourceReader
               new Range(
                   new Pair<>(
                       nonEmptyDomain.get(f.attribute()).getFirst(),
-                      subtractEpsilon((Number) f.value(), domainType))));
+                      subtractEpsilon(
+                          (Number) f.value(),
+                          this.tileDBReadSchema.dimensionTypes.get(dimIndex)))));
       // LessThanOrEqual is ranges which are in the form of `dim <= 1`
     } else if (filter instanceof LessThanOrEqual) {
       LessThanOrEqual f = (LessThanOrEqual) filter;
