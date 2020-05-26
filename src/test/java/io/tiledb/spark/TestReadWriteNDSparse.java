@@ -5,10 +5,13 @@ import io.tiledb.java.api.Context;
 import io.tiledb.java.api.TileDBObject;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.junit.*;
 
 public class TestReadWriteNDSparse extends SharedJavaSparkSession {
@@ -112,5 +115,89 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
     Assert.assertEquals(4, row.getInt(1));
     Assert.assertEquals(2, row.getInt(2));
     return;
+  }
+
+  @Test
+  public void testWriteDupsLong() {
+    StructField[] structFields =
+        new StructField[] {
+          new StructField("d1", DataTypes.LongType, false, Metadata.empty()),
+        };
+
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(1l));
+    rows.add(RowFactory.create(2l));
+    rows.add(RowFactory.create(3l));
+    rows.add(RowFactory.create(3l));
+    StructType structType = new StructType(structFields);
+    Dataset<Row> df =
+        session()
+            .createDataFrame(rows, structType)
+            .withColumn("id", functions.monotonically_increasing_id())
+            .repartition(1);
+
+    df.show();
+
+    DataFrameWriter<Row> writer =
+        df.write()
+            .format("io.tiledb.spark")
+            .option("uri", arrayURI)
+            .option("schema.dim.0.name", "d1")
+            .option("schema.dim.0.extent", 2)
+            .option("schema.cell_order", "row-major")
+            .option("schema.tile_order", "row-major")
+            .option("schema.capacity", 3)
+            .mode(SaveMode.ErrorIfExists);
+
+    try {
+      writer.save();
+      Assert.fail(
+          "Duplicate dimensions should not be allowed if set_allows_dups parameter is not set.");
+    } catch (Exception e) {
+    }
+
+    writer.option("schema.set_allows_dups", true).save();
+  }
+
+  @Test
+  public void testWriteDupsDouble() {
+    StructField[] structFields =
+        new StructField[] {
+          new StructField("d1", DataTypes.DoubleType, false, Metadata.empty()),
+        };
+
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(1d));
+    rows.add(RowFactory.create(2d));
+    rows.add(RowFactory.create(3d));
+    rows.add(RowFactory.create(3d));
+    StructType structType = new StructType(structFields);
+    Dataset<Row> df =
+        session()
+            .createDataFrame(rows, structType)
+            .withColumn("id", functions.monotonically_increasing_id())
+            .repartition(1);
+
+    df.show();
+
+    DataFrameWriter<Row> writer =
+        df.write()
+            .format("io.tiledb.spark")
+            .option("uri", arrayURI)
+            .option("schema.dim.0.name", "d1")
+            .option("schema.dim.0.extent", 2)
+            .option("schema.cell_order", "row-major")
+            .option("schema.tile_order", "row-major")
+            .option("schema.capacity", 3)
+            .mode(SaveMode.ErrorIfExists);
+
+    try {
+      writer.save();
+      Assert.fail(
+          "Duplicate dimensions should not be allowed if set_allows_dups parameter is not set.");
+    } catch (Exception e) {
+    }
+
+    writer.option("schema.set_allows_dups", true).save();
   }
 }

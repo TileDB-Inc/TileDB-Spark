@@ -153,6 +153,11 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
       if (schemaCapacity.isPresent()) {
         arraySchema.setCapacity(schemaCapacity.get());
       }
+
+      // set allows dups
+      if (options.getSchemaAllowDups().isPresent() && options.getSchemaAllowDups().get())
+        arraySchema.setAllowDups(1);
+
       arraySchema.check();
       Array.create(uri.toString(), arraySchema);
     }

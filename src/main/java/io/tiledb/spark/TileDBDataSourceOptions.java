@@ -195,6 +195,12 @@ public class TileDBDataSourceOptions implements Serializable {
     return tryParseOptionKeyLong(optionMap, capacityKey);
   }
 
+  public Optional<Boolean> getSchemaAllowDups() {
+    String allowDupsKey = "schema.set_allows_dups";
+
+    return tryParseOptionKeyBoolean(optionMap, allowDupsKey);
+  }
+
   public long getWriteBufferSize() {
     Optional<Long> bufferSize = tryParseOptionKeyLong(optionMap, "write_buffer_size");
     if (bufferSize.isPresent()) {
@@ -305,6 +311,15 @@ public class TileDBDataSourceOptions implements Serializable {
     } catch (NumberFormatException err) {
       return Optional.empty();
     }
+    return Optional.of(val);
+  }
+
+  private static Optional<Boolean> tryParseOptionKeyBoolean(
+      Map<String, String> options, String key) {
+    if (!options.containsKey(key)) {
+      return Optional.empty();
+    }
+    Boolean val = Boolean.parseBoolean(options.get(key));
     return Optional.of(val);
   }
 
