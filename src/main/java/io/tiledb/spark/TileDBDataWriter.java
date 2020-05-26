@@ -97,7 +97,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
                   bufferIndex[di] = i;
                   bufferNames[i] = dimName;
                   bufferDatatypes[i] = dim.getType();
-                  bufferValNum[i] = 1;
+                  bufferValNum[i] = dim.getCellValNum();
                   break;
                 }
               }
@@ -464,24 +464,14 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private void flushBuffers() throws TileDBError {
     this.metricsUpdater.startTimer(queryWriteFlushBuffersTimerName);
     long buffersInBytes = 0;
-    int dimId = 0;
     int dimSizes = 0;
 
-    for (Dimension dimension : array.getSchema().getDomain().getDimensions()) {
-      query.setBuffer(
-          dimension.getName(),
-          new NativeArray(
-              ctx,
-              javaArrayBuffers[dimId].get(),
-              javaArrayBuffers[dimId].getDataType(),
-              nRecordsBuffered));
+    for (Dimension dimension : array.getSchema().getDomain().getDimensions())
       dimSizes += dimension.getType().getNativeSize();
-      dimId++;
-    }
 
     buffersInBytes += nRecordsBuffered * nDims * dimSizes;
     // Calculate bytes we are writing for metrics starting with dimension
-    for (int i = nDims; i < bufferNames.length; i++) {
+    for (int i = 0; i < bufferNames.length; i++) {
       String name = bufferNames[i];
       // Calculate bytes we are writing for metrics
       buffersInBytes += nRecordsBuffered * nDims * bufferDatatypes[i].getNativeSize();
@@ -489,6 +479,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       Datatype bufferDataType = javaArrayBuffers[i].getDataType();
       Object bufferData =
           javaArrayBuffers[i].getDataType() == Datatype.TILEDB_CHAR
+                  || javaArrayBuffers[i].getDataType() == Datatype.TILEDB_STRING_ASCII
               ? new String((byte[]) javaArrayBuffers[i].get())
               : javaArrayBuffers[i].get();
 
@@ -496,10 +487,12 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       if (isVar) {
         query.setBuffer(
             name,
-            new NativeArray(ctx, javaArrayOffsetBuffers[i], Datatype.TILEDB_UINT64),
-            new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i] + 1),
-            nativeArrayOffsetElements[i],
-            nativeArrayBufferElements[i]);
+            new NativeArray(
+                ctx,
+                javaArrayOffsetBuffers[i],
+                Datatype.TILEDB_UINT64,
+                nativeArrayOffsetElements[i]),
+            new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i]));
       } else {
         query.setBuffer(
             name,
