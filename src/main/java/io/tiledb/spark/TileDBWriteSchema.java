@@ -192,6 +192,8 @@ public class TileDBWriteSchema {
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_DATETIME_MS, new Pair<>(min, max), extent);
+      } else if (dataType instanceof StringType) {
+        return new Dimension(ctx, field.name(), Datatype.TILEDB_STRING_ASCII, null, null);
       }
     }
     throw new TileDBError(
