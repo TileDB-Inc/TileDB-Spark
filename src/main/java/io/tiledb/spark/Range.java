@@ -642,4 +642,17 @@ public class Range implements java.io.Serializable, Comparable<Range> {
 
     return ranges;
   }
+
+  public List<Range> splitStringRangeToPartitions(int partitions) throws TileDBError {
+
+    StringPartitioner partitioner = new StringPartitioner();
+    List<Pair<String, String>> stringRanges =
+        partitioner.split(range.getFirst().toString(), range.getSecond().toString(), partitions);
+
+    List<Range> ranges = new ArrayList<>();
+
+    for (Pair<String, String> range : stringRanges) ranges.add(new Range(range));
+
+    return ranges;
+  }
 }

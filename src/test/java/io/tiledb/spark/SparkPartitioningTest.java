@@ -1,9 +1,7 @@
 package io.tiledb.spark;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -261,18 +259,33 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
   }
 
   @Test
-  public void testWriteStringDataset1() {
+  public void testPartitioningStringDataset1() {
     testWriteRead(createStringDataset(session()), 3, 3, "id");
   }
 
   @Test
-  public void testWriteStringDataset2() {
+  public void testPartitioningStringDataset2() {
     testWriteRead(createStringDataset(session()), 10, 4, "id");
   }
 
   @Test
-  public void testWriteStringDataset3() {
+  public void testPartitioningStringDataset3() {
     testWriteRead(createStringDataset(session()), 2, 2, "id");
+  }
+
+  @Test
+  public void testPartitioningStringDimsDataset1() {
+    testWriteRead(createStringDataset(session()), 10, 10, "a1");
+  }
+
+  @Test
+  public void testPartitioningStringDimsDataset2() {
+    testWriteRead(createStringDataset(session()), 20, 20, "a1");
+  }
+
+  @Test
+  public void testPartitioningStringDimsDataset3() {
+    testWriteRead(createStringDataset(session()), 80, 80, "a1");
   }
 
   /* Multidimensional arrays */

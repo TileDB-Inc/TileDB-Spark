@@ -265,22 +265,30 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
   public List<SubArrayRanges> splitToPartitions(int partitions) throws TileDBError {
     List<SubArrayRanges> newSubarrays = new ArrayList<>();
 
-    long actualWidth = ranges.get(0).width().longValue();
-    double exactEffectiveWidth = actualWidth * 1.0 / partitions;
-
-    long partitionWidth = (long) exactEffectiveWidth;
-
-    if (exactEffectiveWidth < 1) {
-      partitions = (int) actualWidth;
-      partitionWidth = 1;
-    }
-
     // Split the first dimension
     if (ranges.get(0).splittable()) {
-      for (Range newRange : ranges.get(0).splitRangeToPartitions(partitions, partitionWidth)) {
+      List<Range> newRanges;
+
+      if (this.datatype.equals(String.class))
+        newRanges = ranges.get(0).splitStringRangeToPartitions(partitions);
+      else {
+        long actualWidth = ranges.get(0).width().longValue();
+        double exactEffectiveWidth = actualWidth * 1.0 / partitions;
+
+        long partitionWidth = (long) exactEffectiveWidth;
+
+        if (exactEffectiveWidth < 1) {
+          partitions = (int) actualWidth;
+          partitionWidth = 1;
+        }
+
+        newRanges = ranges.get(0).splitRangeToPartitions(partitions, partitionWidth);
+      }
+
+      for (Range newRange : newRanges) {
         List<Range> dimRanges = new ArrayList<>();
         dimRanges.add(newRange);
-
+        newRange.width();
         // Add the rest of the dimension ranges
         for (int i = 1; i < ranges.size(); i++) {
           dimRanges.add(ranges.get(i));
