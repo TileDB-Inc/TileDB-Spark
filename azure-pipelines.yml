@@ -1,0 +1,26 @@
+# Gradle
+# Build your Java project and run tests with Gradle using a Gradle wrapper script.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+
+trigger:
+  branches:
+    include:
+      - master
+      - release-*
+  tags:
+    include:
+      - "*"
+
+stages:
+  - stage: CI
+    jobs:
+      - job: Linux
+        strategy:
+          matrix:
+            ubuntu_18:
+              imageName: 'ubuntu-18.04'
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - template: ci/tiledb-spark-linux.yml
