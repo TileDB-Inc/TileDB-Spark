@@ -505,9 +505,9 @@ public class Range implements java.io.Serializable, Comparable<Range> {
   }
 
   /**
-   * Check if a range is splitable
+   * Check if a range is splittable
    *
-   * @return
+   * @return True if the range is splittable, False otherwise
    */
   public boolean splittable() {
     if (range.getFirst() == range.getSecond()) {
@@ -518,11 +518,11 @@ public class Range implements java.io.Serializable, Comparable<Range> {
   }
 
   /**
-   * Split a range. Will split upto N buckets
+   * Split a range. Will split up to N buckets
    *
-   * @param buckets
-   * @return
-   * @throws TileDBError
+   * @param buckets The number of buckets to split
+   * @return The list of the ranges
+   * @throws TileDBError A TileDBError exception
    */
   public List<Range> splitRange(int buckets) throws TileDBError {
     List<Range> ranges = new ArrayList<>();
@@ -599,7 +599,7 @@ public class Range implements java.io.Serializable, Comparable<Range> {
    * @param partitions The number of partitions
    * @param partitionWidth The number of elements in the partition
    * @return The list of ranges, one per partition
-   * @throws TileDBError
+   * @throws TileDBError A TileDBError exception
    */
   public List<Range> splitRangeToPartitions(int partitions, long partitionWidth)
       throws TileDBError {

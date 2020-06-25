@@ -32,7 +32,7 @@ public class TileDBDataSourceOptions implements Serializable {
 
   /**
    * @return Optional URI to TileDB array resource
-   * @throws URISyntaxException
+   * @throws URISyntaxException A URISyntaxException exception
    */
   public Optional<URI> getArrayURI() throws URISyntaxException {
     if (optionMap.containsKey("uri")) {
