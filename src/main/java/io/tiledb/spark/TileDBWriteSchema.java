@@ -139,11 +139,11 @@ public class TileDBWriteSchema {
         }
         Short min = Short.MIN_VALUE;
         if (longMin.isPresent()) {
-          min = (short)(long)longMin.get();
+          min = (short) (long) longMin.get();
         }
         Short max = Short.MAX_VALUE;
         if (longMax.isPresent()) {
-          max = (short)(longMax.get() - extent);
+          max = (short) (longMax.get() - extent);
         }
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_INT16, new Pair<>(min, max), extent);
