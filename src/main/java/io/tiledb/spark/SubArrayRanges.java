@@ -260,7 +260,7 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
    *
    * @param partitions The number of partitions
    * @return A list of SubArrayRanges
-   * @throws TileDBError
+   * @throws TileDBError A TileDBError exception
    */
   public List<SubArrayRanges> splitToPartitions(int partitions) throws TileDBError {
     List<SubArrayRanges> newSubarrays = new ArrayList<>();

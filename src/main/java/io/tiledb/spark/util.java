@@ -342,8 +342,9 @@ public class util {
    * Finds the least multiple of x that is greatest than or equal to n. For example, for n=55 and
    * x=16, the result will be 64.
    *
-   * @param a
-   * @param b
+   * @param a The first number
+   * @param b The second number
+   * @param dataClassType The class of the input numbers
    * @return The least multiple
    */
   public static Object findClosestMultiple(Number a, Number b, Class dataClassType) {
