@@ -204,12 +204,12 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
 
   @Test
   public void testPartitioningDouble2() {
-    testWriteRead(createDoubleDataset(session()), 10, 9, "a1");
+    testWriteRead(createDoubleDataset(session()), 100, 100, "a1");
   }
 
   @Test
   public void testPartitioningDouble3() {
-    testWriteRead(createDoubleDataset(session()), 2, 2, "a1");
+    testWriteRead(createDoubleDataset(session()), 429, 429, "a1");
   }
 
   public Dataset<Row> createStringDataset(SparkSession ss) {

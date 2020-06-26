@@ -275,14 +275,7 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
         long actualWidth = ranges.get(0).width().longValue();
         double exactEffectiveWidth = actualWidth * 1.0 / partitions;
 
-        long partitionWidth = (long) exactEffectiveWidth;
-
-        if (exactEffectiveWidth < 1) {
-          partitions = (int) actualWidth;
-          partitionWidth = 1;
-        }
-
-        newRanges = ranges.get(0).splitRangeToPartitions(partitions, partitionWidth);
+        newRanges = ranges.get(0).splitRangeToPartitions(partitions, exactEffectiveWidth);
       }
 
       for (Range newRange : newRanges) {

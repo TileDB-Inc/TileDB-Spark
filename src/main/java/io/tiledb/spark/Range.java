@@ -601,7 +601,7 @@ public class Range implements java.io.Serializable, Comparable<Range> {
    * @return The list of ranges, one per partition
    * @throws TileDBError A TileDBError exception
    */
-  public List<Range> splitRangeToPartitions(int partitions, long partitionWidth)
+  public List<Range> splitRangeToPartitions(int partitions, double partitionWidth)
       throws TileDBError {
     List<Range> ranges = new ArrayList<>();
     // Number of buckets is 1 more thank number of splits (i.e. split 1 time into two buckets)
@@ -610,7 +610,18 @@ public class Range implements java.io.Serializable, Comparable<Range> {
     Number max = (Number) range.getSecond();
     Number currentMin;
     Number currentMax;
-    Number pWidth = (Number) util.castLong(partitionWidth, dataClassType);
+    Number pWidth;
+
+    if (dataClassType == Float.class || dataClassType == Double.class) {
+      pWidth = partitionWidth;
+    } else {
+      if (partitionWidth < 1) {
+        long actualWidth = this.width().longValue();
+        partitions = (int) actualWidth;
+        partitionWidth = 1;
+      }
+      pWidth = (Number) util.castLong((long) partitionWidth, dataClassType);
+    }
 
     // If the min is the max this range is not splittable
     if (!this.splittable()) {
