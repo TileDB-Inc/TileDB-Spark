@@ -20,7 +20,41 @@ stages:
           matrix:
             ubuntu_18:
               imageName: 'ubuntu-18.04'
+            macOS:
+              imageName: 'macOS-10.14'
         pool:
           vmImage: $(imageName)
         steps:
           - template: ci/tiledb-spark-linux.yml
+
+  - stage: GitHubRelease
+    condition: startsWith(variables['Build.SourceBranch'], 'refs/tags')
+    jobs:
+      - job: All_OS
+        strategy:
+          matrix:
+            ubuntu_18:
+              imageName: 'ubuntu-18.04'
+        pool:
+          vmImage: $(imageName)
+
+        steps:
+
+          - bash: |
+              unset SYSTEM
+              set +e
+
+              ./gradlew assemble
+              ./gradlew shadowJar
+
+              mkdir $BUILD_BINARIESDIRECTORY/jars
+              cp ./build/libs/*.jar $BUILD_BINARIESDIRECTORY/jars
+
+          - task: GithubRelease@0
+            displayName: 'GitHub Release'
+            inputs:
+              gitHubConnection: github_tiledb
+              repositoryName: TileDB-Inc/TileDB-Spark
+              tag: $(Build.SourceBranchName)
+              action: "edit"
+              assets: $(Build.BinariesDirectory)/jars/*.jar
