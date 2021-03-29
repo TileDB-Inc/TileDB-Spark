@@ -210,6 +210,7 @@ public class TileDBWriteSchema {
 
   static Attribute toAttribute(Context ctx, StructField field, TileDBDataSourceOptions options)
       throws TileDBError {
+    boolean nullable = field.nullable();
     DataType dataType = field.dataType();
     Attribute attribute;
     if (dataType instanceof IntegerType) {
@@ -266,6 +267,7 @@ public class TileDBWriteSchema {
       attribute.close();
       throw err;
     }
+    attribute.setNullable(nullable);
     return attribute;
   }
 

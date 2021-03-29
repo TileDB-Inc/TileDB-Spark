@@ -78,7 +78,8 @@ public class TileDBReadSchema implements Serializable {
           String attrName = attr.getName();
           sparkSchema =
               sparkSchema.add(
-                  toStructField(attrName, false, attr.getType(), attr.getCellValNum(), false));
+                  toStructField(
+                      attrName, false, attr.getType(), attr.getCellValNum(), attr.getNullable()));
         }
       }
     }
