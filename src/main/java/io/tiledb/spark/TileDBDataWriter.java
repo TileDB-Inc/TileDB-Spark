@@ -13,7 +13,9 @@ import io.tiledb.java.api.*;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import javax.swing.*;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBWriteMetricsUpdater;
@@ -43,7 +45,9 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private final String[] bufferNames;
   private final Datatype[] bufferDatatypes;
   private final long[] bufferValNum;
+  private boolean[] bufferNullable;
 
+  private short[][] nativeArrayValidityByteMap;
   private long[][] javaArrayOffsetBuffers;
   private JavaArray[] javaArrayBuffers;
   private int[] bufferSizes;
@@ -73,10 +77,11 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     StructField[] sparkSchemaFields = schema.fields();
     int nFields = sparkSchemaFields.length;
     bufferIndex = new int[nFields];
-
+    bufferNullable = new boolean[nFields];
     bufferNames = new String[nFields];
     bufferValNum = new long[nFields];
     bufferDatatypes = new Datatype[nFields];
+    nativeArrayValidityByteMap = new short[nFields][];
     javaArrayOffsetBuffers = new long[nFields][];
     nativeArrayOffsetElements = new int[nFields];
     javaArrayBuffers = new JavaArray[nFields];
@@ -98,6 +103,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
                   bufferNames[i] = dimName;
                   bufferDatatypes[i] = dim.getType();
                   bufferValNum[i] = dim.getCellValNum();
+                  bufferNullable[i] = false;
                   break;
                 }
               }
@@ -114,6 +120,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
                 bufferNames[bufferIdx] = attrName;
                 bufferDatatypes[bufferIdx] = attribute.getType();
                 bufferValNum[bufferIdx] = attribute.getCellValNum();
+                bufferNullable[bufferIdx] = attribute.getNullable();
               }
             }
           }
@@ -146,9 +153,13 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
       for (String attributeName : attributeNames) {
         boolean isVar;
+        boolean nullable = false;
         Datatype datatype;
 
         if (arraySchema.hasAttribute(attributeName)) {
+          try (Attribute attr = arraySchema.getAttribute(attributeName)) {
+            nullable = attr.getNullable();
+          }
           Attribute attribute = arraySchema.getAttribute(attributeName);
           isVar = attribute.isVar();
           datatype = attribute.getType();
@@ -168,13 +179,20 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           javaArrayBuffers[bufferIdx] = new JavaArray(datatype, numElements);
           bufferSizes[bufferIdx] = numElements;
           nativeArrayBufferElements[bufferIdx] = 0;
+          if (nullable) {
+            nativeArrayValidityByteMap[bufferIdx] = new short[numElements];
+            Arrays.fill(nativeArrayValidityByteMap[bufferIdx], (short) 1);
+          }
         } else {
           int numElements = Math.toIntExact(writeBufferSize / datatype.getNativeSize());
           javaArrayBuffers[bufferIdx] = new JavaArray(datatype, numElements);
           bufferSizes[bufferIdx] = numElements;
           nativeArrayBufferElements[bufferIdx] = 0;
+          if (nullable) {
+            nativeArrayValidityByteMap[bufferIdx] = new short[numElements];
+            Arrays.fill(nativeArrayValidityByteMap[bufferIdx], (short) 1);
+          }
         }
-
         ++bufferIdx;
       }
     }
@@ -199,11 +217,12 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
   private boolean writeRecordToBuffer(
       int bufferIdx, int bufferElement, InternalRow record, int ordinal) throws TileDBError {
+    boolean isNull = false;
     this.metricsUpdater.startTimer(queryWriteRecordToBufferTimerName);
     Datatype dtype = bufferDatatypes[bufferIdx];
-
     JavaArray buffer = javaArrayBuffers[bufferIdx];
     long[] offsets = javaArrayOffsetBuffers[bufferIdx];
+    short[] validityByteMap = nativeArrayValidityByteMap[bufferIdx];
 
     boolean isArray = bufferValNum[bufferIdx] > 1l;
     int maxBufferElements = bufferSizes[bufferIdx];
@@ -219,6 +238,12 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
         return true;
       }
     }
+
+    if (record.isNullAt(ordinal)) {
+      validityByteMap[bufferElement] = 0;
+      isNull = true;
+    }
+
     switch (dtype) {
       case TILEDB_INT8:
         {
@@ -356,14 +381,14 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       case TILEDB_STRING_ASCII:
       case TILEDB_STRING_UTF8:
         {
-          String val = record.getString(ordinal);
+          String val = " "; // necessary if val is null
+          if (!isNull) val = record.getString(ordinal);
           int bytesLen = val.getBytes().length;
           int bufferOffset = nativeArrayBufferElements[bufferIdx];
           if ((bufferOffset + bytesLen) > maxBufferElements) {
             this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
             return true;
           }
-
           buffer.set(bufferOffset, val.getBytes());
           offsets[bufferElement] = (long) bufferOffset;
 
@@ -475,6 +500,9 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       String name = bufferNames[i];
       // Calculate bytes we are writing for metrics
       buffersInBytes += nRecordsBuffered * nDims * bufferDatatypes[i].getNativeSize();
+      boolean isVar = (bufferValNum[i] == Constants.TILEDB_VAR_NUM);
+      // code referring to nullable attributes
+      boolean nullable = bufferNullable[i];
 
       Datatype bufferDataType = javaArrayBuffers[i].getDataType();
       Object bufferData =
@@ -482,22 +510,47 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
                   || javaArrayBuffers[i].getDataType() == Datatype.TILEDB_STRING_ASCII
               ? new String((byte[]) javaArrayBuffers[i].get())
               : javaArrayBuffers[i].get();
-
-      boolean isVar = (bufferValNum[i] == Constants.TILEDB_VAR_NUM);
       if (isVar) {
-        query.setBuffer(
-            name,
-            new NativeArray(
-                ctx,
-                javaArrayOffsetBuffers[i],
-                Datatype.TILEDB_UINT64,
-                nativeArrayOffsetElements[i]),
-            new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i]));
+        if (nullable) {
+          query.setBufferNullable(
+              name,
+              new NativeArray(
+                  ctx,
+                  javaArrayOffsetBuffers[i],
+                  Datatype.TILEDB_UINT64,
+                  nativeArrayOffsetElements[i]),
+              new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i]),
+              new NativeArray(
+                  ctx,
+                  nativeArrayValidityByteMap[i],
+                  Datatype.TILEDB_UINT8,
+                  nativeArrayBufferElements[i]));
+        } else {
+          query.setBuffer(
+              name,
+              new NativeArray(
+                  ctx,
+                  javaArrayOffsetBuffers[i],
+                  Datatype.TILEDB_UINT64,
+                  nativeArrayOffsetElements[i]),
+              new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i]));
+        }
       } else {
-        query.setBuffer(
-            name,
-            new NativeArray(ctx, bufferData, bufferDataType, nRecordsBuffered),
-            nativeArrayBufferElements[i]);
+        if (nullable) {
+          query.setBufferNullable(
+              name,
+              new NativeArray(ctx, bufferData, bufferDataType, nRecordsBuffered),
+              new NativeArray(
+                  ctx,
+                  nativeArrayValidityByteMap[i],
+                  Datatype.TILEDB_UINT8,
+                  nativeArrayBufferElements[i]));
+        } else {
+          query.setBuffer(
+              name,
+              new NativeArray(ctx, bufferData, bufferDataType, nRecordsBuffered),
+              nativeArrayBufferElements[i]);
+        }
       }
     }
     QueryStatus status = query.submit();

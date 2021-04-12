@@ -1,6 +1,6 @@
 package io.tiledb.spark;
 
-import static io.tiledb.java.api.Datatype.TILEDB_UINT64;
+import static io.tiledb.java.api.Datatype.*;
 import static io.tiledb.java.api.QueryStatus.TILEDB_COMPLETED;
 import static io.tiledb.java.api.QueryStatus.TILEDB_INCOMPLETE;
 import static io.tiledb.java.api.QueryStatus.TILEDB_UNINITIALIZED;
@@ -445,17 +445,38 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         isVar = attr.isVar();
       }
 
+      boolean nullable = false;
+
+      if (this.arraySchema.hasAttribute(name)) {
+        try (Attribute attr = this.arraySchema.getAttribute(name)) {
+          nullable = attr.getNullable();
+        }
+      }
+
       int nvalues = Math.toIntExact(readBufferSize / type.getNativeSize());
       NativeArray data = new NativeArray(ctx, nvalues, type);
       // attribute is variable length, init the varlen result buffers using the est num offsets
       if (isVar) {
         int noffsets = Math.toIntExact(readBufferSize / TILEDB_UINT64.getNativeSize());
         NativeArray offsets = new NativeArray(ctx, noffsets, TILEDB_UINT64);
-        query.setBuffer(name, offsets, data);
+        if (nullable) {
+          query.setBufferNullable(name, offsets, data, new NativeArray(ctx, nvalues, TILEDB_UINT8));
+        } else {
+          query.setBuffer(name, offsets, data);
+        }
+
         queryBuffers.set(i++, new Pair<>(offsets, data));
       } else {
         // attribute is fixed length, use the result size estimate for allocation
-        query.setBuffer(name, new NativeArray(ctx, nvalues, type));
+        if (nullable) {
+          query.setBufferNullable(
+              name,
+              new NativeArray(ctx, nvalues, type),
+              new NativeArray(ctx, nvalues, TILEDB_UINT8));
+        } else {
+          query.setBuffer(name, new NativeArray(ctx, nvalues, type));
+        }
+
         queryBuffers.set(i++, new Pair<>(null, data));
       }
     }
@@ -530,11 +551,19 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     }
   }
 
-  private int getScalarValueColumn(String name, Datatype dataType, int index) throws TileDBError {
-
-    metricsUpdater.startTimer(queryGetScalarAttributeTimerName);
-    int numValues;
+  /**
+   * Helper method for the getScalarValueColumn() method. It puts attribute values in the
+   * resultVector according to their datatype.
+   *
+   * @param name name of the attribute
+   * @param dataType datatype of the attribute
+   * @param index index of the resultVectorArray
+   * @return number of values inserted
+   * @throws TileDBError
+   */
+  private int putValuesOfAtt(String name, Datatype dataType, int index) throws TileDBError {
     int bufferLength;
+    int numValues;
     switch (dataType) {
       case TILEDB_FLOAT32:
         {
@@ -597,6 +626,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       case TILEDB_INT64:
       case TILEDB_UINT32:
       case TILEDB_UINT64:
+      case TILEDB_DATETIME_MS:
         {
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
@@ -619,35 +649,59 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           }
           break;
         }
-      case TILEDB_DATETIME_MS:
-        {
-          long[] buff = (long[]) query.getBuffer(name);
-          bufferLength = buff.length;
-          numValues = bufferLength;
-          if (resultVectors.length > 0) {
-            resultVectors[index].reset();
-            resultVectors[index].putLongs(0, bufferLength, buff, 0);
-          }
-          break;
-        }
       default:
         {
           throw new TileDBError("Not supported getDomain getType " + dataType);
         }
     }
+    return numValues;
+  }
+
+  /**
+   * This method is responsible for reading the values from the given attribute. It is only called
+   * for attributes with fixed size.
+   *
+   * @param name name of the attribute.
+   * @param dataType datatype of the attribute.
+   * @param index index of the result vector that corresponds to this attribute.
+   * @return
+   * @throws TileDBError
+   */
+  private int getScalarValueColumn(String name, Datatype dataType, int index) throws TileDBError {
+
+    metricsUpdater.startTimer(queryGetScalarAttributeTimerName);
+    boolean nullable = false;
+    int numValues;
+    short[] validityByteMap;
+
+    if (this.arraySchema.hasAttribute(name)) {
+      try (Attribute attr = this.arraySchema.getAttribute(name)) {
+        nullable = attr.getNullable();
+      }
+    }
+    numValues = putValuesOfAtt(name, dataType, index);
+    if (nullable) { // if the attribute is nullable, check the validity map and act accordingly.
+      validityByteMap = query.getValidityByteMap(name);
+      for (int i = 0; i < validityByteMap.length; i++) {
+        if (validityByteMap[i] == 0) resultVectors[index].putNull(i);
+      }
+    }
     metricsUpdater.finish(queryGetScalarAttributeTimerName);
     return numValues;
   }
 
-  private int getVarLengthAttributeColumn(
-      String name, Datatype dataType, boolean isVar, long cellValNum, int index)
-      throws TileDBError {
-    metricsUpdater.startTimer(queryGetVariableLengthAttributeTimerName);
-    int numValues = 0;
-    int bufferLength = 0;
-    // reset columnar batch start index
-    resultVectors[index].reset();
-    resultVectors[index].getChild(0).reset();
+  /**
+   * Helper method for the getVarLengthAttributeColumn() method. It puts attribute values in the
+   * resultVector according to their datatype.
+   *
+   * @param name name of the attribute
+   * @param dataType datatype of the attribute
+   * @param index index of the resultVectorArray
+   * @return number of values inserted
+   * @throws TileDBError
+   */
+  private int putValuesOfAttVar(String name, Datatype dataType, int index) throws TileDBError {
+    int bufferLength;
     switch (dataType) {
       case TILEDB_FLOAT32:
         {
@@ -699,6 +753,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       case TILEDB_INT64:
       case TILEDB_UINT32:
       case TILEDB_UINT64:
+      case TILEDB_DATETIME_MS:
         {
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
@@ -715,19 +770,51 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           resultVectors[index].getChild(0).putInts(0, bufferLength, buffConverted, 0);
           break;
         }
-      case TILEDB_DATETIME_MS:
-        {
-          long[] buff = (long[]) query.getBuffer(name);
-          bufferLength = buff.length;
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
-          break;
-        }
       default:
         {
           throw new TileDBError("Not supported getDomain getType " + dataType);
         }
     }
+    return bufferLength;
+  }
+
+  /**
+   * This method is responsible for reading the values from the given attribute. It is only called
+   * for attributes with variable size.
+   *
+   * @param name name of the attribute.
+   * @param dataType datatype of the attribute.
+   * @param index index of the result vector that corresponds to this attribute.
+   * @param isVar true if the attribute has variable length.
+   * @return number of values inserted.
+   * @throws TileDBError
+   */
+  private int getVarLengthAttributeColumn(
+      String name, Datatype dataType, boolean isVar, long cellValNum, int index)
+      throws TileDBError {
+    metricsUpdater.startTimer(queryGetVariableLengthAttributeTimerName);
+    boolean nullable = false;
+    int numValues;
+    int bufferLength = 0;
+    short[] validityByteMap;
+    // reset columnar batch start index
+
+    if (this.arraySchema.hasAttribute(name)) {
+      try (Attribute attr = this.arraySchema.getAttribute(name)) {
+        nullable = attr.getNullable();
+      }
+    }
+
+    resultVectors[index].reset();
+    resultVectors[index].getChild(0).reset();
+    bufferLength = putValuesOfAttVar(name, dataType, index);
+    if (nullable) {
+      validityByteMap = query.getValidityByteMap(name);
+      for (int i = 0; i < validityByteMap.length; i++) { // check for null values.
+        if (validityByteMap[i] == 0) resultVectors[index].putNull(i);
+      }
+    }
+
     if (isVar) {
       // add var length offsets
       long[] offsets = query.getVarBuffer(name);
@@ -817,6 +904,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       case TILEDB_INT64:
       case TILEDB_UINT32:
       case TILEDB_UINT64:
+      case TILEDB_DATETIME_MS:
         {
           long[] buffer = (long[]) query.getBuffer(name);
           bufferLength = buffer.length;
@@ -830,16 +918,6 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         {
           long[] buffer = (long[]) query.getBuffer(name);
           bufferLength = bufferLength / ndim;
-          if (resultVectors.length > 0) {
-            resultVectors[index].reset();
-            resultVectors[index].putLongs(0, bufferLength, buffer, 0);
-          }
-          break;
-        }
-      case TILEDB_DATETIME_MS:
-        {
-          long[] buffer = (long[]) query.getBuffer(name);
-          bufferLength = buffer.length;
           if (resultVectors.length > 0) {
             resultVectors[index].reset();
             resultVectors[index].putLongs(0, bufferLength, buffer, 0);
