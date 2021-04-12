@@ -78,7 +78,8 @@ public class TileDBReadSchema implements Serializable {
           String attrName = attr.getName();
           sparkSchema =
               sparkSchema.add(
-                  toStructField(attrName, false, attr.getType(), attr.getCellValNum(), false));
+                  toStructField(
+                      attrName, false, attr.getType(), attr.getCellValNum(), attr.getNullable()));
         }
       }
     }
@@ -187,11 +188,18 @@ public class TileDBReadSchema implements Serializable {
           break;
         }
       case TILEDB_DATETIME_DAY:
-        {
-          field = new StructField(name, DataTypes.DateType, isNullable, metadata);
-          break;
-        }
+      case TILEDB_DATETIME_WEEK:
+      case TILEDB_DATETIME_MONTH:
+      case TILEDB_DATETIME_YEAR:
       case TILEDB_DATETIME_MS:
+      case TILEDB_DATETIME_AS:
+      case TILEDB_DATETIME_FS:
+      case TILEDB_DATETIME_PS:
+      case TILEDB_DATETIME_NS:
+      case TILEDB_DATETIME_US:
+      case TILEDB_DATETIME_SEC:
+      case TILEDB_DATETIME_MIN:
+      case TILEDB_DATETIME_HR:
         {
           field = new StructField(name, DataTypes.TimestampType, isNullable, metadata);
           break;

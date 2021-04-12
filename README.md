@@ -103,7 +103,7 @@ to `$SPARK_HOME/jars/`.
 
 TileDB-Spark does not support all of TileDB's datatypes.  
 
-* Currently Integer, Float / Double, and ASCII / UTF-8 strings are supported.
+* Currently, Integer, Float / Double, all TILEDB_DATETIME types, and ASCII / UTF-8 strings are supported.
 * Because integers are upcasted to the next largest signed datatype expressible in Java (ex. `TILEDB_UINT8` -> Java `Short`),
 except for `TILEDB_UINT64` which is not expressible as a numeric primitive in Java.
 * TileDB `UINT64` values are casted to Java `Long` integers.  Java provides limited functionality for re-interpreting `Long` values as unsigned `Long`.
