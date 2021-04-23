@@ -12,6 +12,10 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteTimerName;
 import io.tiledb.java.api.*;
 import java.io.IOException;
 import java.net.URI;
+import java.sql.Timestamp;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -56,6 +60,9 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private int[] nativeArrayBufferElements;
   private long writeBufferSize;
   private int nRecordsBuffered;
+
+  private static final OffsetDateTime zeroDateTime =
+      new Timestamp(0).toLocalDateTime().atOffset(ZoneOffset.UTC);
 
   public TileDBDataWriter(URI uri, StructType schema, TileDBDataSourceOptions options) {
     this.uri = uri;
@@ -159,10 +166,9 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
         if (arraySchema.hasAttribute(attributeName)) {
           try (Attribute attr = arraySchema.getAttribute(attributeName)) {
             nullable = attr.getNullable();
+            isVar = attr.isVar();
+            datatype = attr.getType();
           }
-          Attribute attribute = arraySchema.getAttribute(attributeName);
-          isVar = attribute.isVar();
-          datatype = attribute.getType();
         } else {
           Dimension dimension = arraySchema.getDomain().getDimension(attributeName);
           isVar = dimension.isVar();
@@ -218,6 +224,8 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private boolean writeRecordToBuffer(
       int bufferIdx, int bufferElement, InternalRow record, int ordinal) throws TileDBError {
     boolean isNull = false;
+    OffsetDateTime dt;
+    long value;
     this.metricsUpdater.startTimer(queryWriteRecordToBufferTimerName);
     Datatype dtype = bufferDatatypes[bufferIdx];
     JavaArray buffer = javaArrayBuffers[bufferIdx];
@@ -315,6 +323,8 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       case TILEDB_UINT32:
       case TILEDB_UINT64:
       case TILEDB_INT64:
+        // Handle spark timestamp fields
+      case TILEDB_DATETIME_US:
         {
           if (isArray) {
             long[] array = record.getArray(ordinal).toLongArray();
@@ -396,7 +406,6 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           nativeArrayBufferElements[bufferIdx] += bytesLen;
           break;
         }
-        // Handle spark date fields
       case TILEDB_DATETIME_DAY:
         {
           if (isArray) {
@@ -418,8 +427,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
           }
           break;
         }
-        // Handle spark timestamp fields
-      case TILEDB_DATETIME_MS:
+      case TILEDB_DATETIME_AS:
         {
           if (isArray) {
             long[] array = record.getArray(ordinal).toLongArray();
@@ -429,13 +437,265 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
               return true;
             }
             for (int i = 0; i < array.length; i++) {
-              buffer.set(bufferOffset + i, array[i]);
+              buffer.set(bufferOffset + i, array[i] * 1000000000000L);
             }
             offsets[bufferElement] = (long) bufferOffset;
             nativeArrayOffsetElements[bufferIdx] += 1;
             nativeArrayBufferElements[bufferIdx] += array.length;
           } else {
-            buffer.set(bufferElement, record.getLong(ordinal));
+            buffer.set(bufferElement, record.getLong(ordinal) * 1000000000000L);
+            nativeArrayBufferElements[bufferIdx] += 1;
+          }
+          break;
+        }
+      case TILEDB_DATETIME_FS:
+        {
+          if (isArray) {
+            long[] array = record.getArray(ordinal).toLongArray();
+            int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+              return true;
+            }
+            for (int i = 0; i < array.length; i++) {
+              buffer.set(bufferOffset + i, array[i] * 1000000000);
+            }
+            offsets[bufferElement] = (long) bufferOffset;
+            nativeArrayOffsetElements[bufferIdx] += 1;
+            nativeArrayBufferElements[bufferIdx] += array.length;
+          } else {
+            buffer.set(bufferElement, record.getLong(ordinal) * 1000000000);
+            nativeArrayBufferElements[bufferIdx] += 1;
+          }
+          break;
+        }
+      case TILEDB_DATETIME_PS:
+        {
+          {
+            if (isArray) {
+              long[] array = record.getArray(ordinal).toLongArray();
+              int bufferOffset = nativeArrayBufferElements[bufferElement];
+              if ((bufferOffset + array.length) > maxBufferElements) {
+                this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+                return true;
+              }
+              for (int i = 0; i < array.length; i++) {
+                buffer.set(bufferOffset + i, array[i] * 1000000);
+              }
+              offsets[bufferElement] = (long) bufferOffset;
+              nativeArrayOffsetElements[bufferIdx] += 1;
+              nativeArrayBufferElements[bufferIdx] += array.length;
+            } else {
+              buffer.set(bufferElement, record.getLong(ordinal) * 1000000);
+              nativeArrayBufferElements[bufferIdx] += 1;
+            }
+            break;
+          }
+        }
+      case TILEDB_DATETIME_NS:
+        {
+          {
+            if (isArray) {
+              long[] array = record.getArray(ordinal).toLongArray();
+              int bufferOffset = nativeArrayBufferElements[bufferElement];
+              if ((bufferOffset + array.length) > maxBufferElements) {
+                this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+                return true;
+              }
+              for (int i = 0; i < array.length; i++) {
+                buffer.set(bufferOffset + i, array[i] * 1000);
+              }
+              offsets[bufferElement] = (long) bufferOffset;
+              nativeArrayOffsetElements[bufferIdx] += 1;
+              nativeArrayBufferElements[bufferIdx] += array.length;
+            } else {
+              buffer.set(bufferElement, record.getLong(ordinal) * 1000);
+              nativeArrayBufferElements[bufferIdx] += 1;
+            }
+            break;
+          }
+        }
+      case TILEDB_DATETIME_MS:
+        {
+          {
+            if (isArray) {
+              long[] array = record.getArray(ordinal).toLongArray();
+              int bufferOffset = nativeArrayBufferElements[bufferElement];
+              if ((bufferOffset + array.length) > maxBufferElements) {
+                this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+                return true;
+              }
+              for (int i = 0; i < array.length; i++) {
+                buffer.set(bufferOffset + i, array[i] / 1000);
+              }
+              offsets[bufferElement] = (long) bufferOffset;
+              nativeArrayOffsetElements[bufferIdx] += 1;
+              nativeArrayBufferElements[bufferIdx] += array.length;
+            } else {
+              buffer.set(bufferElement, record.getLong(ordinal) / 1000);
+              nativeArrayBufferElements[bufferIdx] += 1;
+            }
+            break;
+          }
+        }
+      case TILEDB_DATETIME_SEC:
+        {
+          {
+            if (isArray) {
+              long[] array = record.getArray(ordinal).toLongArray();
+              int bufferOffset = nativeArrayBufferElements[bufferElement];
+              if ((bufferOffset + array.length) > maxBufferElements) {
+                this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+                return true;
+              }
+              for (int i = 0; i < array.length; i++) {
+                buffer.set(bufferOffset + i, array[i] / 1000000);
+              }
+              offsets[bufferElement] = (long) bufferOffset;
+              nativeArrayOffsetElements[bufferIdx] += 1;
+              nativeArrayBufferElements[bufferIdx] += array.length;
+            } else {
+              buffer.set(bufferElement, record.getLong(ordinal) / 1000000);
+              nativeArrayBufferElements[bufferIdx] += 1;
+            }
+            break;
+          }
+        }
+      case TILEDB_DATETIME_MIN:
+        {
+          {
+            if (isArray) {
+              long[] array = record.getArray(ordinal).toLongArray();
+              int bufferOffset = nativeArrayBufferElements[bufferElement];
+              if ((bufferOffset + array.length) > maxBufferElements) {
+                this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+                return true;
+              }
+              for (int i = 0; i < array.length; i++) {
+                buffer.set(bufferOffset + i, array[i] / (60 * 1000000));
+              }
+              offsets[bufferElement] = (long) bufferOffset;
+              nativeArrayOffsetElements[bufferIdx] += 1;
+              nativeArrayBufferElements[bufferIdx] += array.length;
+            } else {
+              buffer.set(bufferElement, record.getLong(ordinal) / (60 * 1000000));
+              nativeArrayBufferElements[bufferIdx] += 1;
+            }
+            break;
+          }
+        }
+      case TILEDB_DATETIME_HR:
+        {
+          {
+            if (isArray) {
+              long[] array = record.getArray(ordinal).toLongArray();
+              int bufferOffset = nativeArrayBufferElements[bufferElement];
+              if ((bufferOffset + array.length) > maxBufferElements) {
+                this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+                return true;
+              }
+              for (int i = 0; i < array.length; i++) {
+                buffer.set(bufferOffset + i, array[i] / (60 * 60 * 1000000L));
+              }
+              offsets[bufferElement] = (long) bufferOffset;
+              nativeArrayOffsetElements[bufferIdx] += 1;
+              nativeArrayBufferElements[bufferIdx] += array.length;
+            } else {
+              buffer.set(bufferElement, record.getLong(ordinal) / (60 * 60 * 1000000L));
+              nativeArrayBufferElements[bufferIdx] += 1;
+            }
+            break;
+          }
+        }
+      case TILEDB_DATETIME_WEEK:
+        {
+          if (isArray) {
+            int[] array = record.getArray(ordinal).toIntArray();
+            int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+              return true;
+            }
+            for (int i = 0; i < array.length; i++) {
+              dt =
+                  new Timestamp(record.getLong(ordinal) / 1000)
+                      .toLocalDateTime()
+                      .atOffset(ZoneOffset.UTC);
+              value = ChronoUnit.WEEKS.between(zeroDateTime, dt);
+              buffer.set(bufferOffset + i, value);
+            }
+            offsets[bufferElement] = (long) bufferOffset;
+            nativeArrayOffsetElements[bufferIdx] += 1;
+            nativeArrayBufferElements[bufferIdx] += array.length;
+          } else {
+            dt =
+                new Timestamp(record.getLong(ordinal) / 1000)
+                    .toLocalDateTime()
+                    .atOffset(ZoneOffset.UTC);
+            value = ChronoUnit.WEEKS.between(zeroDateTime, dt);
+            buffer.set(bufferElement, value);
+            nativeArrayBufferElements[bufferIdx] += 1;
+          }
+          break;
+        }
+      case TILEDB_DATETIME_MONTH:
+        {
+          if (isArray) {
+            int[] array = record.getArray(ordinal).toIntArray();
+            int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+              return true;
+            }
+            for (int i = 0; i < array.length; i++) {
+              dt =
+                  new Timestamp(record.getLong(ordinal) / 1000)
+                      .toLocalDateTime()
+                      .atOffset(ZoneOffset.UTC);
+              value = ChronoUnit.MONTHS.between(zeroDateTime, dt);
+              buffer.set(bufferOffset + i, value);
+            }
+            offsets[bufferElement] = (long) bufferOffset;
+            nativeArrayOffsetElements[bufferIdx] += 1;
+            nativeArrayBufferElements[bufferIdx] += array.length;
+          } else {
+            dt =
+                new Timestamp(record.getLong(ordinal) / 1000)
+                    .toLocalDateTime()
+                    .atOffset(ZoneOffset.UTC);
+            value = ChronoUnit.MONTHS.between(zeroDateTime, dt);
+            buffer.set(bufferElement, value);
+            nativeArrayBufferElements[bufferIdx] += 1;
+          }
+          break;
+        }
+      case TILEDB_DATETIME_YEAR:
+        {
+          if (isArray) {
+            int[] array = record.getArray(ordinal).toIntArray();
+            int bufferOffset = nativeArrayBufferElements[bufferElement];
+            if ((bufferOffset + array.length) > maxBufferElements) {
+              this.metricsUpdater.finish(queryWriteRecordToBufferTimerName);
+              return true;
+            }
+            for (int i = 0; i < array.length; i++) {
+              dt =
+                  new Timestamp(record.getLong(ordinal) / 1000)
+                      .toLocalDateTime()
+                      .atOffset(ZoneOffset.UTC);
+              value = ChronoUnit.YEARS.between(zeroDateTime, dt);
+              buffer.set(bufferOffset + i, value);
+            }
+            offsets[bufferElement] = (long) bufferOffset;
+            nativeArrayOffsetElements[bufferIdx] += 1;
+            nativeArrayBufferElements[bufferIdx] += array.length;
+          } else {
+            dt =
+                new Timestamp(record.getLong(ordinal) / 1000)
+                    .toLocalDateTime()
+                    .atOffset(ZoneOffset.UTC);
+            value = ChronoUnit.YEARS.between(zeroDateTime, dt);
+            buffer.set(bufferElement, value);
             nativeArrayBufferElements[bufferIdx] += 1;
           }
           break;

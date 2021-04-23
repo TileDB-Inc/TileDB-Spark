@@ -179,10 +179,8 @@ public class TileDBWriteSchema {
         if (longMax.isPresent()) {
           max = longMax.get();
         }
-
         return new Dimension(
             ctx, field.name(), Datatype.TILEDB_DATETIME_DAY, new Pair<>(min, max), extent);
-
       } else if (dataType instanceof TimestampType) {
         Long min = Long.MIN_VALUE + 1l;
         if (longMin.isPresent()) {
@@ -199,7 +197,7 @@ public class TileDBWriteSchema {
           extent = max - min;
         }
         return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_DATETIME_MS, new Pair<>(min, max), extent);
+            ctx, field.name(), Datatype.TILEDB_DATETIME_US, new Pair<>(min, max), extent);
       } else if (dataType instanceof StringType) {
         return new Dimension(ctx, field.name(), Datatype.TILEDB_STRING_ASCII, null, null);
       }
@@ -228,7 +226,7 @@ public class TileDBWriteSchema {
     } else if (dataType instanceof DateType) {
       attribute = new Attribute(ctx, field.name(), Datatype.TILEDB_DATETIME_DAY);
     } else if (dataType instanceof TimestampType) {
-      attribute = new Attribute(ctx, field.name(), Datatype.TILEDB_DATETIME_MS);
+      attribute = new Attribute(ctx, field.name(), Datatype.TILEDB_DATETIME_US);
     } else if (dataType instanceof StringType) {
       attribute = new Attribute(ctx, field.name(), String.class).setCellVar();
     } else if (dataType instanceof ArrayType) {

@@ -18,6 +18,10 @@ import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmit
 
 import io.tiledb.java.api.*;
 import java.net.URI;
+import java.sql.Timestamp;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -78,6 +82,9 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private TaskContext task;
 
   private List<String> fieldNames;
+
+  private static final OffsetDateTime zeroDateTime =
+      new Timestamp(0).toInstant().atOffset(ZoneOffset.UTC).toInstant().atOffset(ZoneOffset.UTC);
 
   /**
    * List of NativeArray buffers used in the query object. This is indexed based on columnHandles
@@ -564,6 +571,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private int putValuesOfAtt(String name, Datatype dataType, int index) throws TileDBError {
     int bufferLength;
     int numValues;
+    OffsetDateTime ms;
     switch (dataType) {
       case TILEDB_FLOAT32:
         {
@@ -626,7 +634,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       case TILEDB_INT64:
       case TILEDB_UINT32:
       case TILEDB_UINT64:
-      case TILEDB_DATETIME_MS:
+      case TILEDB_DATETIME_US:
         {
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
@@ -637,15 +645,159 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           }
           break;
         }
+      case TILEDB_DATETIME_AS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000000000000L).toArray();
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffConverted, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_FS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000000).toArray();
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffConverted, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_PS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000).toArray();
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffConverted, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_NS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000).toArray();
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffConverted, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_MS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000).toArray();
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffConverted, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_SEC:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000000).toArray();
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffConverted, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_MIN:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i * 60 * 1000000).toArray();
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffConverted, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_HR:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i * 60 * 60 * 1000000).toArray();
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buffConverted, 0);
+          }
+          break;
+        }
       case TILEDB_DATETIME_DAY:
         {
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
-          int[] buffConverted = Arrays.stream(buff).mapToInt(i -> ((Long) i).intValue()).toArray();
           numValues = bufferLength;
+          for (int i = 0; i < buff.length; i++) {
+            ms = zeroDateTime.plusDays(buff[i]);
+            buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
+          }
           if (resultVectors.length > 0) {
             resultVectors[index].reset();
-            resultVectors[index].putInts(0, bufferLength, buffConverted, 0);
+            resultVectors[index].putLongs(0, bufferLength, buff, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_WEEK:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          for (int i = 0; i < buff.length; i++) {
+            ms = zeroDateTime.plusWeeks(buff[i]);
+            buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
+          }
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buff, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_MONTH:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          for (int i = 0; i < buff.length; i++) {
+            ms = zeroDateTime.plusMonths(buff[i]);
+            buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
+          }
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buff, 0);
+          }
+          break;
+        }
+      case TILEDB_DATETIME_YEAR:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          numValues = bufferLength;
+          for (int i = 0; i < buff.length; i++) {
+            ms = zeroDateTime.plusYears(buff[i]);
+            buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
+          }
+          if (resultVectors.length > 0) {
+            resultVectors[index].reset();
+            resultVectors[index].putLongs(0, bufferLength, buff, 0);
           }
           break;
         }
@@ -702,6 +854,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    */
   private int putValuesOfAttVar(String name, Datatype dataType, int index) throws TileDBError {
     int bufferLength;
+    OffsetDateTime ms;
     switch (dataType) {
       case TILEDB_FLOAT32:
         {
@@ -753,7 +906,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       case TILEDB_INT64:
       case TILEDB_UINT32:
       case TILEDB_UINT64:
-      case TILEDB_DATETIME_MS:
+      case TILEDB_DATETIME_US:
         {
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
@@ -761,13 +914,124 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
           break;
         }
+      case TILEDB_DATETIME_MS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_AS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000000000L).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_FS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000000).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_PS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_NS:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_SEC:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000000).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_MIN:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000000000).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          break;
+        }
+      case TILEDB_DATETIME_HR:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000000000000L).toArray();
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          break;
+        }
       case TILEDB_DATETIME_DAY:
         {
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
-          int[] buffConverted = Arrays.stream(buff).mapToInt(i -> ((Long) i).intValue()).toArray();
+          for (int i = 0; i < buff.length; i++) {
+            ms = zeroDateTime.plusDays(buff[i]);
+            buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
+          }
           resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putInts(0, bufferLength, buffConverted, 0);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          break;
+        }
+      case TILEDB_DATETIME_WEEK:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          for (int i = 0; i < buff.length; i++) {
+            ms = zeroDateTime.plusWeeks(buff[i]);
+            buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
+          }
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          break;
+        }
+      case TILEDB_DATETIME_MONTH:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          for (int i = 0; i < buff.length; i++) {
+            ms = zeroDateTime.plusMonths(buff[i]);
+            buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
+          }
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          break;
+        }
+      case TILEDB_DATETIME_YEAR:
+        {
+          long[] buff = (long[]) query.getBuffer(name);
+          bufferLength = buff.length;
+          for (int i = 0; i < buff.length; i++) {
+            ms = zeroDateTime.plusYears(buff[i]);
+            buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
+          }
+          resultVectors[index].getChild(0).reserve(bufferLength);
+          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
           break;
         }
       default:
