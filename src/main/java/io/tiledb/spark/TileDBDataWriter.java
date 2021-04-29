@@ -98,7 +98,6 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
       ctx = new Context(options.getTileDBConfigMap());
       array = new Array(ctx, uri.toString(), QueryType.TILEDB_WRITE);
       try (ArraySchema arraySchema = array.getSchema()) {
-        assert arraySchema.isSparse();
         try (Domain domain = arraySchema.getDomain()) {
           nDims = Math.toIntExact(domain.getNDim());
           for (int i = 0; i < domain.getRank(); i++) {

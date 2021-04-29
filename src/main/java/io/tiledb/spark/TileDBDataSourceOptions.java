@@ -57,6 +57,14 @@ public class TileDBDataSourceOptions implements Serializable {
     return true;
   }
 
+  /** @return True if array should be dense * */
+  public boolean getDense() {
+    if (optionMap.containsKey("dense")) {
+      return Boolean.parseBoolean(optionMap.get("dense"));
+    }
+    return false; // sparse is default
+  }
+
   /** @return partition count * */
   public int getPartitionCount() {
     if (optionMap.containsKey("partition_count")) {
