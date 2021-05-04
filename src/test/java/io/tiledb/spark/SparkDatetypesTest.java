@@ -258,18 +258,20 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
         expected
             .toLocalDateTime()
             .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss:SSSSSSSSS")),
-        row.getTimestamp(7)
+        row.getTimestamp(8)
             .toLocalDateTime()
             .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss:SSSSSSSSS")));
-    Assert.assertEquals(
-        expected.toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")),
-        row.getTimestamp(8).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")));
-    Assert.assertEquals(
-        expected.toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")),
-        row.getTimestamp(9).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")));
+    // Less accuracy is needed for weeks. The beginning of a week might be in month X-1. However the
+    // current month might be X. That will fail the test.
     Assert.assertEquals(
         expected.toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")),
-        row.getTimestamp(10).toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")));
+        row.getTimestamp(9).toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")));
+    Assert.assertEquals(
+        expected.toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")),
+        row.getTimestamp(10).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")));
+    Assert.assertEquals(
+        expected.toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")),
+        row.getTimestamp(11).toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")));
   }
 
   //    ========================================================
@@ -501,9 +503,11 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
         row.getTimestamp(2)
             .toLocalDateTime()
             .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
+    // Less accuracy is needed for weeks. The beginning of a week might be in month X-1. However the
+    // current month might be X. That will fail the test.
     Assert.assertEquals(
-        dateNow.toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")),
-        row.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")));
+        dateNow.toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")),
+        row.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")));
 
     // 2nd row
     row = rowsOfnew.get(1);
