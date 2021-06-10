@@ -94,13 +94,10 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
   private static void writeArraySchema(
       Context ctx, URI uri, StructType sparkSchema, TileDBDataSourceOptions options)
       throws TileDBError {
-    writeSparseArraySchema(ctx, uri, sparkSchema, options);
-  }
-
-  private static void writeSparseArraySchema(
-      Context ctx, URI uri, StructType sparkSchema, TileDBDataSourceOptions options)
-      throws TileDBError {
-    try (ArraySchema arraySchema = new ArraySchema(ctx, ArrayType.TILEDB_SPARSE);
+    ArrayType type;
+    if (options.getDense()) type = ArrayType.TILEDB_DENSE;
+    else type = ArrayType.TILEDB_SPARSE;
+    try (ArraySchema arraySchema = new ArraySchema(ctx, type);
         Domain domain = new Domain(ctx)) {
       String[] dimNames = TileDBWriteSchema.getSchemaDimensionOptions(sparkSchema, options);
       StructField[] sparkFields = sparkSchema.fields();
