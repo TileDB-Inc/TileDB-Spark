@@ -8,12 +8,14 @@ buildscript {
 }
 
 plugins {
-    id 'java'
+    id 'scala'
+    id 'java-library'
     id 'idea'
     id 'maven-publish'
     id 'signing'
     id 'com.github.sherter.google-java-format' version '0.7.1'
     id "com.github.johnrengelman.shadow" version "4.0.4"
+    id 'io.codearte.nexus-staging' version '0.30.0'
 }
 
 group 'io.tiledb'
@@ -117,4 +119,51 @@ artifacts {
     archives jar
     archives sourceJar
     archives javadocJar
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact jar
+            artifact sourceJar
+            artifact javadocJar
+
+            pom {
+                name = 'TileDB Spark'
+                description = 'Spark interface to the TileDB storage manager'
+                url = 'https://github.com/TileDB-Inc/TileDB-Spark'
+                licenses {
+                    license {
+                        name = 'The MIT License (MIT)'
+                        url = 'https://github.com/TileDB-Inc/TileDB-Spark/blob/master/LICENSE'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/TileDB-Inc/TileDB-Spark.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/TileDB-Inc/TileDB-Spark'
+                    url = 'https://github.com/TileDB-Inc/TileDB-Spark'
+                }
+                developers {
+                    developer {
+                        name = 'TileDB, Inc'
+                        email = 'help@tiledb.io'
+                        organization = 'TileDB, Inc.'
+                        organizationUrl = 'https://tiledb.com/'
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+            def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            credentials {
+                username System.getenv('SONATYPE_USERNAME')
+                password System.getenv('SONATYPE_PASSWORD')
+            }
+        }
+    }
 }
