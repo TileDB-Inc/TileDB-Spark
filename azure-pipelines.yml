@@ -59,3 +59,26 @@ stages:
               tag: $(Build.SourceBranchName)
               action: "edit"
               assets: $(Build.BinariesDirectory)/jars/*.jar
+
+  - stage: FinalJar
+    condition: or( eq(variables['Build.SourceBranch'], 'refs/heads/master'), startsWith(variables['Build.SourceBranch'], 'refs/tags'))
+    jobs:
+      - job: All_OS
+        strategy:
+          matrix:
+            ubuntu_latest:
+              imageName: 'ubuntu-latest'
+            ubuntu_16:
+              imageName: 'ubuntu-16.04'
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - bash: |
+              ./ci/upload_to_maven.sh
+            env:
+              GPG_KEY_ID: $(GPG_KEY_ID)
+              GPG_PASSPHRASE: $(GPG_PASSPHRASE)
+              GPG_SECRET_KEYS_ENC: $(GPG_SECRET_KEYS_ENC)
+              SONATYPE_USERNAME: $(SONATYPE_USERNAME)
+              SONATYPE_PASSWORD: $(SONATYPE_PASSWORD)
+            displayName: "Publish to Maven"
