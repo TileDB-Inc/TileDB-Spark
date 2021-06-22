@@ -208,8 +208,7 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
        6*0.1666 / 3 = 1, 6*0.25/3 = 1 and 6*0.5833/3 = 2
       */
       List<Integer> dimensionSplits =
-          dimensionVolumeRatios
-              .stream()
+          dimensionVolumeRatios.stream()
               .map(e -> (int) Math.floor(totalAvailableSplits * e))
               .collect(Collectors.toList());
 
@@ -311,8 +310,7 @@ public class SubArrayRanges implements Comparable<SubArrayRanges> {
       return widths.stream().map(e -> ((Short) e).doubleValue() / sum).collect(Collectors.toList());
     } else if (datatype == Integer.class) {
       long sum = widths.stream().map(e -> (Integer) e).mapToLong(Integer::longValue).sum();
-      return widths
-          .stream()
+      return widths.stream()
           .map(e -> ((Integer) e).doubleValue() / sum)
           .collect(Collectors.toList());
     } else if (datatype == Long.class) {
