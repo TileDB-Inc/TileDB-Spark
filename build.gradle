@@ -8,18 +8,24 @@ buildscript {
 }
 
 plugins {
+    id 'java'
     id 'scala'
     id 'java-library'
     id 'idea'
     id 'maven-publish'
     id 'signing'
     id 'com.github.sherter.google-java-format' version '0.9'
+
     id "com.github.johnrengelman.shadow" version "4.0.4"
     id 'io.codearte.nexus-staging' version '0.30.0'
 }
 
+googleJavaFormat {
+  toolVersion = '1.7' // Java 8 compatible version
+}
+
 group 'io.tiledb'
-version '0.2.1'
+version '0.3.0'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
