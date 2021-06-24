@@ -40,7 +40,11 @@ stages:
           vmImage: $(imageName)
 
         steps:
-
+          - task: JavaToolInstaller@0
+            inputs:
+              versionSpec: '8'
+              jdkArchitectureOption: 'x64'
+              jdkSourceOption: 'PreInstalled'
           - bash: |
               unset SYSTEM
               set +e
@@ -73,6 +77,11 @@ stages:
         pool:
           vmImage: $(imageName)
         steps:
+          - task: JavaToolInstaller@0
+            inputs:
+              versionSpec: '8'
+              jdkArchitectureOption: 'x64'
+              jdkSourceOption: 'PreInstalled'
           - bash: |
               ./ci/upload_to_maven.sh
             env:
