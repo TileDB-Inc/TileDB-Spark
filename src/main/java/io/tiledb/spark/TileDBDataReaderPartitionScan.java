@@ -134,9 +134,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
                 .collect(Collectors.toList());
       else {
         fieldNames =
-            domain
-                .getDimensions()
-                .stream()
+            domain.getDimensions().stream()
                 .map(
                     dimension -> {
                       try {

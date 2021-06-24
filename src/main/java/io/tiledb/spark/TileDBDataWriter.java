@@ -857,5 +857,6 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     // clean up buffered resources
     closeTileDBResources();
     this.metricsUpdater.finish(queryWriteTimerName);
-  };
+  }
+  ;
 }
