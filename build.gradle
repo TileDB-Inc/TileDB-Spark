@@ -67,6 +67,7 @@ dependencies {
 }
 
 test {
+    maxHeapSize = "2048m"
     systemProperty "java.library.path", new File(buildDir, "TileDB-Java/build/tiledb_jni")
     testLogging {
         showStandardStreams = true
