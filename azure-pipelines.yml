@@ -72,8 +72,6 @@ stages:
           matrix:
             ubuntu_latest:
               imageName: 'ubuntu-latest'
-            ubuntu_16:
-              imageName: 'ubuntu-16.04'
         pool:
           vmImage: $(imageName)
         steps:
