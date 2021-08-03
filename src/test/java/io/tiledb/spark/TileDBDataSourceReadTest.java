@@ -74,8 +74,6 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
 
     for (Dimension dimension : dimensions) domain.addDimension(dimension);
 
-    // Add two attributes "a1" and "a2", so each (i,j) cell can store
-    // a character on "a1" and a vector of two floats on "a2".
     Attribute a1 = new Attribute(ctx, "a1", Integer.class);
 
     ArraySchema schema = new ArraySchema(ctx, TILEDB_SPARSE);
@@ -83,6 +81,25 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     schema.setCellOrder(TILEDB_ROW_MAJOR);
     schema.setDomain(domain);
     schema.addAttribute(a1);
+
+    Array.create(SPARSE_ARRAY_URI, schema);
+  }
+
+  public void sparseHeterogeneousArrayCreate2A(List<Dimension> dimensions) throws TileDBError {
+    // Create and set getDomain
+    Domain domain = new Domain(ctx);
+
+    for (Dimension dimension : dimensions) domain.addDimension(dimension);
+
+    Attribute a1 = new Attribute(ctx, "a1", Integer.class);
+    Attribute a2 = new Attribute(ctx, "a2", Integer.class);
+
+    ArraySchema schema = new ArraySchema(ctx, TILEDB_SPARSE);
+    schema.setTileOrder(TILEDB_ROW_MAJOR);
+    schema.setCellOrder(TILEDB_ROW_MAJOR);
+    schema.setDomain(domain);
+    schema.addAttribute(a1);
+    schema.addAttribute(a2);
 
     Array.create(SPARSE_ARRAY_URI, schema);
   }
@@ -230,6 +247,124 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
         Assert.assertEquals(d1[i], rows.get(i).getString(0));
         Assert.assertEquals(d2[i], rows.get(i).getInt(1));
         Assert.assertEquals(a1[i], rows.get(i).getInt(2));
+      }
+    }
+  }
+
+  @Test
+  public void testQueryCondition() throws TileDBError {
+    List<Dimension> dimensions = new ArrayList<>();
+    dimensions.add(new Dimension(ctx, "d1", Datatype.TILEDB_STRING_ASCII, null, null));
+    dimensions.add(new Dimension(ctx, "d2", Datatype.TILEDB_INT32, new Pair(0, 100), 2));
+
+    NativeArray d1_data =
+        new NativeArray(ctx, "object1object2object3", Datatype.TILEDB_STRING_ASCII);
+    NativeArray d1_off = new NativeArray(ctx, new long[] {0, 7, 14}, Datatype.TILEDB_UINT64);
+    NativeArray d2_data = new NativeArray(ctx, new int[] {12, 40, 50}, Datatype.TILEDB_INT32);
+    NativeArray a1_data = new NativeArray(ctx, new int[] {10, 23, 30}, Datatype.TILEDB_INT32);
+    NativeArray a2_data = new NativeArray(ctx, new int[] {100, 230, 300}, Datatype.TILEDB_INT32);
+
+    List<Pair<String, Pair<NativeArray, NativeArray>>> data = new ArrayList<>();
+    data.add(new Pair<>("d1", new Pair<>(d1_data, d1_off)));
+    data.add(new Pair<>("d2", new Pair<>(d2_data, null)));
+    data.add(new Pair<>("a1", new Pair<>(a1_data, null)));
+    data.add(new Pair<>("a2", new Pair<>(a2_data, null)));
+
+    sparseHeterogeneousArrayCreate2A(dimensions);
+    sparseHeterogeneousArrayWrite(data);
+
+    for (String order : new String[] {"row-major", "TILEDB_ROW_MAJOR"}) {
+      Dataset<Row> dfRead =
+          session()
+              .read()
+              .format("io.tiledb.spark")
+              .option("uri", SPARSE_ARRAY_URI)
+              .option("order", order)
+              .option("partition_count", 1)
+              .load();
+      dfRead.createOrReplaceTempView("tmp");
+      dfRead.show();
+      List<Row> rows1 = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
+      List<Row> rows2 =
+          dfRead
+              .sqlContext()
+              .sql("SELECT * FROM tmp WHERE a1 > 25")
+              .collectAsList(); // is pushed down
+      List<Row> rows3 =
+          dfRead
+              .sqlContext()
+              .sql("SELECT * FROM tmp WHERE a1 >= 23")
+              .collectAsList(); // is pushed down
+      List<Row> rows4 =
+          dfRead
+              .sqlContext()
+              .sql("SELECT * FROM tmp WHERE a1 > 25 or a1 < 20")
+              .collectAsList(); // is not pushed down
+      List<Row> rows5 =
+          dfRead
+              .sqlContext()
+              .sql("SELECT * FROM tmp WHERE a1 > 25 AND a2 > 250")
+              .collectAsList(); // is pushed down
+
+      String[] d1 = new String[] {"object1", "object2", "object3"};
+      int[] d2 = new int[] {12, 40, 50};
+      int[] a1 = new int[] {10, 23, 30};
+      int[] a2 = new int[] {100, 230, 300};
+
+      Assert.assertEquals(rows1.size(), d1.length);
+      for (int i = 0; i < rows1.size(); i++) {
+        Assert.assertEquals(d1[i], rows1.get(i).getString(0));
+        Assert.assertEquals(d2[i], rows1.get(i).getInt(1));
+        Assert.assertEquals(a1[i], rows1.get(i).getInt(2));
+        Assert.assertEquals(a2[i], rows1.get(i).getInt(3));
+      }
+
+      d1 = new String[] {"object3"};
+      d2 = new int[] {50};
+      a1 = new int[] {30};
+      a2 = new int[] {300};
+      Assert.assertEquals(rows2.size(), d1.length);
+      for (int i = 0; i < rows2.size(); i++) {
+        Assert.assertEquals(d1[i], rows2.get(i).getString(0));
+        Assert.assertEquals(d2[i], rows2.get(i).getInt(1));
+        Assert.assertEquals(a1[i], rows2.get(i).getInt(2));
+        Assert.assertEquals(a2[i], rows2.get(i).getInt(3));
+      }
+
+      d1 = new String[] {"object2", "object3"};
+      d2 = new int[] {40, 50};
+      a1 = new int[] {23, 30};
+      a2 = new int[] {230, 300};
+      Assert.assertEquals(rows3.size(), d1.length);
+      for (int i = 0; i < rows3.size(); i++) {
+        Assert.assertEquals(d1[i], rows3.get(i).getString(0));
+        Assert.assertEquals(d2[i], rows3.get(i).getInt(1));
+        Assert.assertEquals(a1[i], rows3.get(i).getInt(2));
+        Assert.assertEquals(a2[i], rows3.get(i).getInt(3));
+      }
+
+      d1 = new String[] {"object1", "object3"};
+      d2 = new int[] {12, 50};
+      a1 = new int[] {10, 30};
+      a2 = new int[] {100, 300};
+      Assert.assertEquals(rows4.size(), d1.length);
+      for (int i = 0; i < rows4.size(); i++) {
+        Assert.assertEquals(d1[i], rows4.get(i).getString(0));
+        Assert.assertEquals(d2[i], rows4.get(i).getInt(1));
+        Assert.assertEquals(a1[i], rows4.get(i).getInt(2));
+        Assert.assertEquals(a2[i], rows4.get(i).getInt(3));
+      }
+
+      d1 = new String[] {"object3"};
+      d2 = new int[] {50};
+      a1 = new int[] {30};
+      a2 = new int[] {300};
+      Assert.assertEquals(rows5.size(), d1.length);
+      for (int i = 0; i < rows5.size(); i++) {
+        Assert.assertEquals(d1[i], rows5.get(i).getString(0));
+        Assert.assertEquals(d2[i], rows5.get(i).getInt(1));
+        Assert.assertEquals(a1[i], rows5.get(i).getInt(2));
+        Assert.assertEquals(a2[i], rows5.get(i).getInt(3));
       }
     }
   }

@@ -8,7 +8,8 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 public class TileDBDataReaderPartition implements InputPartition<ColumnarBatch> {
 
-  private final List<List<Range>> pushedRanges;
+  private final List<List<Range>> dimensionRanges;
+  private final List<List<Range>> attributeRanges;
   private URI uri;
   private TileDBReadSchema tileDBReadSchema;
   private TileDBDataSourceOptions tiledbOptions;
@@ -17,15 +18,18 @@ public class TileDBDataReaderPartition implements InputPartition<ColumnarBatch> 
       URI uri,
       TileDBReadSchema schema,
       TileDBDataSourceOptions options,
-      List<List<Range>> pushedRanges) {
+      List<List<Range>> dimensionRanges,
+      List<List<Range>> attributeRanges) {
     this.uri = uri;
     this.tileDBReadSchema = schema;
     this.tiledbOptions = options;
-    this.pushedRanges = pushedRanges;
+    this.dimensionRanges = dimensionRanges;
+    this.attributeRanges = attributeRanges;
   }
 
   @Override
   public InputPartitionReader<ColumnarBatch> createPartitionReader() {
-    return new TileDBDataReaderPartitionScan(uri, tileDBReadSchema, tiledbOptions, pushedRanges);
+    return new TileDBDataReaderPartitionScan(
+        uri, tileDBReadSchema, tiledbOptions, dimensionRanges, attributeRanges);
   }
 }

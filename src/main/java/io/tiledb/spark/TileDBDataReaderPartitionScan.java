@@ -4,6 +4,9 @@ import static io.tiledb.java.api.Datatype.*;
 import static io.tiledb.java.api.QueryStatus.TILEDB_COMPLETED;
 import static io.tiledb.java.api.QueryStatus.TILEDB_INCOMPLETE;
 import static io.tiledb.java.api.QueryStatus.TILEDB_UNINITIALIZED;
+import static io.tiledb.libtiledb.tiledb_query_condition_combination_op_t.TILEDB_AND;
+import static io.tiledb.libtiledb.tiledb_query_condition_op_t.TILEDB_GE;
+import static io.tiledb.libtiledb.tiledb_query_condition_op_t.TILEDB_LE;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryAllocBufferTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryCloseNativeArraysTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryGetDimensionTimerName;
@@ -45,8 +48,9 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   static Logger log = Logger.getLogger(TileDBDataReaderPartitionScan.class.getName());
 
   // Filter pushdown to this partition
-  private final List<List<Range>> pushedRanges;
+  private final List<List<Range>> allRanges;
 
+  private final int dimensionRangesNum;
   // HAL for getting memory details about doubling buffers
   private final HardwareAbstractionLayer hardwareAbstractionLayer;
   private final TileDBReadMetricsUpdater metricsUpdater;
@@ -96,12 +100,16 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       URI uri,
       TileDBReadSchema schema,
       TileDBDataSourceOptions options,
-      List<List<Range>> pushedRanges) {
+      List<List<Range>> dimensionRanges,
+      List<List<Range>> attributeRanges) {
     this.arrayURI = uri;
     this.sparkSchema = schema.getSparkSchema();
     this.options = options;
     this.queryStatus = TILEDB_UNINITIALIZED;
-    this.pushedRanges = pushedRanges;
+    this.dimensionRangesNum = dimensionRanges.size();
+    this.allRanges = dimensionRanges;
+    this.allRanges.addAll(attributeRanges);
+
     this.task = TaskContext.get();
 
     metricsUpdater = new TileDBReadMetricsUpdater(task);
@@ -318,15 +326,55 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     query = new Query(array, QueryType.TILEDB_READ);
 
     // Pushdown any ranges
-    if (pushedRanges.size() > 0) {
-      for (List<Range> ranges : pushedRanges) {
-        int i = 0;
-        for (Range range : ranges) {
-          if (arraySchema.getDomain().getDimension(i).isVar())
-            query.addRangeVar(i++, range.getFirst().toString(), range.getSecond().toString());
-          else query.addRange(i++, range.getFirst(), range.getSecond());
+    QueryCondition finalCondition = null;
+    if (allRanges.size() > 0) {
+      // the first element of the allranges list is a list of the dimension ranges. The remaining
+      // elements are singleton lists of the attribute ranges.
+      List<Range> dimensionRanges = allRanges.get(0);
+      List<List<Range>> attributeRanges = allRanges.subList(1, allRanges.size());
+
+      int dimIndex = 0;
+      for (Range range : dimensionRanges) {
+        if (range.getFirst() == null || range.getSecond() == null) {
+          continue;
         }
+        if (arraySchema.getDomain().getDimension(dimIndex).isVar())
+          query.addRangeVar(dimIndex, range.getFirst().toString(), range.getSecond().toString());
+        else query.addRange(dimIndex, range.getFirst(), range.getSecond());
+        dimIndex++;
       }
+
+      int attIndex = 0;
+      for (List<Range> ranges : attributeRanges) {
+        for (Range range : ranges) {
+          if (range.getFirst() == null || range.getSecond() == null) {
+            continue;
+          }
+          Object lowBound;
+          Object highBound;
+          Attribute att = arraySchema.getAttribute(attIndex);
+          boolean isString = att.getType().javaClass().equals(String.class);
+          if (isString) {
+            highBound = range.getSecond().toString().getBytes();
+            lowBound = range.getFirst().toString().getBytes();
+          } else {
+            highBound = range.getSecond();
+            lowBound = range.getFirst();
+          }
+          QueryCondition cond1 =
+              new QueryCondition(
+                  ctx, att.getName(), lowBound, att.getType().javaClass(), TILEDB_GE);
+          QueryCondition cond2 =
+              new QueryCondition(
+                  ctx, att.getName(), highBound, att.getType().javaClass(), TILEDB_LE);
+          QueryCondition cond3 = cond1.combine(cond2, TILEDB_AND);
+          if (finalCondition == null) finalCondition = cond3;
+          else finalCondition = finalCondition.combine(cond3, TILEDB_AND);
+        }
+        attIndex++;
+      }
+
+      if (finalCondition != null) query.setCondition(finalCondition);
     }
 
     // set query read layout

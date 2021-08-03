@@ -85,7 +85,7 @@ public class TileDBDataSourceReader
     // Loop through all filters and check if they are support type and on a domain. If so push them
     // down
     for (Filter filter : filters) {
-      if (checkFilterIsDimensionOnly(filter)) {
+      if (filterCanBePushedDown(filter)) {
         pushedFiltersList.add(filter);
       } else {
         leftOverFilters.add(filter);
@@ -101,54 +101,25 @@ public class TileDBDataSourceReader
     return leftOvers;
   }
 
-  private boolean checkFilterIsDimensionOnly(Filter filter) {
+  private boolean filterCanBePushedDown(Filter filter) {
     if (filter instanceof And) {
       And f = (And) filter;
-      if (checkFilterIsDimensionOnly(f.left()) && checkFilterIsDimensionOnly(f.right())) {
-        return true;
-      }
-    } else if (filter instanceof Or) {
-      Or f = (Or) filter;
-      if (checkFilterIsDimensionOnly(f.left()) && checkFilterIsDimensionOnly(f.right())) {
+      if (filterCanBePushedDown(f.left()) && filterCanBePushedDown(f.right())) {
         return true;
       }
     } else if (filter instanceof EqualNullSafe) {
-      EqualNullSafe f = (EqualNullSafe) filter;
-      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
-        return true;
-      }
+      return true;
     } else if (filter instanceof EqualTo) {
-      EqualTo f = (EqualTo) filter;
-      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
-        return true;
-      }
+      return true;
     } else if (filter instanceof GreaterThan) {
-      GreaterThan f = (GreaterThan) filter;
-      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
-        return true;
-      }
+      return true;
     } else if (filter instanceof GreaterThanOrEqual) {
-      GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
-      if (this.tileDBReadSchema.getDimensionId((f.attribute())).isPresent()) {
-        return true;
-      }
-    } else if (filter instanceof In) {
-      In f = (In) filter;
-      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
-        return true;
-      }
+      return true;
     } else if (filter instanceof LessThan) {
-      LessThan f = (LessThan) filter;
-      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
-        return true;
-      }
+      return true;
     } else if (filter instanceof LessThanOrEqual) {
-      LessThanOrEqual f = (LessThanOrEqual) filter;
-      if (this.tileDBReadSchema.getDimensionId(f.attribute()).isPresent()) {
-        return true;
-      }
+      return true;
     }
-
     return false;
   }
 
@@ -181,22 +152,29 @@ public class TileDBDataSourceReader
         ranges.add(new ArrayList<>());
       }
 
+      for (int i = 0; i < array.getSchema().getAttributeNum(); i++) {
+        ranges.add(new ArrayList<>());
+      }
+
       // Build range from all pushed filters
       for (Filter filter : pushedFilters) {
-        List<List<Range>> dimRanges = buildRangeFromFilter(filter, nonEmptyDomain).getFirst();
-
-        for (int i = 0; i < dimRanges.size(); i++) {
-          ranges.get(i).addAll(dimRanges.get(i));
+        List<List<Range>> allRanges = buildRangeFromFilter(filter, nonEmptyDomain).getFirst();
+        for (int i = 0; i < allRanges.size(); i++) {
+          ranges.get(i).addAll(allRanges.get(i));
         }
       }
 
       // Add nonEmptyDomain to any dimension that does not have a range from pushdown
       // For any existing ranges we try to merge into super ranges
-      for (int i = 0; i < domain.getNDim(); i++) {
+      for (int i = 0; i < domain.getNDim() + array.getSchema().getAttributeNum(); i++) {
         List<Range> range = ranges.get(i);
         if (range.isEmpty()) {
-          String dimensionName = this.tileDBReadSchema.getDimensionName(i).get();
-          range.add(new Range(nonEmptyDomain.get(dimensionName)));
+          String columnName = this.tileDBReadSchema.getColumnName(i).get();
+          if (this.tileDBReadSchema.hasDimension(columnName)) {
+            range.add(new Range(nonEmptyDomain.get(columnName)));
+          } else {
+            range.add(new Range(true, new Pair(null, null)));
+          }
         } else {
           List<Range> mergedRanges = checkAndMergeRanges(range);
           ranges.set(i, mergedRanges);
@@ -205,7 +183,8 @@ public class TileDBDataSourceReader
 
       List<SubArrayRanges> subarrays = new ArrayList<>();
 
-      generateAllSubarrays(ranges, subarrays, 0, new ArrayList<>());
+      generateAllSubarrays(
+          ranges.subList(0, (int) (domain.getNDim())), subarrays, 0, new ArrayList<>());
 
       int availablePartitions = tiledbOptions.getPartitionCount();
       if (availablePartitions > 1) {
@@ -264,6 +243,13 @@ public class TileDBDataSourceReader
         }
       }
 
+      List<List<Range>> attributeRanges = new ArrayList<>();
+      for (int i = ((int) domain.getNDim());
+          i < domain.getNDim() + array.getSchema().getAttributeNum();
+          i++) {
+        attributeRanges.add(ranges.get(i));
+      }
+
       for (SubArrayRanges subarray : subarrays) {
         // In the future we will be smarter about combining ranges to have partitions work on more
         // than one range
@@ -271,8 +257,10 @@ public class TileDBDataSourceReader
         List<List<Range>> subarrayRanges = new ArrayList<>();
         subarrayRanges.add(subarray.getRanges());
         readerPartitions.add(
-            new TileDBDataReaderPartition(uri, tileDBReadSchema, tiledbOptions, subarrayRanges));
+            new TileDBDataReaderPartition(
+                uri, tileDBReadSchema, tiledbOptions, subarrayRanges, attributeRanges));
       }
+
     } catch (TileDBError tileDBError) {
       log.log(ERROR, tileDBError.getMessage());
       metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
@@ -367,6 +355,50 @@ public class TileDBDataSourceReader
   }
 
   /**
+   * Returns the minimum value for the given datatype
+   *
+   * @param datatype
+   * @return
+   */
+  private Object getMinValue(Class datatype) {
+    if (datatype == Byte.class) {
+      return Byte.MIN_VALUE;
+    } else if (datatype == Short.class) {
+      return Short.MIN_VALUE;
+    } else if (datatype == Integer.class) {
+      return Integer.MIN_VALUE;
+    } else if (datatype == Long.class) {
+      return Long.MIN_VALUE;
+    } else if (datatype == Float.class) {
+      return Float.MIN_VALUE;
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Returns the maximum value for the given datatype
+   *
+   * @param datatype
+   * @return
+   */
+  private Object getMaxValue(Class datatype) {
+    if (datatype == Byte.class) {
+      return Byte.MAX_VALUE;
+    } else if (datatype == Short.class) {
+      return Short.MAX_VALUE;
+    } else if (datatype == Integer.class) {
+      return Integer.MAX_VALUE;
+    } else if (datatype == Long.class) {
+      return Long.MAX_VALUE;
+    } else if (datatype == Float.class) {
+      return Float.MAX_VALUE;
+    } else {
+      return null;
+    }
+  }
+
+  /**
    * Creates range(s) from a filter that has been pushed down
    *
    * @param filter
@@ -381,6 +413,10 @@ public class TileDBDataSourceReader
     List<List<Range>> ranges = new ArrayList<>();
     // Build mapping for dimension name to index
     for (int i = 0; i < this.tileDBReadSchema.dimensionIndex.size(); i++) {
+      ranges.add(new ArrayList<>());
+    }
+
+    for (int i = 0; i < this.tileDBReadSchema.attributeIndex.size(); i++) {
       ranges.add(new ArrayList<>());
     }
     // First handle filter that are AND this is something like dim1 >= 1 AND dim1 <= 10
@@ -446,62 +482,73 @@ public class TileDBDataSourceReader
       // value
     } else if (filter instanceof EqualNullSafe) {
       EqualNullSafe f = (EqualNullSafe) filter;
-      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
-      ranges.get(dimIndex).add(new Range(new Pair<>(f.value(), f.value())));
+      int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
+      ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), f.value())));
     } else if (filter instanceof EqualTo) {
       EqualTo f = (EqualTo) filter;
-      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
-      ranges.get(dimIndex).add(new Range(new Pair<>(f.value(), f.value())));
+      int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
+      ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), f.value())));
 
       // GreaterThan is ranges which are in the form of `dim > 1`
     } else if (filter instanceof GreaterThan) {
       GreaterThan f = (GreaterThan) filter;
-      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
+      Object second;
+      if (nonEmptyDomain.get(f.attribute()) != null)
+        second = nonEmptyDomain.get(f.attribute()).getSecond();
+      else second = getMaxValue(f.value().getClass());
+      int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges
-          .get(dimIndex)
+          .get(columnIndex)
           .add(
               new Range(
                   new Pair<>(
                       addEpsilon(
-                          (Number) f.value(), this.tileDBReadSchema.dimensionTypes.get(dimIndex)),
-                      nonEmptyDomain.get(f.attribute()).getSecond())));
-      // GreaterThanOrEqual is ranges which are in the form of `dim >= 1`
+                          (Number) f.value(), this.tileDBReadSchema.columnTypes.get(columnIndex)),
+                      second)));
     } else if (filter instanceof GreaterThanOrEqual) {
       GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
-      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
-      ranges
-          .get(dimIndex)
-          .add(new Range(new Pair<>(f.value(), nonEmptyDomain.get(f.attribute()).getSecond())));
+      Object second;
+      if (nonEmptyDomain.get(f.attribute()) != null)
+        second = nonEmptyDomain.get(f.attribute()).getSecond();
+      else second = getMaxValue(f.value().getClass());
+      int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
+      ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), second)));
 
       // For in filters we will add every value as ranges of 1. `dim IN (1, 2, 3)`
     } else if (filter instanceof In) {
       In f = (In) filter;
       // Add every value as a new range, TileDB will collapse into super ranges for us
       for (Object value : f.values()) {
-        int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
+        int dimIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
         ranges.get(dimIndex).add(new Range(new Pair<>(value, value)));
       }
 
       // LessThan is ranges which are in the form of `dim < 1`
     } else if (filter instanceof LessThan) {
       LessThan f = (LessThan) filter;
-      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
+      Object first;
+      if (nonEmptyDomain.get(f.attribute()) != null)
+        first = nonEmptyDomain.get(f.attribute()).getSecond();
+      else first = getMinValue(f.value().getClass());
+      int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges
-          .get(dimIndex)
+          .get(columnIndex)
           .add(
               new Range(
                   new Pair<>(
-                      nonEmptyDomain.get(f.attribute()).getFirst(),
+                      first,
                       subtractEpsilon(
                           (Number) f.value(),
-                          this.tileDBReadSchema.dimensionTypes.get(dimIndex)))));
+                          this.tileDBReadSchema.columnTypes.get(columnIndex)))));
       // LessThanOrEqual is ranges which are in the form of `dim <= 1`
     } else if (filter instanceof LessThanOrEqual) {
       LessThanOrEqual f = (LessThanOrEqual) filter;
-      int dimIndex = this.tileDBReadSchema.getDimensionId(f.attribute()).get();
-      ranges
-          .get(dimIndex)
-          .add(new Range(new Pair<>(nonEmptyDomain.get(f.attribute()).getFirst(), f.value())));
+      Object first;
+      if (nonEmptyDomain.get(f.attribute()) != null)
+        first = nonEmptyDomain.get(f.attribute()).getSecond();
+      else first = getMinValue(f.value().getClass());
+      int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
+      ranges.get(columnIndex).add(new Range(new Pair<>(first, f.value())));
     } else {
       throw new TileDBError("Unsupported filter type");
     }
