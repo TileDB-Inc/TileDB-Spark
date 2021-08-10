@@ -77,7 +77,9 @@ to `$SPARK_HOME/jars/`.
 
 ### Read/Write options
 * `uri` (required): URI to TileDB sparse or dense array
-* `tiledb.` (optional): Set a TileDB config option, ex: `option("tiledb.vfs.num_threads", 4)`.  Multiple tiledb config options can be specified.  See the [full list of configuration options](https://docs.tiledb.io/en/latest/tutorials/config.html?highlight=config#summary-of-parameters).
+* `tiledb.` (optional): Set a TileDB config option, ex: `option("tiledb.vfs.num_threads", 4)`.  Multiple tiledb config options can be
+   specified.  See the
+  [full list of configuration options](https://docs.tiledb.io/en/latest/tutorials/config.html?highlight=config#summary-of-parameters).
 
 ### Read options
 * `order` (optional): Result layout order `"row-major"`/ `"TILEDB_ROW_MAJOR"`, `"col-major"` / `"TILEDB_COL_MAJOR"`, or `"unordered"`/ `"TILEDB_UNORDERED"` (default `"unordered"`).
