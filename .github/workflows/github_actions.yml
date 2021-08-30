@@ -1,22 +1,96 @@
 name: TileDB-Spark
 
-on:
-  push:
-    tags: [ v* ]
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+on: [push]
+#  push:
+#    tags: [ v* ]
+#    branches: [ master ]
+#  pull_request:
+#    branches: [ master ]
+
+
+
+#on:
+#  push:
+#    # Sequence of patterns matched against refs/tags
+#    tags:
+#      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
 
 jobs:
-  CI:
+  Ubuntu-test:
     name: Ubuntu-latest
     runs-on: ubuntu-latest
     steps:
-      - run: pwd
-      - run: ls; pwd;
+      # Checks out repository
+      - uses: actions/checkout@v2
       - run: unset SYSTEM; ./gradlew checkFormat;
         shell: bash
+        name: checkFormat
       - run: unset SYSTEM; ./gradlew assemble;
         shell: bash
+        name: assemble
+      - run: unset SYSTEM; ./gradlew test;
+        name: test
+        shell: bash
+
+  MacOS-test:
+    name: macOS
+    runs-on: macos-10.15
+    steps:
+      # Checks out repository
+      - uses: actions/checkout@v2
+      - run: unset SYSTEM; ./gradlew checkFormat;
+        shell: bash
+        name: checkFormat
+      - run: unset SYSTEM; ./gradlew assemble;
+        shell: bash
+        name: assemble
       - run: unset SYSTEM; ./gradlew test;
         shell: bash
+        name: test
+
+  Release:
+    needs: [Ubuntu-test, MacOS-test]
+    name: Create-Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Create jars
+        run: |
+        unset SYSTEM; set +e
+
+        ./gradlew assemble
+        ./gradlew shadowJar
+
+        mkdir binaries/jars
+        cp ./build/libs/*.jar binaries/jars
+
+      - name: publish-release
+        id: create_release
+        uses: actions/create-release@v1
+#        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            Changes in this Release
+            - First Change
+            - Second Change
+          tag_name: $(Build.SourceBranchName)
+          release_name: Release $(Build.SourceBranchName)
+          files: binaries/jars/*.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+#      - name: Create Release
+#        id: create_release
+#        uses: actions/create-release@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          tag_name: $(Build.SourceBranchName)
+#          release_name: Release $(Build.SourceBranchName)
+#          body: |
+#            Changes in this Release
+#            - First Change
+#            - Second Change
+#          draft: false
+#          prerelease: false
