@@ -1,11 +1,22 @@
-name: GitHub Actions Demo
-on: [push]
+name: TileDB-Spark
+
+on:
+  push:
+    tags: [ v* ]
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
 jobs:
-  UBUNTU:
+  CI:
+    name: Ubuntu-latest
     runs-on: ubuntu-latest
     steps:
       - run: pwd
       - run: ls; pwd;
-      - run: unset SYSTEM; ../.././gradlew checkFormat;
-      - run: unset SYSTEM; ../.././gradlew assemble;
-      - run: unset SYSTEM; ../.././gradlew test;
+      - run: unset SYSTEM; ./gradlew checkFormat;
+        shell: bash
+      - run: unset SYSTEM; ./gradlew assemble;
+        shell: bash
+      - run: unset SYSTEM; ./gradlew test;
+        shell: bash

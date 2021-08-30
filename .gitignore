@@ -35,3 +35,5 @@ target/*
 my_dense_array/*
 test.parquet/*
 out/*
+
+template.yml
