@@ -4,9 +4,8 @@ jobs:
   UBUNTU:
     runs-on: ubuntu-latest
     steps:
-      - if: eq(variables['Agent.OS'], 'Darwin')
-        name: Install system headers (macOS only)
-        run: unset SYSTEM; set -e pipefail; open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg; sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -allowUntrusted -target /
-      - run: unset SYSTEM; ./gradlew checkFormat;
-      - run: unset SYSTEM; ./gradlew assemble;
-      - run: unset SYSTEM; ./gradlew test;
+      - run: pwd
+      - run: ls; pwd;
+      - run: unset SYSTEM; ../.././gradlew checkFormat;
+      - run: unset SYSTEM; ../.././gradlew assemble;
+      - run: unset SYSTEM; ../.././gradlew test;
