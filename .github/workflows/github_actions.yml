@@ -2,18 +2,11 @@ name: TileDB-Spark
 
 on: [push]
 #  push:
-#    tags: [ v* ]
+#    tags: [ ]
 #    branches: [ master ]
 #  pull_request:
 #    branches: [ master ]
 
-
-
-#on:
-#  push:
-#    # Sequence of patterns matched against refs/tags
-#    tags:
-#      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
 
 jobs:
   Ubuntu-test:
@@ -55,42 +48,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Create jars
-        run: |
-        unset SYSTEM; set +e
 
-        ./gradlew assemble
-        ./gradlew shadowJar
+      - name: Create-jars
+        run: unset SYSTEM; set +e; ./gradlew assemble; ./gradlew shadowJar; mkdir jars/; cp ./build/libs/*.jar jars/
 
-        mkdir binaries/jars
-        cp ./build/libs/*.jar binaries/jars
+      - name: Get version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
 
-      - name: publish-release
+      - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-#        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          files: jars/*.jar
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: ${{ steps.get_version.outputs.VERSION }}
           body: |
             Changes in this Release
             - First Change
             - Second Change
-          tag_name: $(Build.SourceBranchName)
-          release_name: Release $(Build.SourceBranchName)
-          files: binaries/jars/*.jar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-#      - name: Create Release
-#        id: create_release
-#        uses: actions/create-release@v1
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        with:
-#          tag_name: $(Build.SourceBranchName)
-#          release_name: Release $(Build.SourceBranchName)
-#          body: |
-#            Changes in this Release
-#            - First Change
-#            - Second Change
-#          draft: false
-#          prerelease: false
+          draft: false
+          prerelease: false
