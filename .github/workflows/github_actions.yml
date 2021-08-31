@@ -1,7 +1,8 @@
 name: TileDB-Spark
 on:
   push:
-    tags: [ * ]
+    tags:
+      - '*'
     branches: [ master ]
   pull_request:
     branches: [ master ]
