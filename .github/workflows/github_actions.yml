@@ -49,7 +49,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Create-jars
+      - name: Create-Jars
         run: unset SYSTEM; set +e; ./gradlew assemble; ./gradlew shadowJar; mkdir jars/; cp ./build/libs/*.jar jars/
 
       - name: Get version
