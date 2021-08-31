@@ -52,20 +52,19 @@ jobs:
       - name: Create-Jars
         run: unset SYSTEM; set +e; ./gradlew assemble; ./gradlew shadowJar; mkdir jars/; cp ./build/libs/*.jar jars/
 
-      - name: Get version
+      - name: Get the version
         id: get_version
-        run: echo ::set-output name=SOURCE_BRANCH::${GITHUB_REF#refs/heads/}
+        run: echo ::set-output name=VERSION::$(echo $GITHUB_REF | cut -d / -f 3)
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME:  ${{ steps.branch_name.outputs.SOURCE_BRANCH }}
         with:
           files: jars/*.jar
-          tag_name: $BRANCH_NAME
-          name: $BRANCH_NAME
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: ${{ steps.get_version.outputs.VERSION }}
           body: |
             Changes in this Release
             - First Change
