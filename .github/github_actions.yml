@@ -1,0 +1,76 @@
+name: TileDB-Spark
+
+on: [push]
+#  push:
+#    tags:
+#      - '*'
+#    branches: [ master ]
+#  pull_request:
+#    branches: [ master ]
+
+jobs:
+  Ubuntu-test:
+    #    if: github.ref == 'refs/heads/master'
+    name: Ubuntu-latest
+    runs-on: ubuntu-latest
+    steps:
+      # Checks out repository.
+      - uses: actions/checkout@v2
+      - run: unset SYSTEM; ./gradlew checkFormat;
+        shell: bash
+        name: checkFormat
+      - run: unset SYSTEM; ./gradlew assemble;
+        shell: bash
+        name: assemble
+      - run: unset SYSTEM; ./gradlew test;
+        name: test
+        shell: bash
+
+  MacOS-test:
+    if: github.ref == 'refs/heads/master'
+    name: macOS
+    runs-on: macos-10.15
+    steps:
+      # Checks out repository
+      - uses: actions/checkout@v2
+      - run: unset SYSTEM; ./gradlew checkFormat;
+        shell: bash
+        name: checkFormat
+      - run: unset SYSTEM; ./gradlew assemble;
+        shell: bash
+        name: assemble
+      - run: unset SYSTEM; ./gradlew test;
+        shell: bash
+        name: test
+
+  Release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [Ubuntu-test, MacOS-test]
+    name: Create-Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Create-Jars
+        run: unset SYSTEM; set +e; ./gradlew assemble; ./gradlew shadowJar; mkdir jars/; cp ./build/libs/*.jar jars/
+
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::$(echo $GITHUB_REF | cut -d / -f 3)
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: jars/*.jar
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            Changes in this Release
+            - First Change
+            - Second Change
+          draft: false
+          prerelease: false
