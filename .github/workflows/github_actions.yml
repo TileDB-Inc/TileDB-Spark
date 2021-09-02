@@ -1,6 +1,9 @@
 name: TileDB-Spark
 
 on:
+  create:
+    tags:
+      - '*'
   push:
     tags:
       - '*'
