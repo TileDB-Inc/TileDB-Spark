@@ -1,9 +1,6 @@
 name: TileDB-Spark
 
 on:
-  create:
-    tags:
-      - '*'
   push:
     tags:
       - '*'
@@ -66,7 +63,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MY_PERSONAL_ACCESS_TOKEN }}
         with:
           files: jars/*.jar
           tag_name: ${{ steps.get_version.outputs.VERSION }}
