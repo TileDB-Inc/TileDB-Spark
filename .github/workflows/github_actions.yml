@@ -10,7 +10,7 @@ on:
 
 jobs:
   Ubuntu-test:
-    #    if: github.ref == 'refs/heads/master'
+    #    if: github.ref == 'refs/heads/master'.
     name: Ubuntu-latest
     runs-on: ubuntu-latest
     steps:
