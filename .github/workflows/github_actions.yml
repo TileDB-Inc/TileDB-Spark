@@ -1,12 +1,16 @@
 name: TileDB-Spark
 
-on: [push]
+#on: [push]
 #  push:
 #    tags:
 #      - '*'
 #    branches: [ master ]
 #  pull_request:
 #    branches: [ master ]
+
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  create:
 
 jobs:
   Ubuntu-test:
