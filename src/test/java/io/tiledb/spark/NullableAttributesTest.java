@@ -116,7 +116,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
       query.setBufferNullable("a1", a1, a1Bytemap);
       query.setBufferNullable("a2", a2, a2Bytemap);
 
-      // Submit query
+      // Submit query.
       query.submit();
     }
   }
