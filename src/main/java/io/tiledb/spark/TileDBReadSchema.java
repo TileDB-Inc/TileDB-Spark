@@ -14,15 +14,19 @@ public class TileDBReadSchema implements Serializable {
   private StructType pushDownSparkSchema;
   private StructType tiledbSparkSchema;
   public HashMap<String, Integer> dimensionIndex;
+  public HashMap<String, Integer> attributeIndex;
   public HashMap<Integer, String> dimensionName;
-  public HashMap<Integer, Datatype> dimensionTypes;
+  public HashMap<Integer, String> attributeName;
+  public HashMap<Integer, Datatype> columnTypes;
 
   public TileDBReadSchema(URI uri, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.options = options;
     this.dimensionIndex = new HashMap<>();
+    this.attributeIndex = new HashMap<>();
     this.dimensionName = new HashMap<>();
-    this.dimensionTypes = new HashMap<>();
+    this.attributeName = new HashMap<>();
+    this.columnTypes = new HashMap<>();
     this.getSparkSchema();
   }
 
@@ -62,19 +66,23 @@ public class TileDBReadSchema implements Serializable {
         Domain arrayDomain = arraySchema.getDomain()) {
 
       // for every dimension add a struct field
-      for (int i = 0; i < arrayDomain.getNDim(); i++) {
+      int i;
+      for (i = 0; i < arrayDomain.getNDim(); i++) {
         try (Dimension dim = arrayDomain.getDimension(i)) {
           String dimName = dim.getName();
           this.dimensionIndex.put(dimName, i);
           this.dimensionName.put(i, dimName);
-          this.dimensionTypes.put(i, dim.getType());
+          this.columnTypes.put(i, dim.getType());
           // schema is immutable so to iteratively add we need to re-assign
           sparkSchema = sparkSchema.add(toStructField(dimName, true, dim.getType(), 1l, false));
         }
       }
       // for every attribute add a struct field
-      for (int i = 0; i < arraySchema.getAttributeNum(); i++) {
-        try (Attribute attr = arraySchema.getAttribute(i)) {
+      for (int j = 0; j < arraySchema.getAttributeNum(); j++) {
+        try (Attribute attr = arraySchema.getAttribute(j)) {
+          this.attributeIndex.put(attr.getName(), j + i);
+          this.columnTypes.put(i + j, attr.getType());
+          this.attributeName.put(j + i, attr.getName());
           String attrName = attr.getName();
           sparkSchema =
               sparkSchema.add(
@@ -86,16 +94,24 @@ public class TileDBReadSchema implements Serializable {
     return sparkSchema;
   }
 
-  public Optional<Integer> getDimensionId(String dimensionName) {
-    if (this.dimensionIndex.containsKey(dimensionName))
-      return Optional.of(this.dimensionIndex.get(dimensionName));
+  public Optional<Integer> getColumnId(String columnName) {
+    if (this.dimensionIndex.containsKey(columnName)) {
+      return Optional.of(this.dimensionIndex.get(columnName));
+    }
+    if (this.attributeIndex.containsKey(columnName)) {
+      return Optional.of(this.attributeIndex.get(columnName));
+    }
 
     return Optional.empty();
   }
 
-  public Optional<String> getDimensionName(Integer id) {
-    if (this.dimensionName.containsKey(id)) return Optional.of(this.dimensionName.get(id));
+  public boolean hasDimension(String dimName) {
+    return this.dimensionName.containsValue(dimName);
+  }
 
+  public Optional<String> getColumnName(Integer id) {
+    if (this.dimensionName.containsKey(id)) return Optional.of(this.dimensionName.get(id));
+    if (this.attributeName.containsKey(id)) return Optional.of(this.attributeName.get(id));
     return Optional.empty();
   }
 

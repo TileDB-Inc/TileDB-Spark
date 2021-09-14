@@ -18,7 +18,12 @@ public class Range implements java.io.Serializable, Comparable<Range> {
 
   Range(Pair range) {
     this.range = range;
-    this.dataClassType = range.getFirst().getClass();
+    if (range.getFirst() != null) this.dataClassType = range.getFirst().getClass();
+    else if (range.getSecond() != null) this.dataClassType = range.getSecond().getClass();
+  }
+
+  Range(boolean empty, Pair range) {
+    this.range = range;
   }
 
   public <T extends Number> T width() {
@@ -96,43 +101,43 @@ public class Range implements java.io.Serializable, Comparable<Range> {
       Pair<Byte, Byte> otherRange = other.range;
       return new Range(
           new Pair(
-              min(range.getFirst(), otherRange.getFirst()),
-              max(range.getSecond(), otherRange.getSecond())));
+              max(range.getFirst(), otherRange.getFirst()),
+              min(range.getSecond(), otherRange.getSecond())));
     } else if (this.dataClassType == Short.class) {
       Pair<Short, Short> range = this.range;
       Pair<Short, Short> otherRange = other.range;
       return new Range(
           new Pair(
-              min(range.getFirst(), otherRange.getFirst()),
-              max(range.getSecond(), otherRange.getSecond())));
+              max(range.getFirst(), otherRange.getFirst()),
+              min(range.getSecond(), otherRange.getSecond())));
     } else if (this.dataClassType == Integer.class) {
       Pair<Integer, Integer> range = this.range;
       Pair<Integer, Integer> otherRange = other.range;
       return new Range(
           new Pair(
-              min(range.getFirst(), otherRange.getFirst()),
-              max(range.getSecond(), otherRange.getSecond())));
+              max(range.getFirst(), otherRange.getFirst()),
+              min(range.getSecond(), otherRange.getSecond())));
     } else if (this.dataClassType == Long.class) {
       Pair<Long, Long> range = this.range;
       Pair<Long, Long> otherRange = other.range;
       return new Range(
           new Pair(
-              min(range.getFirst(), otherRange.getFirst()),
-              max(range.getSecond(), otherRange.getSecond())));
+              max(range.getFirst(), otherRange.getFirst()),
+              min(range.getSecond(), otherRange.getSecond())));
     } else if (this.dataClassType == Float.class) {
       Pair<Float, Float> range = this.range;
       Pair<Float, Float> otherRange = other.range;
       return new Range(
           new Pair(
-              min(range.getFirst(), otherRange.getFirst()),
-              max(range.getSecond(), otherRange.getSecond())));
+              max(range.getFirst(), otherRange.getFirst()),
+              min(range.getSecond(), otherRange.getSecond())));
     } else if (this.dataClassType == Double.class) {
       Pair<Double, Double> range = this.range;
       Pair<Double, Double> otherRange = other.range;
       return new Range(
           new Pair(
-              min(range.getFirst(), otherRange.getFirst()),
-              max(range.getSecond(), otherRange.getSecond())));
+              max(range.getFirst(), otherRange.getFirst()),
+              min(range.getSecond(), otherRange.getSecond())));
     }
     return null;
   }
