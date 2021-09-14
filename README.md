@@ -1,5 +1,5 @@
 # TileDB-Spark
-[![TileDB-Spark CI](https://github.com/TileDB-Inc/TileDB-Spark/blob/master/.github/workflows/github_actions.yml/badge.svg)](https://github.com/TileDB-Inc/TileDB-Spark/blob/master/.github/workflows/github_actions.yml)
+![TileDB-Spark CI](https://github.com/TileDB-Inc/TileDB-Spark/actions/workflows/github_actions.yml/badge.svg)
 
 Spark DatasourceV2 to the TileDB storage manager.
 
