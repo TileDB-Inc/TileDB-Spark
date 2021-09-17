@@ -81,8 +81,8 @@ jobs:
           ./ci/upload_to_maven.sh
         shell: bash
         env:
-          GPG_KEY_ID: $(GPG_KEY_ID)
-          GPG_PASSPHRASE: $(GPG_PASSPHRASE)
-          GPG_SECRET_KEYS_ENC: $(GPG_SECRET_KEYS_ENC)
-          SONATYPE_USERNAME: $(SONATYPE_USERNAME)
-          SONATYPE_PASSWORD: $(SONATYPE_PASSWORD)
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_SECRET_KEYS_ENC: ${{ secrets.GPG_SECRET_KEYS_ENC }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
