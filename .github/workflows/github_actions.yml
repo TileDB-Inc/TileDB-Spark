@@ -33,6 +33,9 @@ jobs:
     name: Create-Release
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
       - name: Set up Java
         uses: actions/setup-java@v2
         with:
@@ -40,14 +43,11 @@ jobs:
           java-version: '11'
           check-latest: true
 
-      - name: Build Changelog
-        id: github_release
-        uses: mikepenz/release-changelog-builder-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Checkout
-        uses: actions/checkout@v2
+      - uses: notlmn/release-with-changelog@v2
+        with:
+          header: 'Changes:'
+          include-hash: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create-Jars
         run: unset SYSTEM; set +e; ./gradlew assemble; ./gradlew shadowJar; mkdir jars/; cp ./build/libs/*.jar jars/
@@ -61,7 +61,6 @@ jobs:
           files: jars/*.jar
           tag_name: ${{ github.event.release.tag_name }}
           name: ${{ github.event.release.tag_name }}
-          body: ${{steps.github_release.outputs.changelog}}
           draft: false
           prerelease: false
 
