@@ -56,6 +56,11 @@ public class TileDBWriteSchema {
           min = BigDecimal.valueOf(realMin.get()).floatValue();
         }
         Float max = Float.MAX_VALUE;
+
+        // Necessary, otherwise "Domain check failed; Domain range (upper + lower + 1) is
+        // larger than the maximum unsigned number" is thrown.
+        --max;
+
         if (realMax.isPresent()) {
           max = BigDecimal.valueOf(realMax.get()).floatValue();
         }
@@ -74,6 +79,7 @@ public class TileDBWriteSchema {
           min = realMin.get();
         }
         Double max = Double.MAX_VALUE;
+        --max;
         if (realMax.isPresent()) {
           max = realMax.get();
         }
@@ -142,6 +148,7 @@ public class TileDBWriteSchema {
           min = (short) (long) longMin.get();
         }
         Short max = Short.MAX_VALUE;
+        --max;
         if (longMax.isPresent()) {
           max = (short) (longMax.get() - extent);
         }
@@ -153,6 +160,7 @@ public class TileDBWriteSchema {
           min = Byte.valueOf(longMin.get().toString());
         }
         Byte max = Byte.MAX_VALUE;
+        --max;
         if (longMax.isPresent()) {
           max = Byte.valueOf(longMin.get().toString());
         }
