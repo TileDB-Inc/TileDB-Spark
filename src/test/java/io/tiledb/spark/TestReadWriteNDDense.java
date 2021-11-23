@@ -49,11 +49,11 @@ public class TestReadWriteNDDense extends SharedJavaSparkSession {
             .format("io.tiledb.spark")
             .option("uri", testArrayURIString("writing_dense_global_array"))
             .load();
+    // Array will be written as Sparse. TileDB-Spark does not support dense writes.
     dfReadFirst
         .write()
         .format("io.tiledb.spark")
-        .option("uri", writeArrayURI)
-        .option("dense", true)
+        .option("uri", arrayURI)
         .option("schema.dim.0.name", "rows")
         .option("schema.dim.0.min", 1)
         .option("schema.dim.0.max", 4)
@@ -69,12 +69,7 @@ public class TestReadWriteNDDense extends SharedJavaSparkSession {
         .mode(SaveMode.ErrorIfExists)
         .save();
 
-    Dataset<Row> dfRead =
-        session().read().format("io.tiledb.spark").option("uri", writeArrayURI).load();
-
-    // test if array is dense with java
-    Array array = new Array(ctx, writeArrayURI);
-    Assert.assertFalse(array.getSchema().isSparse());
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", arrayURI).load();
 
     // check values
     dfRead.createOrReplaceTempView("tmp");
@@ -120,6 +115,5 @@ public class TestReadWriteNDDense extends SharedJavaSparkSession {
     Assert.assertEquals(4, row.getInt(0));
     Assert.assertEquals(2, row.getInt(1));
     Assert.assertEquals(8, row.getInt(2));
-    return;
   }
 }

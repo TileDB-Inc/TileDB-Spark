@@ -57,14 +57,6 @@ public class TileDBDataSourceOptions implements Serializable {
     return true;
   }
 
-  /** @return True if array should be dense * */
-  public boolean getDense() {
-    if (optionMap.containsKey("dense")) {
-      return Boolean.parseBoolean(optionMap.get("dense"));
-    }
-    return false; // sparse is default
-  }
-
   /** @return partition count * */
   public int getPartitionCount() {
     if (optionMap.containsKey("partition_count")) {
@@ -136,6 +128,17 @@ public class TileDBDataSourceOptions implements Serializable {
   public Optional<Long> getSchemaDimensionMaxDomainLong(int dimIdx) {
     String dimExtentKey = "schema.dim." + dimIdx + ".max";
     return tryParseOptionKeyLong(optionMap, dimExtentKey);
+  }
+
+  // For dense reads only
+  public Optional<Integer> getSchemaDimensionMinDomainInt(int dimIdx) {
+    String dimExtentKey = "schema.dim." + dimIdx + ".min";
+    return tryParseOptionKeyInt(optionMap, dimExtentKey);
+  }
+
+  public Optional<Integer> getSchemaDimensionMaxDomainInt(int dimIdx) {
+    String dimExtentKey = "schema.dim." + dimIdx + ".max";
+    return tryParseOptionKeyInt(optionMap, dimExtentKey);
   }
 
   public Optional<Long> getSchemaDimensionExtentLong(int dimIdx) {
@@ -303,6 +306,19 @@ public class TileDBDataSourceOptions implements Serializable {
     Long val;
     try {
       val = Long.parseLong(options.get(key));
+    } catch (NumberFormatException err) {
+      return Optional.empty();
+    }
+    return Optional.of(val);
+  }
+
+  private static Optional<Integer> tryParseOptionKeyInt(Map<String, String> options, String key) {
+    if (!options.containsKey(key)) {
+      return Optional.empty();
+    }
+    int val;
+    try {
+      val = Integer.parseInt(options.get(key));
     } catch (NumberFormatException err) {
       return Optional.empty();
     }

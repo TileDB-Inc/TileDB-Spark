@@ -19,7 +19,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import javax.swing.*;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBWriteMetricsUpdater;
@@ -769,6 +768,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
                   || javaArrayBuffers[i].getDataType() == Datatype.TILEDB_STRING_ASCII
               ? new String((byte[]) javaArrayBuffers[i].get())
               : javaArrayBuffers[i].get();
+
       if (isVar) {
         if (nullable) {
           query.setBufferNullable(
@@ -780,10 +780,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
                   nativeArrayOffsetElements[i]),
               new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i]),
               new NativeArray(
-                  ctx,
-                  nativeArrayValidityByteMap[i],
-                  Datatype.TILEDB_UINT8,
-                  nativeArrayBufferElements[i]));
+                  ctx, nativeArrayValidityByteMap[i], Datatype.TILEDB_UINT8, nRecordsBuffered));
         } else {
           query.setBuffer(
               name,

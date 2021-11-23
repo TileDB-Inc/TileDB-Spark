@@ -43,9 +43,8 @@ public class TileDBWriteSchema {
   }
 
   static Dimension toDimension(
-      Context ctx, String dimName, int dimIdx, StructField field, TileDBDataSourceOptions options)
+      Context ctx, String dimName, int dimIdx, DataType dataType, TileDBDataSourceOptions options)
       throws TileDBError {
-    DataType dataType = field.dataType();
     if ((dataType instanceof FloatType) || (dataType instanceof DoubleType)) {
       Optional<Double> realMin = options.getSchemaDimensionMinDomainDouble(dimIdx);
       Optional<Double> realMax = options.getSchemaDimensionMaxDomainDouble(dimIdx);
@@ -70,8 +69,7 @@ public class TileDBWriteSchema {
         } else {
           extent = max - min;
         }
-        return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_FLOAT32, new Pair<>(min, max), extent);
+        return new Dimension(ctx, dimName, Datatype.TILEDB_FLOAT32, new Pair<>(min, max), extent);
       } else if (dataType instanceof DoubleType) {
 
         Double min = Double.MIN_VALUE;
@@ -89,8 +87,7 @@ public class TileDBWriteSchema {
         } else {
           extent = max - min;
         }
-        return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_FLOAT64, new Pair<>(min, max), extent);
+        return new Dimension(ctx, dimName, Datatype.TILEDB_FLOAT64, new Pair<>(min, max), extent);
       }
     } else {
       Optional<Long> longMin = options.getSchemaDimensionMinDomainLong(dimIdx);
@@ -112,8 +109,7 @@ public class TileDBWriteSchema {
         if (longMax.isPresent()) {
           max = Math.toIntExact(longMax.get());
         }
-        return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_INT32, new Pair<>(min, max), extent);
+        return new Dimension(ctx, dimName, Datatype.TILEDB_INT32, new Pair<>(min, max), extent);
       } else if (dataType instanceof LongType) {
         Long extent;
 
@@ -133,8 +129,7 @@ public class TileDBWriteSchema {
           max = longMax.get();
         }
 
-        return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_INT64, new Pair<>(min, max), extent);
+        return new Dimension(ctx, dimName, Datatype.TILEDB_INT64, new Pair<>(min, max), extent);
       } else if (dataType instanceof ShortType) {
         short extent;
 
@@ -152,8 +147,7 @@ public class TileDBWriteSchema {
         if (longMax.isPresent()) {
           max = (short) (longMax.get() - extent);
         }
-        return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_INT16, new Pair<>(min, max), extent);
+        return new Dimension(ctx, dimName, Datatype.TILEDB_INT16, new Pair<>(min, max), extent);
       } else if (dataType instanceof ByteType) {
         Byte min = Byte.MIN_VALUE;
         if (longMin.isPresent()) {
@@ -170,7 +164,7 @@ public class TileDBWriteSchema {
         } else {
           extent = Byte.MAX_VALUE;
         }
-        return new Dimension(ctx, field.name(), Datatype.TILEDB_INT8, new Pair<>(min, max), extent);
+        return new Dimension(ctx, dimName, Datatype.TILEDB_INT8, new Pair<>(min, max), extent);
       } else if (dataType instanceof DateType) {
         Long extent;
         if (longExtent.isPresent()) {
@@ -188,7 +182,7 @@ public class TileDBWriteSchema {
           max = longMax.get();
         }
         return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_DATETIME_DAY, new Pair<>(min, max), extent);
+            ctx, dimName, Datatype.TILEDB_DATETIME_DAY, new Pair<>(min, max), extent);
       } else if (dataType instanceof TimestampType) {
         Long min = Long.MIN_VALUE + 1l;
         if (longMin.isPresent()) {
@@ -205,9 +199,9 @@ public class TileDBWriteSchema {
           extent = max - min;
         }
         return new Dimension(
-            ctx, field.name(), Datatype.TILEDB_DATETIME_US, new Pair<>(min, max), extent);
+            ctx, dimName, Datatype.TILEDB_DATETIME_US, new Pair<>(min, max), extent);
       } else if (dataType instanceof StringType) {
-        return new Dimension(ctx, field.name(), Datatype.TILEDB_STRING_ASCII, null, null);
+        return new Dimension(ctx, dimName, Datatype.TILEDB_STRING_ASCII, null, null);
       }
     }
     throw new TileDBError(
