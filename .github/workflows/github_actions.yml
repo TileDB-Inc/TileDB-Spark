@@ -1,6 +1,7 @@
 name: TileDB-Spark
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - '*'
