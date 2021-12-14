@@ -231,6 +231,10 @@ public class TileDBDataSourceOptions implements Serializable {
     for (Pair<String, String> entry : results) {
       configMap.put(entry.getFirst(), entry.getSecond());
     }
+    // arrow buffer support configs
+    configMap.put("sm.var_offsets.bitsize", "32");
+    configMap.put("sm.var_offsets.mode", "elements");
+    configMap.put("sm.var_offsets.extra_element", "true");
     return configMap;
   }
 
