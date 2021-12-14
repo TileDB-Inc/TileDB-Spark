@@ -2,11 +2,16 @@ package io.tiledb.spark;
 
 import io.tiledb.java.api.Datatype;
 import io.tiledb.java.api.TileDBError;
+import io.tiledb.java.api.Util;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.arrow.vector.BaseValueVector;
+import org.apache.arrow.vector.BaseVariableWidthVector;
+import org.apache.arrow.vector.ValueVector;
+import org.apache.log4j.Logger;
 
 public class util {
-
+  private static Logger logger = Logger.getLogger(Util.class);
   /* Returns v + eps, where eps is the smallest value for the datatype such that v + eps > v. */
   public static Number addEpsilon(Number value, Datatype type) throws TileDBError {
     switch (type) {
@@ -32,9 +37,6 @@ public class util {
             ? (value.intValue() + 1)
             : value.intValue();
       case TILEDB_UINT32:
-        return value.longValue() < ((long) Integer.MAX_VALUE + 1)
-            ? (value.longValue() + 1)
-            : value.longValue();
       case TILEDB_UINT64:
         return value.longValue() < ((long) Integer.MAX_VALUE + 1)
             ? (value.longValue() + 1)
@@ -50,6 +52,34 @@ public class util {
       default:
         throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
     }
+  }
+
+  /**
+   * Returns the record size in bytes. Current implementation always returns 8, but it is intended
+   * for future use.
+   *
+   * @param clazz The input ValueVector class
+   * @return The size in bytes
+   */
+  public static long getDefaultRecordByteCount(Class<? extends ValueVector> clazz) {
+    if (BaseVariableWidthVector.class.isAssignableFrom(clazz)) return 8;
+    else if (BaseValueVector.class.isAssignableFrom(clazz)) return 8;
+
+    logger.warn(
+        "Did not found size of the class with name: "
+            + clazz.getCanonicalName()
+            + " returning 8 as the record size");
+
+    return 8;
+  }
+
+  public static int longToInt(long num) throws ArithmeticException {
+
+    if (num > Integer.MAX_VALUE)
+      throw new ArithmeticException(
+          String.format("Value %d exceeds the maximum integer value.", num));
+
+    return (int) num;
   }
 
   /* Returns v - eps, where eps is the smallest value for the datatype such that v - eps < v. */
@@ -77,9 +107,6 @@ public class util {
             ? (value.intValue() - 1)
             : value.intValue();
       case TILEDB_UINT32:
-        return value.longValue() > ((long) Integer.MIN_VALUE - 1)
-            ? (value.longValue() - 1)
-            : value.longValue();
       case TILEDB_UINT64:
         return value.longValue() > ((long) Integer.MIN_VALUE - 1)
             ? (value.longValue() - 1)

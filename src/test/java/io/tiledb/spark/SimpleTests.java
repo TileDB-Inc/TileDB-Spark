@@ -19,7 +19,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.*;
 
-public class NullableAttributesTest extends SharedJavaSparkSession {
+public class SimpleTests extends SharedJavaSparkSession {
 
   private static Context ctx;
   private String denseURI;
@@ -73,22 +73,16 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
   public void denseArrayCreate() throws Exception {
     // The array will be 4x4 with dimensions "rows" and "cols", with domain [1,4].
     Dimension<Integer> rows =
-        new Dimension<>(ctx, "rows", Integer.class, new Pair<Integer, Integer>(1, 2), 2);
-    Dimension<Integer> cols =
-        new Dimension<>(ctx, "cols", Integer.class, new Pair<Integer, Integer>(1, 2), 2);
+        new Dimension<>(ctx, "rows", Integer.class, new Pair<Integer, Integer>(1, 5), 2);
 
     // Create and set getDomain
     Domain domain = new Domain(ctx);
     domain.addDimension(rows);
-    domain.addDimension(cols);
 
     // Add two attributes "a1" and "a2", so each (i,j) cell can store
     // a character on "a1" and a vector of two floats on "a2".
-    Attribute a1 = new Attribute(ctx, "a1", Float.class);
+    Attribute a1 = new Attribute(ctx, "a1", Integer.class);
     Attribute a2 = new Attribute(ctx, "a2", Integer.class);
-    a2.setCellValNum(1);
-
-    a1.setNullable(true);
     a2.setNullable(true);
 
     ArraySchema schema = new ArraySchema(ctx, TILEDB_DENSE);
@@ -103,17 +97,16 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
 
   public void denseArrayWrite() throws Exception {
     // Prepare cell buffers
-    NativeArray a1 = new NativeArray(ctx, new float[] {2.0f, 3.0f, 4.0f, 1.0f}, Float.class);
-    NativeArray a2 = new NativeArray(ctx, new int[] {1, 4, 2, 2}, Integer.class);
+    NativeArray a1 = new NativeArray(ctx, new int[] {222, 322, 422, 122, 999}, Integer.class);
+    NativeArray a2 = new NativeArray(ctx, new int[] {2, 3, 4, 5, 9}, Integer.class);
 
+    NativeArray a2Bytemap = new NativeArray(ctx, new short[] {1, 1, 1, 1, 1}, Datatype.TILEDB_UINT8);
     // Create query
     try (Array array = new Array(ctx, denseURI, TILEDB_WRITE);
         Query query = new Query(array)) {
       query.setLayout(TILEDB_ROW_MAJOR);
-      NativeArray a1Bytemap = new NativeArray(ctx, new short[] {0, 1, 1, 0}, Datatype.TILEDB_UINT8);
-      NativeArray a2Bytemap = new NativeArray(ctx, new short[] {1, 1, 0, 1}, Datatype.TILEDB_UINT8);
 
-      query.setBufferNullable("a1", a1, a1Bytemap);
+      query.setBuffer("a1", a1);
       query.setBufferNullable("a2", a2, a2Bytemap);
 
       // Submit query
@@ -133,39 +126,37 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     denseArrayWrite();
     Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", denseURI).load();
     dfRead.show();
-
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
-    Assert.assertEquals(4, rows.size());
-    // 1st row
-
-    Row row = rows.get(0);
-    Assert.assertEquals(1, row.getInt(0));
-    Assert.assertEquals(1, row.getInt(1));
-    Assert.assertNull(row.get(2));
-    Assert.assertEquals(1, row.getInt(3));
-
-    // 2nd row
-    row = rows.get(1);
-    Assert.assertEquals(1, row.getInt(0));
-    Assert.assertEquals(2, row.getInt(1));
-    Assert.assertEquals(3.0f, row.getFloat(2), 0);
-    Assert.assertEquals(4, row.getInt(3));
-
-    // 3nd row
-    row = rows.get(2);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(1, row.getInt(1));
-    Assert.assertEquals(4.0f, row.getFloat(2), 0);
-    Assert.assertNull(row.get(3));
-
-    // 4th row
-    row = rows.get(3);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(2, row.getInt(1));
-    Assert.assertNull(row.get(2));
-    Assert.assertEquals(2, row.getInt(3));
-    return;
+    //        dfRead.createOrReplaceTempView("tmp");
+    //        List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
+    //        Assert.assertEquals(4, rows.size());
+    //        // 1st row
+    //        Row row = rows.get(0);
+    //        Assert.assertEquals(1, row.getInt(0));
+    //        Assert.assertEquals(1, row.getInt(1));
+    //        Assert.assertNull(row.get(2));
+    //        Assert.assertEquals(1, row.getInt(3));
+    //
+    //        // 2nd row
+    //        row = rows.get(1);
+    //        Assert.assertEquals(1, row.getInt(0));
+    //        Assert.assertEquals(2, row.getInt(1));
+    //        Assert.assertEquals(3.0f, row.getFloat(2), 0);
+    //        Assert.assertEquals(4, row.getInt(3));
+    //
+    //        // 3nd row
+    //        row = rows.get(2);
+    //        Assert.assertEquals(2, row.getInt(0));
+    //        Assert.assertEquals(1, row.getInt(1));
+    //        Assert.assertEquals(4.0f, row.getFloat(2), 0);
+    //        Assert.assertNull(row.get(3));
+    //
+    //        // 4th row
+    //        row = rows.get(3);
+    //        Assert.assertEquals(2, row.getInt(0));
+    //        Assert.assertEquals(2, row.getInt(1));
+    //        Assert.assertNull(row.get(2));
+    //        Assert.assertEquals(2, row.getInt(3));
+    //        return;
   }
 
   /**

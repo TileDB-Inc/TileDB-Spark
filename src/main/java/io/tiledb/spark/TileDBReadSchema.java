@@ -53,7 +53,7 @@ public class TileDBReadSchema implements Serializable {
       tiledbSparkSchema = getTileDBSchema(options);
     } catch (TileDBError err) {
       throw new RuntimeException(
-          "Error converting TileDB schema for '" + uri + "': " + err.getMessage());
+          "Error  converting TileDB schema for '" + uri + "': " + err.getMessage());
     }
     return tiledbSparkSchema;
   }
