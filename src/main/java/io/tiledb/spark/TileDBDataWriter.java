@@ -148,15 +148,15 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
     int bufferIdx = 0;
     try (ArraySchema arraySchema = array.getSchema()) {
-      List<String> attributeNames = new ArrayList<>();
-      for (Dimension dimension : arraySchema.getDomain().getDimensions())
-        attributeNames.add(dimension.getName());
-      for (String attributeName : arraySchema.getAttributes().keySet())
-        attributeNames.add(attributeName);
+      List<String> columnNames = new ArrayList<>();
+      for (int i = 0; i < arraySchema.getDomain().getNDim(); i++)
+        columnNames.add(arraySchema.getDomain().getDimension(i).getName());
+      for (int i = 0; i < arraySchema.getAttributeNum(); i++)
+        columnNames.add(arraySchema.getAttribute(i).getName());
 
-      bufferSizes = new int[attributeNames.size()];
+      bufferSizes = new int[columnNames.size()];
 
-      for (String attributeName : attributeNames) {
+      for (String attributeName : columnNames) {
         boolean isVar;
         boolean nullable = false;
         Datatype datatype;
