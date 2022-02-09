@@ -110,8 +110,8 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     try (Array array = new Array(ctx, denseURI, TILEDB_WRITE);
         Query query = new Query(array)) {
       query.setLayout(TILEDB_ROW_MAJOR);
-      NativeArray a1Bytemap = new NativeArray(ctx, new short[] {1, 1, 1, 1}, Datatype.TILEDB_UINT8);
-      NativeArray a2Bytemap = new NativeArray(ctx, new short[] {1, 1, 1, 1}, Datatype.TILEDB_UINT8);
+      NativeArray a1Bytemap = new NativeArray(ctx, new short[] {0, 1, 1, 0}, Datatype.TILEDB_UINT8);
+      NativeArray a2Bytemap = new NativeArray(ctx, new short[] {1, 1, 0, 1}, Datatype.TILEDB_UINT8);
 
       query.setBufferNullable("a1", a1, a1Bytemap);
       query.setBufferNullable("a2", a2, a2Bytemap);

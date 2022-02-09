@@ -140,7 +140,7 @@ public class TileDBDataSourceReader
     ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
 
     try {
-      Context ctx = new Context(tiledbOptions.getTileDBConfigMap());
+      Context ctx = new Context(tiledbOptions.getTileDBConfigMap(true));
       // Fetch the array and load its metadata
       Array array = new Array(ctx, uri.toString());
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();

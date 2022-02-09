@@ -221,12 +221,15 @@ public class TileDBDataSourceOptions implements Serializable {
   }
 
   /** @return Optional String HashMap of tiledb config options and values * */
-  public Map<String, String> getTileDBConfigMap() {
+  public Map<String, String> getTileDBConfigMap(boolean reading) {
     HashMap<String, String> configMap = new HashMap<>();
-    //necessary configs for var sized attributes
-    configMap.put("sm.var_offsets.bitsize", "32");
-    configMap.put("sm.var_offsets.mode", "elements");
-    configMap.put("sm.var_offsets.extra_element", "true");
+    // necessary configs for var sized attributes
+    if (reading) {
+      configMap.put("sm.var_offsets.bitsize", "32");
+      configMap.put("sm.var_offsets.mode", "elements");
+      configMap.put("sm.var_offsets.extra_element", "true");
+    }
+
     List<Pair<String, String>> results =
         collectOptionsWithKeyPrefixSuffix(optionMap, "tiledb.", null);
     if (results.isEmpty()) {

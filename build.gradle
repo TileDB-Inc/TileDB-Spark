@@ -68,15 +68,6 @@ dependencies {
     compile group: 'com.github.oshi', name: 'oshi-core', version: '4.0.0'
     compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '4.1.0'
 
-//    implementation 'org.apache.arrow:arrow-format:0.10.0'
-//    implementation 'org.apache.arrow:arrow-format:2.0.0'
-//    implementation 'org.apache.arrow:arrow-memory:0.10.0'
-//    implementation 'org.apache.arrow:arrow-memory-core:2.0.0'
-//    implementation 'org.apache.arrow:arrow-memory-netty:2.0.0'
-//    implementation 'org.apache.arrow:arrow-vector:0.10.0'
-//    implementation 'org.apache.arrow:arrow-vector:2.0.0'
-
-
     compile 'joda-time:joda-time:2.10.13'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.13.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.0'

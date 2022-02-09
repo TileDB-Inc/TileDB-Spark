@@ -9,7 +9,13 @@ import static io.tiledb.java.api.QueryType.TILEDB_WRITE;
 import io.tiledb.java.api.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.spark.sql.*;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.junit.*;
 
 public class SimpleTests extends SharedJavaSparkSession {
@@ -260,6 +266,85 @@ public class SimpleTests extends SharedJavaSparkSession {
     //    Assert.assertEquals(3, row.get(0));
     //    Assert.assertNull(row.get(1));
     //    Assert.assertEquals("cc", row.get(2));
+    //
+    //    row = rows.get(3);
+    //    Assert.assertEquals(4, row.get(0));
+    //    Assert.assertEquals(4, row.get(1));
+    //    Assert.assertNull(row.get(2));
+    //
+    //    row = rows.get(4);
+    //    Assert.assertEquals(5, row.get(0));
+    //    Assert.assertEquals(5, row.get(1));
+    //    Assert.assertNull(row.get(2));
+  }
+
+  /**
+   * Sparse dataset with fixed-size attributes.
+   *
+   * @param ss The spark session.
+   * @return The created dataframe.
+   */
+  public Dataset<Row> createSparseDataset(SparkSession ss) {
+    StructField[] structFields =
+        new StructField[] {
+          new StructField("d1", DataTypes.IntegerType, false, Metadata.empty()),
+          new StructField("d2", DataTypes.IntegerType, false, Metadata.empty()),
+          new StructField("a1", DataTypes.IntegerType, true, Metadata.empty()),
+          new StructField("a2", DataTypes.StringType, false, Metadata.empty()),
+          //                    new StructField("a2", DataTypes.StringType, true, Metadata.empty()),
+        };
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(1, 1, 5, "one"));
+    rows.add(RowFactory.create(2, 2, 7, "two"));
+    rows.add(RowFactory.create(3, 3, null, "three"));
+    rows.add(RowFactory.create(4, 4, 76, "four"));
+    rows.add(RowFactory.create(5, 5, 43, "five"));
+    StructType structType = new StructType(structFields);
+    Dataset<Row> df = ss.createDataFrame(rows, structType);
+    return df;
+  }
+
+  @Test
+  public void sparseWriteTest() throws Exception {
+    Dataset<Row> dfReadFirst = createSparseDataset(session());
+    dfReadFirst
+        .write()
+        .format("io.tiledb.spark")
+        .option("uri", writeArrayURI)
+        .option("schema.dim.0.name", "d1")
+        .option("schema.dim.0.min", 1)
+        .option("schema.dim.0.max", 5)
+        .option("schema.dim.0.extent", 2)
+        .option("schema.dim.1.name", "d2")
+        .option("schema.dim.1.min", 1)
+        .option("schema.dim.1.max", 5)
+        .option("schema.dim.1.extent", 2)
+        .option("schema.cell_order", "row-major")
+        .option("schema.tile_order", "row-major")
+        .mode(SaveMode.ErrorIfExists)
+        .save();
+
+    Dataset<Row> dfRead =
+        session().read().format("io.tiledb.spark").option("uri", writeArrayURI).load();
+    dfRead.show();
+    //    dfRead.createOrReplaceTempView("tmp");
+    //    List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
+    //    Assert.assertEquals(5, rows.size());
+    //
+    //    Row row = rows.get(0);
+    //    Assert.assertEquals(1, row.get(0));
+    //    Assert.assertNull(row.get(1));
+    //    Assert.assertEquals("a", row.get(2));
+    //
+    //    row = rows.get(1);
+    //    Assert.assertEquals(2, row.get(0));
+    //    Assert.assertNull(row.get(1));
+    //    Assert.assertEquals("b", row.get(2));
+    //
+    //    row = rows.get(2);
+    //    Assert.assertEquals(3, row.get(0));
+    //    Assert.assertNull(row.get(1));
+    //    Assert.assertEquals("c", row.get(2));
     //
     //    row = rows.get(3);
     //    Assert.assertEquals(4, row.get(0));
