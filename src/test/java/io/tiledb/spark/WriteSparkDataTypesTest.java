@@ -21,6 +21,8 @@ public class WriteSparkDataTypesTest extends SharedJavaSparkSession implements S
 
   protected void testWriteRead(Dataset<Row> dfWrite) {
     // write dataset
+    dfWrite.show();
+
     String arrayURI = temp.getRoot().toString();
     dfWrite
         .write()

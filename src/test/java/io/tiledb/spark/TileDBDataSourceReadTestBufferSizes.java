@@ -77,39 +77,40 @@ public class TileDBDataSourceReadTestBufferSizes extends SharedJavaSparkSession 
     }
   }*/
 
-  /**
-   * This test uses an 4 byte buffer which is too small to hold any results, buffer reallocation is
-   * disabled so we should get an exception
-   */
-  @Test
-  public void testQuickStartSparseWith4ByteBufferIncomplete() {
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .option("read_buffer_size", 4)
-            .option("allow_read_buffer_realloc", true)
-            .load();
-    dfRead.createOrReplaceTempView("tmp");
-    List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
-
-    Assert.assertEquals(3, rows.size());
-    // A[1, 1] == 1
-    Row row = rows.get(0);
-    Assert.assertEquals(1, row.getInt(0));
-    Assert.assertEquals(1, row.getInt(1));
-    Assert.assertEquals(1, row.getInt(2));
-    // A[2, 3] == 3
-    row = rows.get(1);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(3, row.getInt(1));
-    Assert.assertEquals(3, row.getInt(2));
-    // A[2, 4] == 2
-    row = rows.get(2);
-    Assert.assertEquals(2, row.getInt(0));
-    Assert.assertEquals(4, row.getInt(1));
-    Assert.assertEquals(2, row.getInt(2));
-    return;
-  }
+  //  /**
+  //   * This test uses an 4 byte buffer which is too small to hold any results, buffer reallocation
+  // is
+  //   * disabled so we should get an exception
+  //   */
+  //  @Test
+  //  public void testQuickStartSparseWith4ByteBufferIncomplete() {
+  //    Dataset<Row> dfRead =
+  //        session()
+  //            .read()
+  //            .format("io.tiledb.spark")
+  //            .option("uri", testArrayURIString("quickstart_sparse_array"))
+  //            .option("read_buffer_size", 4)
+  //            .option("allow_read_buffer_realloc", false)
+  //            .load();
+  //    dfRead.createOrReplaceTempView("tmp");
+  //    List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
+  //
+  //    Assert.assertEquals(3, rows.size());
+  //    // A[1, 1] == 1
+  //    Row row = rows.get(0);
+  //    Assert.assertEquals(1, row.getInt(0));
+  //    Assert.assertEquals(1, row.getInt(1));
+  //    Assert.assertEquals(1, row.getInt(2));
+  //    // A[2, 3] == 3
+  //    row = rows.get(1);
+  //    Assert.assertEquals(2, row.getInt(0));
+  //    Assert.assertEquals(3, row.getInt(1));
+  //    Assert.assertEquals(3, row.getInt(2));
+  //    // A[2, 4] == 2
+  //    row = rows.get(2);
+  //    Assert.assertEquals(2, row.getInt(0));
+  //    Assert.assertEquals(4, row.getInt(1));
+  //    Assert.assertEquals(2, row.getInt(2));
+  //    return;
+  //  }
 }

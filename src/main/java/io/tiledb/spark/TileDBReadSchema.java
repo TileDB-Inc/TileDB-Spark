@@ -60,7 +60,7 @@ public class TileDBReadSchema implements Serializable {
 
   private StructType getTileDBSchema(TileDBDataSourceOptions options) throws TileDBError {
     StructType sparkSchema = new StructType();
-    try (Context ctx = new Context(options.getTileDBConfigMap());
+    try (Context ctx = new Context(options.getTileDBConfigMap(true));
         // fetch and load the schema (IO)
         ArraySchema arraySchema = new ArraySchema(ctx, uri.toString());
         Domain arrayDomain = arraySchema.getDomain()) {

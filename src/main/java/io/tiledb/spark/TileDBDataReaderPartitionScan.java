@@ -32,13 +32,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.SmallIntVector;
+import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.UInt1Vector;
-import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.ValueVector;
-import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
@@ -102,6 +104,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   private List<String> fieldNames;
 
+  private List<Integer> fieldDataTypeSizes;
+
   private long currentNumRecords;
 
   private static final OffsetDateTime zeroDateTime =
@@ -123,9 +127,15 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   public enum AttributeDatatype {
     CHAR,
+    INT8,
     UINT8,
+    INT16,
     INT32,
     FLOAT32,
+    FlOAT64,
+    UINT16,
+    LONG,
+    ASCII
   }
 
   // todo think about lists
@@ -134,19 +144,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     public Datatype tileDBDataType;
     public boolean isVarLen;
     public boolean isNullable;
-    public boolean isList;
 
     public TypeInfo(
-        AttributeDatatype datatype,
-        Datatype tiledbDataType,
-        boolean isVarLen,
-        boolean isNullable,
-        boolean isList) {
+        AttributeDatatype datatype, Datatype tiledbDataType, boolean isVarLen, boolean isNullable) {
       this.datatype = datatype;
       this.tileDBDataType = tiledbDataType;
       this.isVarLen = isVarLen;
       this.isNullable = isNullable;
-      this.isList = isList;
     }
   }
 
@@ -154,35 +158,47 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
     boolean isVarLen;
     boolean isNullable;
-    boolean isList;
     Datatype datatype;
 
     if (arraySchema.hasAttribute(column)) {
       Attribute a = arraySchema.getAttribute(column);
       isVarLen = a.isVar();
       isNullable = a.getNullable();
-      isList = false;
       datatype = a.getType();
     } else {
       Dimension d = arraySchema.getDomain().getDimension(column);
       isVarLen = d.isVar();
       isNullable = false;
-      isList = false;
       datatype = d.getType();
     }
 
     switch (datatype) {
       case TILEDB_CHAR:
-        return new TypeInfo(AttributeDatatype.CHAR, datatype, isVarLen, isNullable, isList);
+        return new TypeInfo(AttributeDatatype.CHAR, datatype, isVarLen, isNullable);
+      case TILEDB_STRING_ASCII:
+        return new TypeInfo(AttributeDatatype.ASCII, datatype, isVarLen, isNullable);
       case TILEDB_INT8:
-        return new TypeInfo(AttributeDatatype.UINT8, datatype, isVarLen, isNullable, isList);
+        return new TypeInfo(AttributeDatatype.INT8, datatype, isVarLen, isNullable);
       case TILEDB_INT32:
-        return new TypeInfo(AttributeDatatype.INT32, datatype, isVarLen, isNullable, isList);
+        return new TypeInfo(AttributeDatatype.INT32, datatype, isVarLen, isNullable);
       case TILEDB_FLOAT32:
-        return new TypeInfo(AttributeDatatype.FLOAT32, datatype, isVarLen, isNullable, isList);
+        return new TypeInfo(AttributeDatatype.FLOAT32, datatype, isVarLen, isNullable);
+      case TILEDB_FLOAT64:
+        return new TypeInfo(AttributeDatatype.FlOAT64, datatype, isVarLen, isNullable);
+      case TILEDB_INT16:
+        return new TypeInfo(AttributeDatatype.INT16, datatype, isVarLen, isNullable);
+      case TILEDB_UINT8:
+        return new TypeInfo(AttributeDatatype.UINT8, datatype, isVarLen, isNullable);
+      case TILEDB_UINT16:
+        return new TypeInfo(AttributeDatatype.UINT16, datatype, isVarLen, isNullable);
+      case TILEDB_INT64:
+      case TILEDB_UINT32:
+      case TILEDB_UINT64:
+      case TILEDB_DATETIME_US:
+        return new TypeInfo(AttributeDatatype.LONG, datatype, isVarLen, isNullable);
       default:
         throw new RuntimeException("Unknown attribute datatype " + datatype);
-        // TODO add all data types
+        // TODO datetime type is not yet supported
     }
   }
 
@@ -223,23 +239,40 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
     try {
       // Init TileDB resources
-      ctx = new Context(options.getTileDBConfigMap());
+      ctx = new Context(options.getTileDBConfigMap(true));
       array = new Array(ctx, arrayURI.toString(), QueryType.TILEDB_READ);
       arraySchema = array.getSchema();
       domain = arraySchema.getDomain();
 
-      if (sparkSchema.fields().length != 0)
+      if (sparkSchema.fields().length != 0) {
         fieldNames =
             Arrays.stream(sparkSchema.fields())
                 .map(field -> field.name())
                 .collect(Collectors.toList());
-      else {
+
+        fieldDataTypeSizes =
+            Arrays.stream(sparkSchema.fields())
+                .map(field -> field.dataType().defaultSize())
+                .collect(Collectors.toList());
+      } else {
         fieldNames =
             domain.getDimensions().stream()
                 .map(
                     dimension -> {
                       try {
                         return dimension.getName();
+                      } catch (TileDBError error) {
+                        return null;
+                      }
+                    })
+                .collect(Collectors.toList());
+
+        fieldDataTypeSizes =
+            domain.getDimensions().stream()
+                .map(
+                    dimension -> {
+                      try {
+                        return dimension.getType().getNativeSize();
                       } catch (TileDBError error) {
                         return null;
                       }
@@ -281,19 +314,19 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         queryStatus = query.getQueryStatus();
         // //this returns something at least
 
-        // Compute the number of cells (records) that were returned by the query.
+        // Compute the number of cells (records) that were returned by the query. first field is
+        // good enough. TODO better explanation
         HashMap<String, Pair<Long, Long>> queryResultBufferElementsNIO =
-            query.resultBufferElementsNIO();
+            query.resultBufferElementsNIO(fieldDataTypeSizes.get(0));
 
-        String fieldName = fieldNames.get(0); // TODO think again if it makes sense
+        String fieldName = fieldNames.get(0);
         boolean isVar;
         if (domain.hasDimension(fieldName)) isVar = domain.getDimension(fieldName).isVar();
         else isVar = arraySchema.getAttribute(fieldName).isVar();
 
-        if (isVar) currentNumRecords = queryResultBufferElementsNIO.get(fieldNames.get(0)).getFirst();
+        if (isVar)
+          currentNumRecords = queryResultBufferElementsNIO.get(fieldNames.get(0)).getFirst();
         else currentNumRecords = queryResultBufferElementsNIO.get(fieldNames.get(0)).getSecond();
-        System.out.println(currentNumRecords + " Number of records:  ->>");
-
         // Increase the buffer allocation and resubmit if necessary.
         if (queryStatus == TILEDB_INCOMPLETE && currentNumRecords == 0) { // VERY IMPORTANT!!
           if (options.getAllowReadBufferReallocation()) {
@@ -320,7 +353,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   public ColumnarBatch get() {
     metricsUpdater.startTimer(queryGetTimerName);
     try {
-      int nRows = (int)currentNumRecords; // TODO fix. needs to be exact
+      int nRows = (int) currentNumRecords;
       // This is a special case for COUNT() on the table where no columns are materialized
       //      if (sparkSchema.fields().length == 0) {
       //        // TODO: materialize the first dimension and count the result set size
@@ -349,10 +382,12 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           String name = fieldNames.get(i);
           TypeInfo typeInfo = getTypeInfo(name);
           if (typeInfo.isNullable) {
-            //todo explain logic in comments
+            // todo explain logic in comments
             ArrowBuf arrowBufValidity = valueValueVectors.get(i).getValidityBuffer();
-            for (int j = 0; j < arrowBufValidity.capacity(); j++) { //todo check if the limit can be nrows
-              if (validityValueVectors.get(i).getDataBuffer().getByte(j) == (byte) 0){
+            for (int j = 0;
+                j < arrowBufValidity.capacity();
+                j++) { // todo check if the limit can be nrows
+              if (validityValueVectors.get(i).getDataBuffer().getByte(j) == (byte) 0) {
                 BitVectorHelper.setValidityBit(arrowBufValidity, j, 0);
               }
             }
@@ -436,9 +471,6 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    */
   private boolean initQuery() throws TileDBError {
     metricsUpdater.startTimer(queryInitTimerName);
-
-    // TODO: Init with one subarray spanning the domain for now
-    //    HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
 
     // Create query and set the subarray for this partition
     query = new Query(array, QueryType.TILEDB_READ);
@@ -608,37 +640,20 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       ArrowType arrowType;
       ValueVector valueVector;
       ValueVector valueVectorValidity = new UInt1Vector(fieldName, allocator);
+      // todo fix precisions in floating points when isvar + islist
       switch (typeInfo.datatype) {
         case CHAR:
+        case ASCII:
           if (!typeInfo.isVarLen)
             throw new RuntimeException(
                 "Unhandled fixed-len char buffer for attribute " + fieldName);
-          if (typeInfo.isList) {
-            // Nested list (list of UTF8 which is already a list type)
-            ListVector lv = ListVector.empty(fieldName, allocator);
-            lv.addOrGetVector(FieldType.nullable(new ArrowType.Utf8()));
-            valueVector = lv;
-          } else {
-            valueVector = new VarCharVector(fieldName, allocator);
-          }
+          valueVector = new VarCharVector(fieldName, allocator);
           break;
         case UINT8:
-          // Because there are no unsigned datatypes, the uint8_t fields must be binary blobs, not
-          // scalars.
-          if (!typeInfo.isVarLen)
-            throw new RuntimeException(
-                "Unhandled fixed-len uint8_t buffer for attribute " + fieldName);
-          // None of the attributes from TileDB-VCF currently can be a nested list except for
-          // strings.
-          if (typeInfo.isList)
-            throw new RuntimeException("Unhandled nested list for attribute " + fieldName);
-          valueVector = new VarBinaryVector(fieldName, allocator);
+        case INT8:
+          valueVector = new TinyIntVector(fieldName, allocator);
           break;
         case INT32:
-          // None of the attributes from TileDB-VCF currently can be a nested list except for
-          // strings.
-          if (typeInfo.isVarLen && typeInfo.isList)
-            throw new RuntimeException("Unhandled nested list for attribute " + fieldName);
           arrowType = new ArrowType.Int(32, true);
           if (typeInfo.isVarLen) {
             ListVector lv = ListVector.empty(fieldName, allocator);
@@ -649,18 +664,44 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           }
           break;
         case FLOAT32:
-          // None of the attributes from TileDB-VCF currently can be a nested list except for
-          // strings.
-          if (typeInfo.isVarLen && typeInfo.isList)
-            throw new RuntimeException("Unhandled nested list for attribute " + fieldName);
           arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
           if (typeInfo.isVarLen) {
             ListVector lv = ListVector.empty(fieldName, allocator);
             lv.addOrGetVector(FieldType.nullable(arrowType));
             valueVector = lv;
           } else {
-            //            System.out.println(name + " floatvector");
             valueVector = new Float4Vector(fieldName, FieldType.nullable(arrowType), allocator);
+          }
+          break;
+        case FlOAT64:
+          arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
+          if (typeInfo.isVarLen) {
+            ListVector lv = ListVector.empty(fieldName, allocator);
+            lv.addOrGetVector(FieldType.nullable(arrowType));
+            valueVector = lv;
+          } else {
+            valueVector = new Float8Vector(fieldName, FieldType.nullable(arrowType), allocator);
+          }
+          break;
+        case INT16:
+        case UINT16:
+          arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
+          if (typeInfo.isVarLen) {
+            ListVector lv = ListVector.empty(fieldName, allocator);
+            lv.addOrGetVector(FieldType.nullable(arrowType));
+            valueVector = lv;
+          } else {
+            valueVector = new SmallIntVector(fieldName, FieldType.nullable(arrowType), allocator);
+          }
+          break;
+        case LONG:
+          arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
+          if (typeInfo.isVarLen) {
+            ListVector lv = ListVector.empty(fieldName, allocator);
+            lv.addOrGetVector(FieldType.nullable(arrowType));
+            valueVector = lv;
+          } else {
+            valueVector = new BigIntVector(fieldName, FieldType.nullable(arrowType), allocator);
           }
           break;
         default:
@@ -676,16 +717,25 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
       int maxNumRows = util.longToInt(maxRowsL);
 
+      // TODO comments!!
 
-      if (valueVector instanceof ListVector) {
-        ((ListVector) valueVector).setInitialCapacity(maxNumRows, 1); // TODO
-      } else {
-        valueVector.setInitialCapacity(maxNumRows);
-      }
+      valueVector.setInitialCapacity(maxNumRows);
+      valueVectorValidity.setInitialCapacity(maxNumRows);
+
       valueVector.allocateNew();
-
-      valueVectorValidity.setInitialCapacity(maxNumRows); //TODO doesent matter, can be smaller
       valueVectorValidity.allocateNew();
+
+      ByteBuffer data;
+      ArrowBuf arrowBufValidity;
+      ArrowBuf arrowData = valueVector.getDataBuffer();
+      data = arrowData.nioBuffer(0, arrowData.capacity());
+      data.order(ByteOrder.LITTLE_ENDIAN);
+      arrowBufValidity = valueVector.getValidityBuffer();
+
+      // necessary to populate with non-null values
+      for (int j = 0; j < arrowBufValidity.capacity(); j++) {
+        arrowBufValidity.setByte(j, 0xff);
+      }
 
       ArrowBuf arrowValidity = valueVectorValidity.getDataBuffer();
       for (int j = 0; j < arrowValidity.capacity(); j++) {
@@ -694,37 +744,23 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       ByteBuffer byteBufferValidity = arrowValidity.nioBuffer(0, arrowValidity.capacity());
       byteBufferValidity.order(ByteOrder.LITTLE_ENDIAN);
 
-      ArrowBuf arrowData = valueVector.getDataBuffer();
-      ByteBuffer data = arrowData.nioBuffer(0, arrowData.capacity());
-      data.order(ByteOrder.LITTLE_ENDIAN); // necessary for arrow buffs
-
-      ArrowBuf arrowBufValidity = valueVector.getValidityBuffer();
-      for (int j = 0; j < arrowBufValidity.capacity(); j++) {
-        arrowBufValidity.setByte(j, 0xff);
-      }
-
       if (typeInfo.isVarLen) {
         // Set the offsets buffer.
         ArrowBuf arrowOffsets = valueVector.getOffsetBuffer();
         ByteBuffer offsets = arrowOffsets.nioBuffer(0, arrowOffsets.capacity());
 
         if (typeInfo.isNullable) {
-          query.setBufferNullableNIO(
-              name, offsets, data, byteBufferValidity); // /TODO add spark for bitmap
+          query.setBufferNullableNIO(name, offsets, data, byteBufferValidity);
         } else {
           query.setBuffer(name, offsets, data);
         }
-
       } else {
-        // attribute is fixed length, use the result size estimate for allocation
         if (typeInfo.isNullable) {
           query.setBufferNullableNIO(name, data, byteBufferValidity);
         } else {
           query.setBuffer(name, data);
         }
       }
-      //      byteBuffers.add(data);
-      //      this.arrowVectors.add(new ArrowColumnVector(valueVector));
       this.validityValueVectors.add(valueVectorValidity);
       this.valueValueVectors.add(valueVector);
       i++;

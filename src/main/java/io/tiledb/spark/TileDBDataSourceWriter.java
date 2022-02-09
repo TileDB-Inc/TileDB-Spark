@@ -43,7 +43,7 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
   @Override
   public void abort(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
-      try (Context ctx = new Context(options.getTileDBConfigMap())) {
+      try (Context ctx = new Context(options.getTileDBConfigMap(false))) {
         TileDBObject.remove(ctx, uri.toString());
       } catch (TileDBError err) {
         throw new RuntimeException(
@@ -56,7 +56,7 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
   }
 
   private boolean tryWriteArraySchema() {
-    try (Context ctx = new Context(options.getTileDBConfigMap())) {
+    try (Context ctx = new Context(options.getTileDBConfigMap(false))) {
       boolean arrayExists = Array.exists(ctx, uri.toString());
       if (saveMode == SaveMode.Append) {
         if (!arrayExists) {

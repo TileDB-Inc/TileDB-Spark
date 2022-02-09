@@ -158,7 +158,9 @@ public class TileDBDataSourceOptionsTest {
     HashMap<String, String> optionMap = new HashMap<>();
     optionMap.put("uri", "s3://foo/bar");
     TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
-    Assert.assertTrue(options.getTileDBConfigMap().isEmpty());
+    Assert.assertTrue(
+        options.getTileDBConfigMap(true).size()
+            == 3); // 3 parameters for var attributes on arrowBuffs
   }
 
   @Test
@@ -169,7 +171,7 @@ public class TileDBDataSourceOptionsTest {
     optionMap.put("tiledb.sm.check_coord_dups", "false");
     TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
 
-    Map<String, String> tiledbOptions = options.getTileDBConfigMap();
+    Map<String, String> tiledbOptions = options.getTileDBConfigMap(true);
     Assert.assertEquals("false", tiledbOptions.get("sm.check_coord_dups"));
     Assert.assertEquals("true", tiledbOptions.get("sm.dedup_coords"));
   }

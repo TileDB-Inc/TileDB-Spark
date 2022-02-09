@@ -94,7 +94,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     nativeArrayBufferElements = new int[nFields];
 
     try {
-      ctx = new Context(options.getTileDBConfigMap());
+      ctx = new Context(options.getTileDBConfigMap(false));
       array = new Array(ctx, uri.toString(), QueryType.TILEDB_WRITE);
       try (ArraySchema arraySchema = array.getSchema()) {
         try (Domain domain = arraySchema.getDomain()) {
