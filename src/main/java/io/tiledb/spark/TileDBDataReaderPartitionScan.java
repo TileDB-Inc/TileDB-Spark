@@ -111,19 +111,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private static final OffsetDateTime zeroDateTime =
       new Timestamp(0).toInstant().atOffset(ZoneOffset.UTC).toInstant().atOffset(ZoneOffset.UTC);
 
-  /**
-   * List of NativeArray buffers used in the query object. This is indexed based on columnHandles
-   * indexing (aka query field indexes)
-   */
-  private ArrayList<Pair<NativeArray, NativeArray>> queryBuffers;
+  private ArrayList<ByteBuffer> queryByteBuffers;
 
   private List<ValueVector> validityValueVectors;
 
   private List<ValueVector> valueValueVectors;
-
-  private List<ByteBuffer> byteBuffers;
-
-  private ArrayList<Pair<ValueVector, ValueVector>> queryArrowVectors;
 
   public enum AttributeDatatype {
     CHAR,
@@ -211,7 +203,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     this.arrayURI = uri;
     this.validityValueVectors = new ArrayList<>();
     this.valueValueVectors = new ArrayList<>();
-    this.byteBuffers = new ArrayList<>();
+    this.queryByteBuffers = new ArrayList<>();
     this.sparkSchema = schema.getSparkSchema();
     this.options = options;
     this.queryStatus = TILEDB_UNINITIALIZED;
@@ -280,7 +272,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
                 .collect(Collectors.toList());
       }
 
-      this.queryBuffers = new ArrayList<>(Collections.nCopies(fieldNames.size(), null));
+      this.queryByteBuffers = new ArrayList<>(Collections.nCopies(fieldNames.size(), null));
 
       // init query
       this.initQuery();
@@ -325,8 +317,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         else isVar = arraySchema.getAttribute(fieldName).isVar();
 
         if (isVar)
-          currentNumRecords = queryResultBufferElementsNIO.get(fieldNames.get(0)).getFirst();
-        else currentNumRecords = queryResultBufferElementsNIO.get(fieldNames.get(0)).getSecond();
+          currentNumRecords =
+              queryResultBufferElementsNIO.get(fieldName).getFirst()
+                  - 1; // minus 1 for the extra element. todo test that again
+        else currentNumRecords = queryResultBufferElementsNIO.get(fieldName).getSecond();
+
         // Increase the buffer allocation and resubmit if necessary.
         if (queryStatus == TILEDB_INCOMPLETE && currentNumRecords == 0) { // VERY IMPORTANT!!
           if (options.getAllowReadBufferReallocation()) {
@@ -542,35 +537,26 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    *
    * @return byte in current buffers
    */
-  private long calculateNativeArrayByteSizes() {
-    long totalBufferSizes = 0;
+  private long calculateByteSizes() { // todo test
+    long totalBufferSize = 0;
     long bufferCount = 0;
     long largestSingleBuffer = 0;
-    for (Pair<NativeArray, NativeArray> bufferPair : queryBuffers) {
-      NativeArray offsets = bufferPair.getFirst();
-      NativeArray values = bufferPair.getSecond();
-      if (values != null) {
-        totalBufferSizes += values.getNBytes();
-        if (values.getNBytes() > largestSingleBuffer) {
-          largestSingleBuffer = values.getNBytes();
+    for (ByteBuffer byteBuffer : queryByteBuffers) {
+      if (byteBuffer != null) {
+        totalBufferSize += byteBuffer.capacity();
+        if (byteBuffer.capacity() > largestSingleBuffer) {
+          largestSingleBuffer = byteBuffer.capacity();
         }
         bufferCount++;
       }
-      if (offsets != null) {
-        totalBufferSizes += offsets.getNBytes();
-        if (offsets.getNBytes() > largestSingleBuffer) {
-          largestSingleBuffer = offsets.getNBytes();
-        }
-      }
-      bufferCount++;
     }
     log.info(
         "Largest single buffer is "
             + largestSingleBuffer
-            + " total buffer count is "
+            + " total data buffer count is "
             + bufferCount);
 
-    return totalBufferSizes;
+    return totalBufferSize;
   }
 
   /**
@@ -581,7 +567,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
   private boolean canReallocBuffers() {
     long freeMemory = this.hardwareAbstractionLayer.getMemory().getAvailable();
 
-    long totalBufferSizes = calculateNativeArrayByteSizes();
+    long totalBufferSizes = calculateByteSizes();
 
     log.info(
         "Checking to realloc buffers from "
@@ -607,7 +593,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     }
 
     // Reset
-    query.resetBuffers();
+    query.resetBuffers(); // todo clear bytebuffers in the java api as well
 
     this.read_query_buffer_size *= 2;
 
@@ -719,6 +705,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
       // TODO comments!!
 
+      if (maxNumRows == 0)
+        maxNumRows =
+            1; // rare case when readbuffer size is set to a value smaller than the type// todo
+               // explain better
       valueVector.setInitialCapacity(maxNumRows);
       valueVectorValidity.setInitialCapacity(maxNumRows);
 
@@ -761,6 +751,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           query.setBuffer(name, data);
         }
       }
+      queryByteBuffers.add(data);
       this.validityValueVectors.add(valueVectorValidity);
       this.valueValueVectors.add(valueVector);
       i++;
