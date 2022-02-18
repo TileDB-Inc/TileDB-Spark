@@ -23,6 +23,7 @@ import java.nio.ByteOrder;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -127,22 +128,31 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     FlOAT64,
     UINT16,
     LONG,
-    ASCII
+    ASCII,
+    DATE
   }
 
-  // todo think about lists
   public class TypeInfo {
     public AttributeDatatype datatype;
     public Datatype tileDBDataType;
     public boolean isVarLen;
     public boolean isNullable;
+    public long multiplier;
+    public boolean moreThanDay;
 
     public TypeInfo(
-        AttributeDatatype datatype, Datatype tiledbDataType, boolean isVarLen, boolean isNullable) {
+        AttributeDatatype datatype,
+        Datatype tiledbDataType,
+        boolean isVarLen,
+        boolean isNullable,
+        long multiplier,
+    boolean moreThanDay) {
       this.datatype = datatype;
       this.tileDBDataType = tiledbDataType;
       this.isVarLen = isVarLen;
       this.isNullable = isNullable;
+      this.multiplier = multiplier;
+      this.moreThanDay = moreThanDay;
     }
   }
 
@@ -151,6 +161,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     boolean isVarLen;
     boolean isNullable;
     Datatype datatype;
+    long multiplier = 1;
+    boolean moreThanDay = false;
 
     if (arraySchema.hasAttribute(column)) {
       Attribute a = arraySchema.getAttribute(column);
@@ -166,31 +178,59 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
     switch (datatype) {
       case TILEDB_CHAR:
-        return new TypeInfo(AttributeDatatype.CHAR, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.CHAR, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_STRING_ASCII:
-        return new TypeInfo(AttributeDatatype.ASCII, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.ASCII, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_INT8:
-        return new TypeInfo(AttributeDatatype.INT8, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.INT8, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_INT32:
-        return new TypeInfo(AttributeDatatype.INT32, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.INT32, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_FLOAT32:
-        return new TypeInfo(AttributeDatatype.FLOAT32, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.FLOAT32, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_FLOAT64:
-        return new TypeInfo(AttributeDatatype.FlOAT64, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.FlOAT64, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_INT16:
-        return new TypeInfo(AttributeDatatype.INT16, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.INT16, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_UINT8:
-        return new TypeInfo(AttributeDatatype.UINT8, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.UINT8, datatype, isVarLen, isNullable, multiplier , false);
       case TILEDB_UINT16:
-        return new TypeInfo(AttributeDatatype.UINT16, datatype, isVarLen, isNullable);
+        return new TypeInfo(AttributeDatatype.UINT16, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_INT64:
       case TILEDB_UINT32:
       case TILEDB_UINT64:
+        return new TypeInfo(AttributeDatatype.LONG, datatype, isVarLen, isNullable, multiplier, false);
       case TILEDB_DATETIME_US:
-        return new TypeInfo(AttributeDatatype.LONG, datatype, isVarLen, isNullable);
-      default:
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, false);
+      case TILEDB_DATETIME_MS:
+        multiplier = 1000;
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, false);
+      case TILEDB_DATETIME_SEC:
+        multiplier = 1000000;
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, false);
+      case TILEDB_DATETIME_MIN:
+        multiplier = 60 * 1000000;
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, false);
+      case TILEDB_DATETIME_HR:
+        multiplier = 60L * 60L * 1000000L;
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, false);
+      case TILEDB_DATETIME_NS:
+        //negative number denotes that values need division
+        multiplier = -1000;
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, false);
+      case TILEDB_DATETIME_DAY:
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, true);
+      case TILEDB_DATETIME_WEEK:
+        multiplier = 7;
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, true);
+      case TILEDB_DATETIME_MONTH:
+        //negative number with -moreThanDay- set to true means more than month.
+        multiplier = -1;
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, true);
+      case TILEDB_DATETIME_YEAR:
+        multiplier = -12;
+        return new TypeInfo(AttributeDatatype.DATE, datatype, isVarLen, isNullable, multiplier, true);
+        default:
         throw new RuntimeException("Unknown attribute datatype " + datatype);
-        // TODO datetime type is not yet supported
     }
   }
 
@@ -368,25 +408,32 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       //          colIdx++;
       //        }
       //      }
-      //        Pair<ByteBuffer, ByteBuffer> a = query.getByteBuffer("a3");
-      //        System.out.println(a.getSecond().get(0) + " <<<");
-
       if (resultBatch == null) {
         ColumnVector[] colVecs = new ColumnVector[valueValueVectors.size()];
         for (int i = 0; i < valueValueVectors.size(); i++) {
           String name = fieldNames.get(i);
           TypeInfo typeInfo = getTypeInfo(name);
+
+          // if nullable
           if (typeInfo.isNullable) {
             // todo explain logic in comments
             ArrowBuf arrowBufValidity = valueValueVectors.get(i).getValidityBuffer();
-            for (int j = 0;
-                j < arrowBufValidity.capacity();
-                j++) { // todo check if the limit can be nrows
+            for (int j = 0; j < arrowBufValidity.capacity(); j++) {
+              // todo check if the limit can be nrows
               if (validityValueVectors.get(i).getDataBuffer().getByte(j) == (byte) 0) {
                 BitVectorHelper.setValidityBit(arrowBufValidity, j, 0);
               }
             }
           }
+
+          // if datetype
+          if (typeInfo.multiplier != 1 || typeInfo.moreThanDay) {
+            // it means that the datatype is Date and the values need filtering to
+                     // accommodate for the fewer datatypes that spark provides compared to TileDB.
+            filterDataBufferForDateTypes(
+                valueValueVectors.get(i).getDataBuffer(), currentNumRecords, typeInfo);
+          }
+
           colVecs[i] = new ArrowColumnVector(valueValueVectors.get(i));
         }
         resultBatch = new ColumnarBatch(colVecs);
@@ -400,6 +447,28 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     }
     metricsUpdater.finish(queryGetTimerName);
     return resultBatch;
+  }
+
+  private void filterDataBufferForDateTypes(ArrowBuf dataBuffer, long currentNumRecords, TypeInfo typeInfo) {
+    for (int i = 0; i < currentNumRecords; i++) {
+      long newValue;
+      if (typeInfo.moreThanDay){
+        if (typeInfo.multiplier > 0){
+          OffsetDateTime ms = zeroDateTime.plusDays(dataBuffer.getLong(i) * typeInfo.multiplier);
+          newValue = ChronoUnit.MICROS.between(zeroDateTime, ms);
+        }else{
+          //means that it is more than month and need different handling
+          OffsetDateTime ms = zeroDateTime.plusMonths(dataBuffer.getLong(i) * Math.abs(typeInfo.multiplier));
+          newValue = ChronoUnit.MICROS.between(zeroDateTime, ms);
+        }
+
+      }else{
+        //negative multiplier means we need to divide
+        if (typeInfo.multiplier > 0) newValue = dataBuffer.getLong(i) * typeInfo.multiplier ;
+        else newValue = dataBuffer.getLong(i) / Math.abs(typeInfo.multiplier );
+      }
+      dataBuffer.setLong(i, newValue);
+    }
   }
 
   /**
@@ -681,6 +750,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           }
           break;
         case LONG:
+        case DATE:
           arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
           if (typeInfo.isVarLen) {
             ListVector lv = ListVector.empty(fieldName, allocator);
@@ -708,7 +778,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       if (maxNumRows == 0)
         maxNumRows =
             1; // rare case when readbuffer size is set to a value smaller than the type// todo
-               // explain better
+      // explain better
       valueVector.setInitialCapacity(maxNumRows);
       valueVectorValidity.setInitialCapacity(maxNumRows);
 
