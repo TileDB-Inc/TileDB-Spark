@@ -57,6 +57,14 @@ public class TileDBDataSourceOptions implements Serializable {
     return true;
   }
 
+  /** @return True if the legacy non-arrow reader is requested * */
+  public boolean getLegacyReader() {
+    if (optionMap.containsKey("legacy_reader")) {
+      return Boolean.parseBoolean(optionMap.get("legacy_reader"));
+    }
+    return false;
+  }
+
   /** @return partition count * */
   public int getPartitionCount() {
     if (optionMap.containsKey("partition_count")) {
@@ -221,10 +229,10 @@ public class TileDBDataSourceOptions implements Serializable {
   }
 
   /** @return Optional String HashMap of tiledb config options and values * */
-  public Map<String, String> getTileDBConfigMap(boolean reading) {
+  public Map<String, String> getTileDBConfigMap(boolean useArrowConfig) {
     HashMap<String, String> configMap = new HashMap<>();
     // necessary configs for var sized attributes
-    if (reading) {
+    if (useArrowConfig) {
       configMap.put("sm.var_offsets.bitsize", "32");
       configMap.put("sm.var_offsets.mode", "elements");
       configMap.put("sm.var_offsets.extra_element", "true");
