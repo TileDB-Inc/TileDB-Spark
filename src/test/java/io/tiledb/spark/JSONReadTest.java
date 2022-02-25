@@ -10,6 +10,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -52,8 +53,6 @@ public class JSONReadTest extends SharedJavaSparkSession {
         ds = ds.withColumn(c, ds.col(c).cast("string"));
       }
     }
-    ds.show();
-    ds.printSchema();
 
     ds.write()
         .format("io.tiledb.spark")
@@ -62,14 +61,12 @@ public class JSONReadTest extends SharedJavaSparkSession {
         .mode(SaveMode.ErrorIfExists)
         .save();
 
-    Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("read_buffer_size", 8)
-            .option("uri", URI)
-            .load();
+    ds.show();
 
-    //    dfRead.show();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", URI).load();
+    // use default buffer read size
+
+    Assert.assertEquals(ds.count(), dfRead.count());
+    dfRead.show();
   }
 }
