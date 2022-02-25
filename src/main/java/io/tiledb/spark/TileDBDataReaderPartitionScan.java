@@ -372,8 +372,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         queryStatus = query.getQueryStatus();
         // //this returns something at least
 
-        // Compute the number of cells (records) that were returned by the query. first field is
-        // good enough. TODO better explanation
+        // Compute the number of cells (records) that were returned by the query. The first field is
+        // used.
         HashMap<String, Pair<Long, Long>> queryResultBufferElementsNIO =
             query.resultBufferElementsNIO(fieldDataTypeSizes.get(0));
 
@@ -382,22 +382,20 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         if (domain.hasDimension(fieldName)) isVar = domain.getDimension(fieldName).isVar();
         else isVar = arraySchema.getAttribute(fieldName).isVar();
 
-        // minus 1 for the extra element. todo test that again
+        // Minus 1 for the extra element required by the arrow buffers
         if (isVar) currentNumRecords = queryResultBufferElementsNIO.get(fieldName).getFirst() - 1;
         else currentNumRecords = queryResultBufferElementsNIO.get(fieldName).getSecond();
 
         // if there are zero records and first field is varSize then this value needs to
-        // change to 0, because of 2 lines above^
+        // change to 0, because of the minus 1 two lines above^
         if (currentNumRecords == -1) currentNumRecords = 0;
 
         // Increase the buffer allocation and resubmit if necessary.
         if (queryStatus == TILEDB_INCOMPLETE && currentNumRecords == 0) { // VERY IMPORTANT!!
-          if (options.getAllowReadBufferReallocation()) {
-            reallocateQueryBuffers();
-          } else {
-            throw new RuntimeException(
-                "Incomplete query with no more records means the buffers are too small but allow_read_buffer_realloc is set to false!");
-          }
+          // todo reallocation is disabled at this point, more testing is needed.
+          //          reallocateQueryBuffers();
+          throw new RuntimeException(
+              "Read buffer size is too small. Please increase by using the -read_buffer_size- option");
         } else if (currentNumRecords > 0) {
           // Break out of resubmit loop as we have some results.
           metricsUpdater.finish(queryNextTimerName);
@@ -426,10 +424,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
           // if nullable
           if (typeInfo.isNullable) {
-            // todo explain logic in comments
+            // If the attribute is nullable we need to set the validity buffer from the main value
+            // vector in bitmap fashion.
+            // TileDB handles the bitmap as a bytemap, thus the following conversion.
             ArrowBuf arrowBufValidity = valueValueVectors.get(i).getValidityBuffer();
-            for (int j = 0; j < arrowBufValidity.capacity(); j++) {
-              // todo check if the limit can be nrows
+            for (int j = 0; j < nRows; j++) {
               if (validityValueVectors.get(i).getDataBuffer().getByte(j) == (byte) 0) {
                 BitVectorHelper.setValidityBit(arrowBufValidity, j, 0);
               }
@@ -601,7 +600,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     // set query read layout
     setOptionQueryLayout(options.getArrayLayout());
 
-    allocateQueryBuffers(this.read_query_buffer_size);
+    createValueVectors(this.read_query_buffer_size);
 
     // est that there are resuts, so perform a read for this partition
     metricsUpdater.finish(queryInitTimerName);
@@ -613,7 +612,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    *
    * @return byte in current buffers
    */
-  private long calculateByteSizes() { // todo test
+  private long calculateByteSizes() {
     long totalBufferSize = 0;
     long bufferCount = 0;
     long largestSingleBuffer = 0;
@@ -671,10 +670,16 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
     this.read_query_buffer_size *= 2;
 
-    allocateQueryBuffers(this.read_query_buffer_size);
+    createValueVectors(this.read_query_buffer_size);
   }
 
-  private void allocateQueryBuffers(long readBufferSize) throws TileDBError {
+  /**
+   * Creates the value Vectors, later to be used to create the arrowBuffers for the query.
+   *
+   * @param readBufferSize the readBufferSize
+   * @throws TileDBError
+   */
+  private void createValueVectors(long readBufferSize) throws TileDBError {
     metricsUpdater.startTimer(queryAllocBufferTimerName);
     // Create coordinate buffers
     int minDimDize = Integer.MAX_VALUE;
@@ -692,11 +697,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       TypeInfo typeInfo = getTypeInfo(name);
       RootAllocator allocator = ArrowUtils.rootAllocator();
       ArrowType arrowType;
-      FieldType fieldType;
       ValueVector valueVector;
       ValueVector valueVectorValidity = new UInt1Vector(fieldName, allocator);
-      System.out.println(
-          typeInfo.datatype + " " + name + " " + typeInfo.isVarLen + " " + typeInfo.isArray);
       switch (typeInfo.datatype) {
         case CHAR:
         case ASCII:
@@ -707,7 +709,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           break;
         case UINT8:
         case INT8:
-          arrowType = new ArrowType.Int(8, true); // watch out
+          arrowType = new ArrowType.Int(8, true);
           if (typeInfo.isVarLen) {
             ListVector lv = ListVector.empty(fieldName, allocator);
             lv.addOrGetVector(FieldType.nullable(arrowType));
@@ -717,7 +719,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           }
           break;
         case INT32:
-          arrowType = new ArrowType.Int(32, true); // todo
+          arrowType = new ArrowType.Int(32, true);
           if (typeInfo.isVarLen || typeInfo.isArray) {
             ListVector lv = ListVector.empty(fieldName, allocator);
             lv.addOrGetVector(FieldType.nullable(arrowType));
@@ -748,7 +750,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           break;
         case INT16:
         case UINT16:
-          arrowType = new ArrowType.Int(16, true); // todo watch out
+          arrowType = new ArrowType.Int(16, true);
           if (typeInfo.isVarLen) {
             ListVector lv = ListVector.empty(fieldName, allocator);
             lv.addOrGetVector(FieldType.nullable(arrowType));
@@ -759,7 +761,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           break;
         case LONG:
         case DATE:
-          arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
+          arrowType = new ArrowType.Int(64, true);
           if (typeInfo.isVarLen) {
             ListVector lv = ListVector.empty(fieldName, allocator);
             lv.addOrGetVector(FieldType.nullable(arrowType));
@@ -778,83 +780,107 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
       int maxNumRows = util.longToInt(maxRowsL);
 
-      // TODO comments!! and break down to different methods
-
-      if (maxNumRows == 0)
-        maxNumRows =
-            1; // rare case when readbuffer size is set to a value smaller than the type// todo
-      // explain better
+      // rare case when readbuffer size is set to a value smaller than the type
+      if (maxNumRows == 0) maxNumRows = 1;
 
       if (valueVector instanceof ListVector) {
-        ((ListVector) valueVector).setInitialCapacity(maxNumRows, 1); // todo fix density
+        ((ListVector) valueVector).setInitialCapacity(maxNumRows, 1);
       } else {
         valueVector.setInitialCapacity(maxNumRows);
       }
       valueVectorValidity.setInitialCapacity(maxNumRows);
 
+      // The valueVector is the one holding the data and the corresponding validity and
+      // offsetBuffers.
+      // The valueVectorValidity is a help valueVector that holds the validity values in a byte
+      // format which is the one expected from TileDB. The validity buffers in the main valueVector
+      // is a bitmap instead!
+      // A conversion between the two is needed when retrieving the data. See the code in the get()
+      // method.
       valueVector.allocateNew();
       valueVectorValidity.allocateNew();
 
-      ByteBuffer data;
-      if (valueVector instanceof ListVector) {
-        ListVector lv = (ListVector) valueVector;
-        ArrowBuf arrowData = lv.getDataVector().getDataBuffer();
-        data = arrowData.nioBuffer(0, arrowData.capacity());
-        // For null list entries, TileDB-Spark will set the outer bitmap.
-        // The inner (values) bitmap should be initialized to all non-null.
-        ArrowBuf valueBitmap = lv.getDataVector().getValidityBuffer();
-        int nbytes = valueBitmap.capacity();
-        for (int i = 0; i < nbytes; i++) {
-          valueBitmap.setByte(i, 0xff);
-        }
-      } else {
-        ArrowBuf arrowData = valueVector.getDataBuffer();
-        data = arrowData.nioBuffer(0, arrowData.capacity());
-      }
-
-      data.order(ByteOrder.LITTLE_ENDIAN);
-
-      // for nulls
-      ArrowBuf arrowBufValidity;
-      arrowBufValidity = valueVector.getValidityBuffer();
-      // necessary to populate with non-null values
-      for (int j = 0; j < arrowBufValidity.capacity(); j++) {
-        arrowBufValidity.setByte(j, 0xff);
-      }
-
-      ArrowBuf arrowValidity = valueVectorValidity.getDataBuffer();
-      for (int j = 0; j < arrowValidity.capacity(); j++) {
-        arrowValidity.setByte(j, 0xff);
-      }
-      ByteBuffer byteBufferValidity = arrowValidity.nioBuffer(0, arrowValidity.capacity());
-      byteBufferValidity.order(ByteOrder.LITTLE_ENDIAN);
-      // end of nulls
-
-      if (typeInfo.isVarLen) {
-        // Set the offsets buffer.
-
-        ArrowBuf arrowOffsets = valueVector.getOffsetBuffer();
-        ByteBuffer offsets = arrowOffsets.nioBuffer(0, arrowOffsets.capacity());
-
-        if (typeInfo.isNullable) {
-          query.setBufferNullableNIO(name, offsets, data, byteBufferValidity);
-        } else {
-          query.setBuffer(name, offsets, data);
-        }
-      } else {
-        if (typeInfo.isNullable) {
-          query.setBufferNullableNIO(name, data, byteBufferValidity);
-        } else {
-          query.setBuffer(name, data);
-        }
-      }
-      this.queryByteBuffers.add(data);
-      this.validityValueVectors.add(valueVectorValidity);
-      this.valueValueVectors.add(valueVector);
+      createAndSetArrowBuffers(valueVector, valueVectorValidity, typeInfo, name);
     }
     metricsUpdater.finish(queryAllocBufferTimerName);
   }
 
+  /**
+   * Creates and sets the arrowBuffers to the query.
+   *
+   * @param valueVector The main valueVector
+   * @param valueVectorValidity the helper valueVector for the validity map.
+   * @param typeInfo the typeInfo
+   * @param name current field name
+   * @throws TileDBError
+   */
+  private void createAndSetArrowBuffers(
+      ValueVector valueVector, ValueVector valueVectorValidity, TypeInfo typeInfo, String name)
+      throws TileDBError {
+    ByteBuffer data;
+    if (valueVector instanceof ListVector) {
+      ListVector lv = (ListVector) valueVector;
+      ArrowBuf arrowData = lv.getDataVector().getDataBuffer();
+      data = arrowData.nioBuffer(0, arrowData.capacity());
+      // For null list entries, TileDB-Spark will set the outer bitmap.
+      // The inner (values) bitmap should be initialized to all non-null.
+      ArrowBuf valueBitmap = lv.getDataVector().getValidityBuffer();
+      int nbytes = valueBitmap.capacity();
+      for (int i = 0; i < nbytes; i++) {
+        valueBitmap.setByte(i, 0xff);
+      }
+    } else {
+      ArrowBuf arrowData = valueVector.getDataBuffer();
+      data = arrowData.nioBuffer(0, arrowData.capacity());
+    }
+
+    data.order(ByteOrder.LITTLE_ENDIAN);
+
+    // for nulls
+    ArrowBuf arrowBufValidity;
+    arrowBufValidity = valueVector.getValidityBuffer();
+    // necessary to populate with non-null values
+    for (int j = 0; j < arrowBufValidity.capacity(); j++) {
+      arrowBufValidity.setByte(j, 0xff);
+    }
+
+    ArrowBuf arrowValidity = valueVectorValidity.getDataBuffer();
+    for (int j = 0; j < arrowValidity.capacity(); j++) {
+      arrowValidity.setByte(j, 0xff);
+    }
+    ByteBuffer byteBufferValidity = arrowValidity.nioBuffer(0, arrowValidity.capacity());
+    byteBufferValidity.order(ByteOrder.LITTLE_ENDIAN);
+    // end of nulls
+
+    if (typeInfo.isVarLen) {
+      // Set the offsets buffer.
+
+      ArrowBuf arrowOffsets = valueVector.getOffsetBuffer();
+      ByteBuffer offsets = arrowOffsets.nioBuffer(0, arrowOffsets.capacity());
+
+      if (typeInfo.isNullable) {
+        query.setBufferNullableNIO(name, offsets, data, byteBufferValidity);
+      } else {
+        query.setBuffer(name, offsets, data);
+      }
+    } else {
+      if (typeInfo.isNullable) {
+        query.setBufferNullableNIO(name, data, byteBufferValidity);
+      } else {
+        query.setBuffer(name, data);
+      }
+    }
+    this.queryByteBuffers.add(data);
+    this.validityValueVectors.add(valueVectorValidity);
+    this.valueValueVectors.add(valueVector);
+  }
+
+  /**
+   * Sets the query layout.
+   *
+   * @param layoutOption the layout option.
+   * @throws TileDBError
+   */
   private void setOptionQueryLayout(Optional<Layout> layoutOption) throws TileDBError {
     if (arraySchema.isSparse()) {
       // sparse, set to array unordered (fastest) if not defined
