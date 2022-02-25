@@ -6,6 +6,7 @@ import static io.tiledb.java.api.Constants.TILEDB_VAR_NUM;
 import static io.tiledb.java.api.Layout.TILEDB_GLOBAL_ORDER;
 import static io.tiledb.java.api.Layout.TILEDB_ROW_MAJOR;
 import static io.tiledb.java.api.QueryType.TILEDB_WRITE;
+import static io.tiledb.spark.TestDataFrame.assertDataFrameEquals;
 
 import io.tiledb.java.api.*;
 import java.nio.file.Files;
@@ -26,6 +27,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
   private String sparseURI;
   private String variableAttURI;
   private String writeArrayURI;
+  private String tempWrite;
 
   @Before
   public void setup() throws Exception {
@@ -34,22 +36,17 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     variableAttURI = "variable_att_array";
     writeArrayURI = "write_dense_array";
     sparseURI = "sparse_array";
-    if (Files.exists(Paths.get(denseURI))) {
-      TileDBObject.remove(ctx, denseURI);
-    }
-    if (Files.exists(Paths.get(variableAttURI))) {
-      TileDBObject.remove(ctx, variableAttURI);
-    }
-    if (Files.exists(Paths.get(writeArrayURI))) {
-      TileDBObject.remove(ctx, writeArrayURI);
-    }
-    if (Files.exists(Paths.get(sparseURI))) {
-      TileDBObject.remove(ctx, sparseURI);
-    }
+    tempWrite = "temp_write";
+    deleteArrays();
   }
 
   @After
   public void delete() throws Exception {
+    deleteArrays();
+    ctx.close();
+  }
+
+  private void deleteArrays() throws TileDBError {
     if (Files.exists(Paths.get(denseURI))) {
       TileDBObject.remove(ctx, denseURI);
     }
@@ -62,7 +59,9 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     if (Files.exists(Paths.get(sparseURI))) {
       TileDBObject.remove(ctx, sparseURI);
     }
-    ctx.close();
+    if (Files.exists(Paths.get(tempWrite))) {
+      TileDBObject.remove(ctx, tempWrite);
+    }
   }
 
   /**
@@ -523,5 +522,65 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     Assert.assertEquals(5, row.get(0));
     Assert.assertEquals(5, row.get(1));
     Assert.assertNull(row.get(2));
+  }
+
+  /*
+  ==============================================================
+                            READ WRITE READ TESTS
+  ==============================================================
+   */
+
+  @Test
+  public void denseReadWriteReadTest() throws Exception {
+    denseArrayCreate();
+    denseArrayWrite();
+
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", denseURI).load();
+    dfRead.show();
+
+    StructField[] structFields =
+        new StructField[] {
+          new StructField("rows", DataTypes.IntegerType, false, Metadata.empty()),
+          new StructField("cols", DataTypes.IntegerType, false, Metadata.empty()),
+          new StructField("a1", DataTypes.FloatType, true, Metadata.empty()),
+          new StructField("a2", DataTypes.IntegerType, true, Metadata.empty()),
+        };
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(1, 1, null, 1));
+    rows.add(RowFactory.create(1, 2, 3.0f, 4));
+    rows.add(RowFactory.create(2, 1, 4.0f, null));
+    rows.add(RowFactory.create(2, 2, null, 2));
+    StructType structType = new StructType(structFields);
+    Dataset<Row> expected = session().createDataFrame(rows, structType);
+
+    dfRead.cache(); // very important
+
+    Assert.assertTrue(assertDataFrameEquals(expected, dfRead));
+
+    dfRead
+        .write()
+        .format("io.tiledb.spark")
+        .option("uri", tempWrite)
+        .option("schema.dim.0.name", "rows")
+        .option("schema.dim.0.min", 1)
+        .option("schema.dim.0.max", 2)
+        .option("schema.dim.0.extent", 2)
+        .option("schema.dim.1.name", "cols")
+        .option("schema.dim.1.min", 1)
+        .option("schema.dim.1.max", 2)
+        .option("schema.dim.1.extent", 2)
+        .option("schema.cell_order", "row-major")
+        .option("schema.tile_order", "row-major")
+        .mode(SaveMode.ErrorIfExists)
+        .save();
+    //
+    Dataset<Row> dfReadSecond =
+        session().read().format("io.tiledb.spark").option("uri", tempWrite).load();
+    //
+    dfReadSecond.show();
+
+    if (Array.exists(ctx, "temp_write")) {
+      TileDBObject.remove(ctx, "temp_write");
+    }
   }
 }
