@@ -29,6 +29,10 @@ public class TileDBDataReaderPartition implements InputPartition<ColumnarBatch> 
 
   @Override
   public InputPartitionReader<ColumnarBatch> createPartitionReader() {
+    if (tiledbOptions.getLegacyReader())
+      return new TileDBDataReaderPartitionScanLegacy(
+          uri, tileDBReadSchema, tiledbOptions, dimensionRanges, attributeRanges);
+
     return new TileDBDataReaderPartitionScan(
         uri, tileDBReadSchema, tiledbOptions, dimensionRanges, attributeRanges);
   }
