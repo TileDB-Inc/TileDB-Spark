@@ -374,17 +374,18 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
         // Compute the number of cells (records) that were returned by the query. The first field is
         // used.
-        HashMap<String, Pair<Long, Long>> queryResultBufferElementsNIO =
-            query.resultBufferElementsNIO(fieldDataTypeSizes.get(0));
-
         String fieldName = fieldNames.get(0);
+
+        Pair<Long, Long> queryResultBufferElementsNIO =
+            query.resultBufferElementsNIO(fieldName, fieldDataTypeSizes.get(0));
+
         boolean isVar;
         if (domain.hasDimension(fieldName)) isVar = domain.getDimension(fieldName).isVar();
         else isVar = arraySchema.getAttribute(fieldName).isVar();
 
         // Minus 1 for the extra element required by the arrow buffers
-        if (isVar) currentNumRecords = queryResultBufferElementsNIO.get(fieldName).getFirst() - 1;
-        else currentNumRecords = queryResultBufferElementsNIO.get(fieldName).getSecond();
+        if (isVar) currentNumRecords = queryResultBufferElementsNIO.getFirst() - 1;
+        else currentNumRecords = queryResultBufferElementsNIO.getSecond();
 
         // if there are zero records and first field is varSize then this value needs to
         // change to 0, because of the minus 1 two lines above^
