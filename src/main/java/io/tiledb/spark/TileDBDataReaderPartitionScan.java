@@ -61,8 +61,6 @@ import oshi.hardware.HardwareAbstractionLayer;
 
 public class TileDBDataReaderPartitionScan implements InputPartitionReader<ColumnarBatch> {
 
-  private static Instrumentation instrumentation;
-
   static Logger log = Logger.getLogger(TileDBDataReaderPartitionScan.class.getName());
 
   // Filter pushdown to this partition
@@ -395,7 +393,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         if (queryStatus == TILEDB_INCOMPLETE && currentNumRecords == 0) { // VERY IMPORTANT!!
           // todo reallocation is disabled at this point, more testing is needed.
           //          reallocateQueryBuffers();
-          throw new RuntimeException(
+          throw new TileDBError(
               "Read buffer size is too small. Please increase by using the -read_buffer_size- option");
         } else if (currentNumRecords > 0) {
           // Break out of resubmit loop as we have some results.
@@ -422,6 +420,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         for (int i = 0; i < valueValueVectors.size(); i++) {
           String name = fieldNames.get(i);
           TypeInfo typeInfo = getTypeInfo(name);
+          boolean isDateType = typeInfo.multiplier != 1 || typeInfo.moreThanDay;
 
           // if nullable
           if (typeInfo.isNullable) {
@@ -436,8 +435,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             }
           }
 
-          // if datetype
-          if (typeInfo.multiplier != 1 || typeInfo.moreThanDay) {
+          if (isDateType) {
+            if (typeInfo.isVarLen)
+              throw new TileDBError(
+                  "Var length attributes/dimensions of type TILEDB_DATETIME_* are not currently supported: "
+                      + name);
             // it means that the datatype is Date and the values need filtering to
             // accommodate for the fewer datatypes that spark provides compared to TileDB.
             filterDataBufferForDateTypes(
