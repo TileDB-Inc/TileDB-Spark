@@ -37,7 +37,7 @@ public class JSONReadTest extends SharedJavaSparkSession {
   }
 
   @Test
-  public void test() {
+  public void JSONReadTest() {
     Dataset<Row> ds = session().read().json(pathFinder("sample.json"));
 
     // column types of the following columns are string arrays and boolean which are not supported
