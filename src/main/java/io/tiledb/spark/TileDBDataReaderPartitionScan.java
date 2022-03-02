@@ -528,8 +528,6 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     }
 
     releaseArrowVectors();
-    // force garbage collect
-    System.gc();
 
     // Finish timer
     double duration = metricsUpdater.finish(queryReadTimerName) / 1000000000d;
