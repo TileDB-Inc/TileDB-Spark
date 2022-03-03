@@ -352,7 +352,6 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
   public void testDateTypesDenseReadWrite() throws TileDBError {
     Dataset<Row> dfReadFirst =
         session().read().format("io.tiledb.spark").option("uri", denseURI).load();
-    //    dfReadFirst.show();
 
     dfReadFirst.cache();
 
