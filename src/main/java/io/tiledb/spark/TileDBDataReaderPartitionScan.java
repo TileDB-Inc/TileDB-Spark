@@ -16,7 +16,6 @@ import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmit
 
 import io.netty.buffer.ArrowBuf;
 import io.tiledb.java.api.*;
-import java.lang.instrument.*;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -114,7 +113,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
 
   private List<ValueVector> validityValueVectors;
 
-  private List<ValueVector> valueValueVectors;
+  private List<ValueVector> valueVectors;
 
   public enum AttributeDatatype {
     CHAR,
@@ -265,7 +264,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       List<List<Range>> attributeRanges) {
     this.arrayURI = uri;
     this.validityValueVectors = new ArrayList<>();
-    this.valueValueVectors = new ArrayList<>();
+    this.valueVectors = new ArrayList<>();
     this.queryByteBuffers = new ArrayList<>();
     this.sparkSchema = schema.getSparkSchema();
     this.options = options;
@@ -368,7 +367,6 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         metricsUpdater.finish(tileDBReadQuerySubmitTimerName);
 
         queryStatus = query.getQueryStatus();
-        // //this returns something at least
 
         // Compute the number of cells (records) that were returned by the query. The first field is
         // used.
@@ -416,8 +414,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     try {
       int nRows = (int) currentNumRecords;
       if (resultBatch == null) {
-        ColumnVector[] colVecs = new ColumnVector[valueValueVectors.size()];
-        for (int i = 0; i < valueValueVectors.size(); i++) {
+        ColumnVector[] colVecs = new ColumnVector[valueVectors.size()];
+        for (int i = 0; i < valueVectors.size(); i++) {
           String name = fieldNames.get(i);
           TypeInfo typeInfo = getTypeInfo(name);
           boolean isDateType = typeInfo.multiplier != 1 || typeInfo.moreThanDay;
@@ -427,9 +425,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             // If the attribute is nullable we need to set the validity buffer from the main value
             // vector in bitmap fashion.
             // TileDB handles the bitmap as a bytemap, thus the following conversion.
-            ArrowBuf arrowBufValidity = valueValueVectors.get(i).getValidityBuffer();
+            ArrowBuf arrowBufValidity = valueVectors.get(i).getValidityBuffer();
+            ArrowBuf validityByteBuffer = validityValueVectors.get(i).getDataBuffer();
             for (int j = 0; j < nRows; j++) {
-              if (validityValueVectors.get(i).getDataBuffer().getByte(j) == (byte) 0) {
+              if (validityByteBuffer.getByte(j) == (byte) 0) {
                 BitVectorHelper.setValidityBit(arrowBufValidity, j, 0);
               }
             }
@@ -443,9 +442,9 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             // it means that the datatype is Date and the values need filtering to
             // accommodate for the fewer datatypes that spark provides compared to TileDB.
             filterDataBufferForDateTypes(
-                valueValueVectors.get(i).getDataBuffer(), currentNumRecords, typeInfo);
+                valueVectors.get(i).getDataBuffer(), currentNumRecords, typeInfo);
           }
-          colVecs[i] = new ArrowColumnVector(valueValueVectors.get(i));
+          colVecs[i] = new ArrowColumnVector(valueVectors.get(i));
         }
         resultBatch = new ColumnarBatch(colVecs);
       }
@@ -699,7 +698,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       RootAllocator allocator = ArrowUtils.rootAllocator();
       ArrowType arrowType;
       ValueVector valueVector;
-      ValueVector valueVectorValidity = new UInt1Vector(fieldName, allocator);
+      ValueVector validityValueVector = new UInt1Vector(fieldName, allocator);
       switch (typeInfo.datatype) {
         case CHAR:
         case ASCII:
@@ -789,19 +788,19 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       } else {
         valueVector.setInitialCapacity(maxNumRows);
       }
-      valueVectorValidity.setInitialCapacity(maxNumRows);
+      validityValueVector.setInitialCapacity(maxNumRows);
 
       // The valueVector is the one holding the data and the corresponding validity and
       // offsetBuffers.
-      // The valueVectorValidity is a help valueVector that holds the validity values in a byte
+      // The validityValueVector is a help valueVector that holds the validity values in a byte
       // format which is the one expected from TileDB. The validity buffers in the main valueVector
       // is a bitmap instead!
       // A conversion between the two is needed when retrieving the data. See the code in the get()
       // method.
       valueVector.allocateNew();
-      valueVectorValidity.allocateNew();
+      validityValueVector.allocateNew();
 
-      createAndSetArrowBuffers(valueVector, valueVectorValidity, typeInfo, name);
+      createAndSetArrowBuffers(valueVector, validityValueVector, typeInfo, name);
     }
     metricsUpdater.finish(queryAllocBufferTimerName);
   }
@@ -810,13 +809,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
    * Creates and sets the arrowBuffers to the query.
    *
    * @param valueVector The main valueVector
-   * @param valueVectorValidity the helper valueVector for the validity map.
+   * @param validityValueVector the helper valueVector for the validity map.
    * @param typeInfo the typeInfo
    * @param name current field name
    * @throws TileDBError
    */
   private void createAndSetArrowBuffers(
-      ValueVector valueVector, ValueVector valueVectorValidity, TypeInfo typeInfo, String name)
+      ValueVector valueVector, ValueVector validityValueVector, TypeInfo typeInfo, String name)
       throws TileDBError {
     ByteBuffer data;
     if (valueVector instanceof ListVector) {
@@ -838,18 +837,19 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     data.order(ByteOrder.LITTLE_ENDIAN);
 
     // for nulls
-    ArrowBuf arrowBufValidity;
-    arrowBufValidity = valueVector.getValidityBuffer();
+    ArrowBuf arrowBufBitMapValidity;
+    arrowBufBitMapValidity = valueVector.getValidityBuffer();
     // necessary to populate with non-null values
-    for (int j = 0; j < arrowBufValidity.capacity(); j++) {
-      arrowBufValidity.setByte(j, 0xff);
+    for (int j = 0; j < arrowBufBitMapValidity.capacity(); j++) {
+      arrowBufBitMapValidity.setByte(j, 0xff);
     }
 
-    ArrowBuf arrowValidity = valueVectorValidity.getDataBuffer();
-    for (int j = 0; j < arrowValidity.capacity(); j++) {
-      arrowValidity.setByte(j, 0xff);
+    ArrowBuf arrowBufByteMapValidity = validityValueVector.getDataBuffer();
+    for (int j = 0; j < arrowBufByteMapValidity.capacity(); j++) {
+      arrowBufByteMapValidity.setByte(j, 0xff);
     }
-    ByteBuffer byteBufferValidity = arrowValidity.nioBuffer(0, arrowValidity.capacity());
+    ByteBuffer byteBufferValidity =
+        arrowBufByteMapValidity.nioBuffer(0, arrowBufByteMapValidity.capacity());
     byteBufferValidity.order(ByteOrder.LITTLE_ENDIAN);
     // end of nulls
 
@@ -872,8 +872,8 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       }
     }
     this.queryByteBuffers.add(data);
-    this.validityValueVectors.add(valueVectorValidity);
-    this.valueValueVectors.add(valueVector);
+    this.validityValueVectors.add(validityValueVector);
+    this.valueVectors.add(valueVector);
   }
 
   /**
@@ -914,9 +914,9 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       for (ValueVector v : validityValueVectors) v.close();
       validityValueVectors.clear();
     }
-    if (valueValueVectors != null) {
-      for (ValueVector v : valueValueVectors) v.close();
-      valueValueVectors.clear();
+    if (valueVectors != null) {
+      for (ValueVector v : valueVectors) v.close();
+      valueVectors.clear();
     }
   }
 }

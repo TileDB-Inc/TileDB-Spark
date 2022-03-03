@@ -131,7 +131,6 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     denseArrayCreate();
     denseArrayWrite();
     Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", denseURI).load();
-    dfRead.show();
 
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
@@ -337,7 +336,6 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     sparseArrayWrite();
     Dataset<Row> dfRead =
         session().read().format("io.tiledb.spark").option("uri", sparseURI).load();
-    dfRead.show();
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
     Assert.assertEquals(5, rows.size());
@@ -536,7 +534,6 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     denseArrayWrite();
 
     Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", denseURI).load();
-    dfRead.show();
 
     StructField[] structFields =
         new StructField[] {
@@ -553,7 +550,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     StructType structType = new StructType(structFields);
     Dataset<Row> expected = session().createDataFrame(rows, structType);
 
-    dfRead.cache(); // very important
+    dfRead.cache();
 
     Assert.assertTrue(assertDataFrameEquals(expected, dfRead));
 
@@ -573,11 +570,11 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .option("schema.tile_order", "row-major")
         .mode(SaveMode.ErrorIfExists)
         .save();
-    //
+
     Dataset<Row> dfReadSecond =
         session().read().format("io.tiledb.spark").option("uri", tempWrite).load();
-    //
-    dfReadSecond.show();
+
+    Assert.assertTrue(assertDataFrameEquals(expected, dfReadSecond));
 
     if (Array.exists(ctx, "temp_write")) {
       TileDBObject.remove(ctx, "temp_write");

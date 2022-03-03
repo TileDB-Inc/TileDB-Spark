@@ -118,15 +118,10 @@ public class VarAttributesTest extends SharedJavaSparkSession {
     Assert.assertEquals(4, rows.size());
     // 1st row
     Row row = rows.get(0);
-    System.out.println(row.getList(3).getClass() + " lol ");
     Assert.assertEquals(1, row.getInt(0));
     Assert.assertEquals(1, row.getInt(1));
     Assert.assertEquals(222, row.getInt(2));
-    // list row
-    Assert.assertEquals(99L, row.getList(3).get(0));
-    Assert.assertEquals(991L, row.getList(3).get(1));
-    Assert.assertEquals(992L, row.getList(3).get(2));
-    // end of list
+    Assert.assertEquals(List.of(99L, 991L, 992L), row.getList(3));
     Assert.assertNull(row.get(4));
 
     // 2nd row
@@ -134,9 +129,7 @@ public class VarAttributesTest extends SharedJavaSparkSession {
     Assert.assertEquals(1, row.getInt(0));
     Assert.assertEquals(2, row.getInt(1));
     Assert.assertEquals(322, row.getInt(2));
-    // list row
     Assert.assertNull(row.get(3));
-    // end of list
     Assert.assertEquals("ff", row.getString(4));
 
     // 3nd row
@@ -144,9 +137,7 @@ public class VarAttributesTest extends SharedJavaSparkSession {
     Assert.assertEquals(2, row.getInt(0));
     Assert.assertEquals(1, row.getInt(1));
     Assert.assertEquals(422, row.getInt(2));
-    // list row
-    Assert.assertEquals(994L, row.getList(3).get(0));
-    // end of list
+    Assert.assertEquals(List.of(994L), row.getList(3));
     Assert.assertNull(row.get(4));
 
     // 4th row
@@ -154,30 +145,7 @@ public class VarAttributesTest extends SharedJavaSparkSession {
     Assert.assertEquals(2, row.getInt(0));
     Assert.assertEquals(2, row.getInt(1));
     Assert.assertEquals(122, row.getInt(2));
-    // list row
     Assert.assertNull(row.get(3));
-    // end of list
     Assert.assertEquals("bb", row.getString(4));
   }
-
-  //  @Test
-  //  public void arrayJavaRead() throws Exception {
-  //    denseArrayCreate();
-  //    denseArrayWrite();
-  //    Array array = new Array(ctx, denseURI);
-  //    System.out.println(array.getSchema());
-  //    try (Query query = new Query(array, TILEDB_READ)) {
-  //      NativeArray subarray = new NativeArray(ctx, new int[] {1, 20, 1, 20}, Integer.class);
-  //      query.setBuffer("a2", new NativeArray(ctx, 40, Long.class));
-  //
-  //      query.setSubarray(subarray).setLayout(TILEDB_ROW_MAJOR);
-  //      while (query.getQueryStatus() != QueryStatus.TILEDB_COMPLETED) {
-  //        query.submit();
-  //      }
-  //      int[] a2_buff = (int[]) query.getBuffer("a2");
-  //      for (int i = 0; i < a2_buff.length; i++) {
-  //        System.out.println(a2_buff[i] + " ");
-  //      }
-  //    }
-  //  }
 }
