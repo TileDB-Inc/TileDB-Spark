@@ -14,7 +14,6 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryReadTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryReadTimerTaskName;
 import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmitTimerName;
 
-import io.netty.buffer.ArrowBuf;
 import io.tiledb.java.api.*;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -31,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVectorHelper;
@@ -39,7 +39,7 @@ import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.TinyIntVector;
-import org.apache.arrow.vector.UInt1Vector;
+import org.apache.arrow.vector.UInt2Vector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
@@ -49,18 +49,18 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBReadMetricsUpdater;
-import org.apache.spark.sql.execution.arrow.ArrowUtils;
+import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
-import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.util.ArrowUtils;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import oshi.hardware.HardwareAbstractionLayer;
 
-public class TileDBDataReaderPartitionScan implements InputPartitionReader<ColumnarBatch> {
+public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
 
-  static Logger log = Logger.getLogger(TileDBDataReaderPartitionScan.class.getName());
+  static Logger log = Logger.getLogger(TileDBPartitionReader.class.getName());
 
   // Filter pushdown to this partition
   private final List<List<Range>> allRanges;
@@ -256,7 +256,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     }
   }
 
-  public TileDBDataReaderPartitionScan(
+  public TileDBPartitionReader(
       URI uri,
       TileDBReadSchema schema,
       TileDBDataSourceOptions options,
@@ -698,7 +698,14 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       RootAllocator allocator = ArrowUtils.rootAllocator();
       ArrowType arrowType;
       ValueVector valueVector;
-      ValueVector validityValueVector = new UInt1Vector(fieldName, allocator);
+
+      // In theory we could try to replace the following UInt2Vector with Uint1Vector. However,
+      // TileDB will throw an error that more validity cells are needed for the query. This
+      // happens because apache-arrow rounds up the size of the data buffers, thus making it
+      // necessary for us to provide more validity cells. This implementation provides double
+      // the amount of validity cells necessary which makes it safe.
+      ValueVector validityValueVector = new UInt2Vector(fieldName, allocator);
+
       switch (typeInfo.datatype) {
         case CHAR:
         case ASCII:
@@ -821,17 +828,17 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     if (valueVector instanceof ListVector) {
       ListVector lv = (ListVector) valueVector;
       ArrowBuf arrowData = lv.getDataVector().getDataBuffer();
-      data = arrowData.nioBuffer(0, arrowData.capacity());
+      data = arrowData.nioBuffer(0, (int) arrowData.capacity());
       // For null list entries, TileDB-Spark will set the outer bitmap.
       // The inner (values) bitmap should be initialized to all non-null.
       ArrowBuf valueBitmap = lv.getDataVector().getValidityBuffer();
-      int nbytes = valueBitmap.capacity();
+      int nbytes = (int) valueBitmap.capacity();
       for (int i = 0; i < nbytes; i++) {
         valueBitmap.setByte(i, 0xff);
       }
     } else {
       ArrowBuf arrowData = valueVector.getDataBuffer();
-      data = arrowData.nioBuffer(0, arrowData.capacity());
+      data = arrowData.nioBuffer(0, (int) arrowData.capacity());
     }
 
     data.order(ByteOrder.LITTLE_ENDIAN);
@@ -849,7 +856,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       arrowBufByteMapValidity.setByte(j, 0xff);
     }
     ByteBuffer byteBufferValidity =
-        arrowBufByteMapValidity.nioBuffer(0, arrowBufByteMapValidity.capacity());
+        arrowBufByteMapValidity.nioBuffer(0, (int) arrowBufByteMapValidity.capacity());
     byteBufferValidity.order(ByteOrder.LITTLE_ENDIAN);
     // end of nulls
 
@@ -857,7 +864,7 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       // Set the offsets buffer.
 
       ArrowBuf arrowOffsets = valueVector.getOffsetBuffer();
-      ByteBuffer offsets = arrowOffsets.nioBuffer(0, arrowOffsets.capacity());
+      ByteBuffer offsets = arrowOffsets.nioBuffer(0, (int) arrowOffsets.capacity());
 
       if (typeInfo.isNullable) {
         query.setBufferNullableNIO(name, offsets, data, byteBufferValidity);

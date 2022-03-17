@@ -23,8 +23,9 @@ import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBWriteMetricsUpdater;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.sources.v2.writer.DataWriter;
-import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+import org.apache.spark.sql.connector.write.DataWriter;
+import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
@@ -853,5 +854,16 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     // clean up buffered resources
     closeTileDBResources();
     this.metricsUpdater.finish(queryWriteTimerName);
-  };
+  }
+
+  @Override
+  public CustomTaskMetric[] currentMetricsValues() {
+    // todo
+    return DataWriter.super.currentMetricsValues();
+  }
+
+  @Override
+  public void close() throws IOException {
+    // todo
+  }
 }

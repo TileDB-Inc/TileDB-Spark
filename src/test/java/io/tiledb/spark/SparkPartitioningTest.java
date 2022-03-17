@@ -24,7 +24,7 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
         .format("io.tiledb.spark")
         .option("uri", arrayURI)
         .option("schema.dim.0.name", dimensionName)
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> inputDF =
@@ -49,7 +49,7 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
         .option("uri", arrayURI)
         .option("schema.dim.0.name", "a1")
         .option("schema.dim.1.name", "a2")
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> inputDF =

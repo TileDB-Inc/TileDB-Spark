@@ -321,7 +321,7 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
         .option("schema.attr.a.filter_list", "(byteshuffle, -1), (gzip, -10)")
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfRead =
@@ -365,7 +365,7 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
         .option("schema.dim.0.extent", 2)
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", writeURI).load();
@@ -483,7 +483,7 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
         .option("schema.dim.0.extent", 2)
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
-        .mode(SaveMode.Append)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfRead =

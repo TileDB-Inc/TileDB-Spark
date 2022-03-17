@@ -12,7 +12,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -63,7 +62,7 @@ public class JSONReadTest extends SharedJavaSparkSession {
         .format("io.tiledb.spark")
         .option("uri", URI)
         .option("schema.dim.0.name", "study_id")
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", URI).load();

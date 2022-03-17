@@ -3,25 +3,27 @@ package io.tiledb.spark;
 import static io.tiledb.spark.util.addEpsilon;
 import static io.tiledb.spark.util.generateAllSubarrays;
 import static io.tiledb.spark.util.subtractEpsilon;
-import static org.apache.log4j.Priority.ERROR;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceBuildRangeFromFilterTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceCheckAndMergeRangesTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePlanBatchInputPartitionsTimerName;
-import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePruneColumnsTimerName;
-import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePushFiltersTimerName;
-import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceReadSchemaTimerName;
 
-import io.tiledb.java.api.*;
-import java.net.URI;
+import io.tiledb.java.api.Array;
+import io.tiledb.java.api.Context;
+import io.tiledb.java.api.Domain;
+import io.tiledb.java.api.Pair;
+import io.tiledb.java.api.TileDBError;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
-import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBReadMetricsUpdater;
+import org.apache.spark.sql.connector.read.Batch;
+import org.apache.spark.sql.connector.read.InputPartition;
+import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
@@ -32,117 +34,35 @@ import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Or;
-import org.apache.spark.sql.sources.v2.reader.*;
-import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-public class TileDBDataSourceReader
-    implements DataSourceReader,
-        SupportsPushDownRequiredColumns,
-        SupportsScanColumnarBatch,
-        SupportsPushDownFilters {
-
-  static Logger log = Logger.getLogger(TileDBDataSourceReader.class.getName());
+public class TileDBBatch implements Batch {
+  private final TileDBReadSchema tileDBReadSchema;
+  private final Map<String, String> properties;
+  private final TileDBDataSourceOptions tileDBDataSourceOptions;
   private final TileDBReadMetricsUpdater metricsUpdater;
+  private final Filter[] pushedFilters;
 
-  private URI uri;
-  private TileDBReadSchema tileDBReadSchema;
-  private TileDBDataSourceOptions tiledbOptions;
-  private Filter[] pushedFilters;
-
-  public TileDBDataSourceReader(URI uri, TileDBDataSourceOptions options) {
-    this.uri = uri;
-    this.tiledbOptions = options;
-    this.tileDBReadSchema = new TileDBReadSchema(uri, options);
+  public TileDBBatch(
+      TileDBReadSchema tileDBReadSchema,
+      Map<String, String> properties,
+      TileDBDataSourceOptions options,
+      Filter[] pushedFilters) {
+    this.tileDBReadSchema = tileDBReadSchema;
+    this.properties = properties;
+    this.tileDBDataSourceOptions = options;
     this.metricsUpdater = new TileDBReadMetricsUpdater(TaskContext.get());
+    this.pushedFilters = pushedFilters;
   }
 
   @Override
-  public StructType readSchema() {
-    metricsUpdater.startTimer(dataSourceReadSchemaTimerName);
-    log.trace("Reading schema for " + uri);
-    StructType schema = tileDBReadSchema.getSparkSchema();
-    log.trace("Read schema for " + uri + ": " + schema);
-    metricsUpdater.finish(dataSourceReadSchemaTimerName);
-    return schema;
-  }
-
-  @Override
-  public void pruneColumns(StructType pushDownSchema) {
-    metricsUpdater.startTimer(dataSourcePruneColumnsTimerName);
-    log.trace("Set pushdown columns for " + uri + ": " + pushDownSchema);
-    tileDBReadSchema.setPushDownSchema(pushDownSchema);
-    metricsUpdater.finish(dataSourcePruneColumnsTimerName);
-  }
-
-  @Override
-  public Filter[] pushFilters(Filter[] filters) {
-    metricsUpdater.startTimer(dataSourcePushFiltersTimerName);
-    log.trace("size of filters " + filters.length);
-    ArrayList<Filter> pushedFiltersList = new ArrayList<>();
-    ArrayList<Filter> leftOverFilters = new ArrayList<>();
-
-    // Loop through all filters and check if they are support type and on a domain. If so push them
-    // down
-    for (Filter filter : filters) {
-      if (filterCanBePushedDown(filter)) {
-        pushedFiltersList.add(filter);
-      } else {
-        leftOverFilters.add(filter);
-      }
-    }
-
-    this.pushedFilters = new Filter[pushedFiltersList.size()];
-    this.pushedFilters = pushedFiltersList.toArray(this.pushedFilters);
-
-    Filter[] leftOvers = new Filter[leftOverFilters.size()];
-    leftOvers = leftOverFilters.toArray(leftOvers);
-    metricsUpdater.finish(dataSourcePushFiltersTimerName);
-    return leftOvers;
-  }
-
-  private boolean filterCanBePushedDown(Filter filter) {
-    if (filter instanceof And) {
-      And f = (And) filter;
-      if (filterCanBePushedDown(f.left()) && filterCanBePushedDown(f.right())) {
-        return true;
-      }
-    } else if (filter instanceof EqualNullSafe) {
-      return true;
-    } else if (filter instanceof EqualTo) {
-      return true;
-    } else if (filter instanceof GreaterThan) {
-      return true;
-    } else if (filter instanceof GreaterThanOrEqual) {
-      return true;
-    } else if (filter instanceof LessThan) {
-      return true;
-    } else if (filter instanceof LessThanOrEqual) {
-      return true;
-    }
-    return false;
-  }
-
-  @Override
-  public Filter[] pushedFilters() {
-    return pushedFilters;
-  }
-
-  @Override
-  public boolean enableBatchRead() {
-    // always read in batch mode
-    return true;
-  }
-
-  @Override
-  public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
+  public InputPartition[] planInputPartitions() {
     metricsUpdater.startTimer(dataSourcePlanBatchInputPartitionsTimerName);
-    ArrayList<InputPartition<ColumnarBatch>> readerPartitions = new ArrayList<>();
+    ArrayList<InputPartition> readerPartitions = new ArrayList<>();
 
     try {
-      Context ctx = new Context(tiledbOptions.getTileDBConfigMap(true));
+      Context ctx = new Context(tileDBDataSourceOptions.getTileDBConfigMap(true));
       // Fetch the array and load its metadata
-      Array array = new Array(ctx, uri.toString());
+      Array array = new Array(ctx, util.tryGetArrayURI(tileDBDataSourceOptions).toString());
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
       Domain domain = array.getSchema().getDomain();
 
@@ -157,10 +77,12 @@ public class TileDBDataSourceReader
       }
 
       // Build range from all pushed filters
-      for (Filter filter : pushedFilters) {
-        List<List<Range>> allRanges = buildRangeFromFilter(filter, nonEmptyDomain).getFirst();
-        for (int i = 0; i < allRanges.size(); i++) {
-          ranges.get(i).addAll(allRanges.get(i));
+      if (pushedFilters != null) {
+        for (Filter filter : pushedFilters) {
+          List<List<Range>> allRanges = buildRangeFromFilter(filter, nonEmptyDomain).getFirst();
+          for (int i = 0; i < allRanges.size(); i++) {
+            ranges.get(i).addAll(allRanges.get(i));
+          }
         }
       }
 
@@ -186,7 +108,7 @@ public class TileDBDataSourceReader
       generateAllSubarrays(
           ranges.subList(0, (int) (domain.getNDim())), subarrays, 0, new ArrayList<>());
 
-      int availablePartitions = tiledbOptions.getPartitionCount();
+      int availablePartitions = tileDBDataSourceOptions.getPartitionCount();
       if (availablePartitions > 1) {
         // Base case where we don't have any (or just single) pushdown per dimension
         if (subarrays.size() == 1 && subarrays.get(0).splittable()) {
@@ -257,145 +179,22 @@ public class TileDBDataSourceReader
         List<List<Range>> subarrayRanges = new ArrayList<>();
         subarrayRanges.add(subarray.getRanges());
         readerPartitions.add(
-            new TileDBDataReaderPartition(
-                uri, tileDBReadSchema, tiledbOptions, subarrayRanges, attributeRanges));
+            new TileDBDataInputPartition(
+                util.tryGetArrayURI(tileDBDataSourceOptions),
+                tileDBReadSchema,
+                tileDBDataSourceOptions,
+                subarrayRanges,
+                attributeRanges));
       }
-
-    } catch (TileDBError tileDBError) {
-      log.log(ERROR, tileDBError.getMessage());
       metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
-      return readerPartitions;
+      InputPartition[] partitionsArray = new InputPartition[readerPartitions.size()];
+      partitionsArray = readerPartitions.toArray(partitionsArray);
+      return partitionsArray;
+    } catch (TileDBError tileDBError) {
+      //      log.log(ERROR, tileDBError.getMessage()); TODO
+      metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
     }
-    metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
-    return readerPartitions;
-  }
-
-  /**
-   * Computes the number of splits needed to reduce a subarray to a given size
-   *
-   * @param subArrayRanges
-   * @param medianVolume
-   * @param datatype
-   * @return
-   */
-  private List<Integer> computeNeededSplitsToReduceToMedianVolume(
-      List<SubArrayRanges> subArrayRanges, Number medianVolume, Class datatype) {
-    metricsUpdater.startTimer(dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName);
-    List<Integer> neededSplits = new ArrayList<>();
-    for (SubArrayRanges subArrayRange : subArrayRanges) {
-      Number volume = subArrayRange.getVolume();
-      if (datatype == Byte.class) {
-        neededSplits.add(volume.byteValue() / medianVolume.byteValue());
-      } else if (datatype == Short.class) {
-        neededSplits.add(volume.shortValue() / medianVolume.shortValue());
-      } else if (datatype == Integer.class) {
-        neededSplits.add(volume.intValue() / medianVolume.intValue());
-      } else if (datatype == Long.class) {
-        neededSplits.add(((Long) (volume.longValue() / medianVolume.longValue())).intValue());
-      } else if (datatype == Float.class) {
-        neededSplits.add(((Float) (volume.floatValue() / medianVolume.floatValue())).intValue());
-      } else if (datatype == Double.class) {
-        neededSplits.add(((Double) (volume.doubleValue() / medianVolume.doubleValue())).intValue());
-      }
-    }
-    metricsUpdater.finish(dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName);
-    return neededSplits;
-  }
-
-  /**
-   * Check and merge any and all ranges
-   *
-   * @param range
-   * @return
-   * @throws TileDBError
-   */
-  private List<Range> checkAndMergeRanges(List<Range> range) throws TileDBError {
-    metricsUpdater.startTimer(dataSourceCheckAndMergeRangesTimerName);
-    List<Range> rangesToBeMerged = new ArrayList<>(range);
-    Collections.sort(rangesToBeMerged);
-
-    boolean mergeable = true;
-    while (mergeable) {
-      List<Range> mergedRange = new ArrayList<>();
-      for (int i = 0; i < rangesToBeMerged.size(); i++) {
-
-        // If we are at the last range in the list it means the last_range - 1 and last_range were
-        // not mergeable
-        // OR it means we have a list of 1, either way the only thing to do is add this last range
-        // to the list
-        // and break
-        if (i == rangesToBeMerged.size() - 1) {
-          mergedRange.add(rangesToBeMerged.get(i));
-          break;
-        }
-
-        Range left = rangesToBeMerged.get(i);
-        Range right = rangesToBeMerged.get(i + 1);
-        if (left.canMerge(right)) {
-          mergedRange.add(left.merge(right));
-          i++;
-        } else {
-          mergedRange.add(left);
-        }
-      }
-
-      // If the merged ranges is the same size as the unmerged ranges it means there is was no
-      // merges possible
-      // and we have completed the merge process
-      if (mergedRange.size() == rangesToBeMerged.size()) {
-        mergeable = false;
-      }
-
-      // Override original ranges with new merged Ranges
-      rangesToBeMerged = new ArrayList<>(mergedRange);
-    }
-
-    metricsUpdater.finish(dataSourceCheckAndMergeRangesTimerName);
-    return rangesToBeMerged;
-  }
-
-  /**
-   * Returns the minimum value for the given datatype
-   *
-   * @param datatype
-   * @return
-   */
-  private Object getMinValue(Class datatype) {
-    if (datatype == Byte.class) {
-      return Byte.MIN_VALUE;
-    } else if (datatype == Short.class) {
-      return Short.MIN_VALUE;
-    } else if (datatype == Integer.class) {
-      return Integer.MIN_VALUE;
-    } else if (datatype == Long.class) {
-      return Long.MIN_VALUE;
-    } else if (datatype == Float.class) {
-      return Float.MIN_VALUE;
-    } else {
-      return null;
-    }
-  }
-
-  /**
-   * Returns the maximum value for the given datatype
-   *
-   * @param datatype
-   * @return
-   */
-  private Object getMaxValue(Class datatype) {
-    if (datatype == Byte.class) {
-      return Byte.MAX_VALUE;
-    } else if (datatype == Short.class) {
-      return Short.MAX_VALUE;
-    } else if (datatype == Integer.class) {
-      return Integer.MAX_VALUE;
-    } else if (datatype == Long.class) {
-      return Long.MAX_VALUE;
-    } else if (datatype == Float.class) {
-      return Float.MAX_VALUE;
-    } else {
-      return null;
-    }
+    return null;
   }
 
   /**
@@ -554,5 +353,138 @@ public class TileDBDataSourceReader
     }
     metricsUpdater.finish(dataSourceBuildRangeFromFilterTimerName);
     return new Pair<>(ranges, filterType);
+  }
+
+  /**
+   * Returns the minimum value for the given datatype
+   *
+   * @param datatype
+   * @return
+   */
+  private Object getMinValue(Class datatype) {
+    if (datatype == Byte.class) {
+      return Byte.MIN_VALUE;
+    } else if (datatype == Short.class) {
+      return Short.MIN_VALUE;
+    } else if (datatype == Integer.class) {
+      return Integer.MIN_VALUE;
+    } else if (datatype == Long.class) {
+      return Long.MIN_VALUE;
+    } else if (datatype == Float.class) {
+      return Float.MIN_VALUE;
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Returns the maximum value for the given datatype
+   *
+   * @param datatype
+   * @return
+   */
+  private Object getMaxValue(Class datatype) {
+    if (datatype == Byte.class) {
+      return Byte.MAX_VALUE;
+    } else if (datatype == Short.class) {
+      return Short.MAX_VALUE;
+    } else if (datatype == Integer.class) {
+      return Integer.MAX_VALUE;
+    } else if (datatype == Long.class) {
+      return Long.MAX_VALUE;
+    } else if (datatype == Float.class) {
+      return Float.MAX_VALUE;
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Check and merge any and all ranges
+   *
+   * @param range
+   * @return
+   * @throws TileDBError
+   */
+  private List<Range> checkAndMergeRanges(List<Range> range) throws TileDBError {
+    metricsUpdater.startTimer(dataSourceCheckAndMergeRangesTimerName);
+    List<Range> rangesToBeMerged = new ArrayList<>(range);
+    Collections.sort(rangesToBeMerged);
+
+    boolean mergeable = true;
+    while (mergeable) {
+      List<Range> mergedRange = new ArrayList<>();
+      for (int i = 0; i < rangesToBeMerged.size(); i++) {
+
+        // If we are at the last range in the list it means the last_range - 1 and last_range were
+        // not mergeable
+        // OR it means we have a list of 1, either way the only thing to do is add this last range
+        // to the list
+        // and break
+        if (i == rangesToBeMerged.size() - 1) {
+          mergedRange.add(rangesToBeMerged.get(i));
+          break;
+        }
+
+        Range left = rangesToBeMerged.get(i);
+        Range right = rangesToBeMerged.get(i + 1);
+        if (left.canMerge(right)) {
+          mergedRange.add(left.merge(right));
+          i++;
+        } else {
+          mergedRange.add(left);
+        }
+      }
+
+      // If the merged ranges is the same size as the unmerged ranges it means there is was no
+      // merges possible
+      // and we have completed the merge process
+      if (mergedRange.size() == rangesToBeMerged.size()) {
+        mergeable = false;
+      }
+
+      // Override original ranges with new merged Ranges
+      rangesToBeMerged = new ArrayList<>(mergedRange);
+    }
+
+    metricsUpdater.finish(dataSourceCheckAndMergeRangesTimerName);
+    return rangesToBeMerged;
+  }
+
+  /**
+   * Computes the number of splits needed to reduce a subarray to a given size
+   *
+   * @param subArrayRanges
+   * @param medianVolume
+   * @param datatype
+   * @return
+   */
+  private List<Integer> computeNeededSplitsToReduceToMedianVolume(
+      List<SubArrayRanges> subArrayRanges, Number medianVolume, Class datatype) {
+    metricsUpdater.startTimer(dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName);
+    List<Integer> neededSplits = new ArrayList<>();
+    for (SubArrayRanges subArrayRange : subArrayRanges) {
+      Number volume = subArrayRange.getVolume();
+      if (datatype == Byte.class) {
+        neededSplits.add(volume.byteValue() / medianVolume.byteValue());
+      } else if (datatype == Short.class) {
+        neededSplits.add(volume.shortValue() / medianVolume.shortValue());
+      } else if (datatype == Integer.class) {
+        neededSplits.add(volume.intValue() / medianVolume.intValue());
+      } else if (datatype == Long.class) {
+        neededSplits.add(((Long) (volume.longValue() / medianVolume.longValue())).intValue());
+      } else if (datatype == Float.class) {
+        neededSplits.add(((Float) (volume.floatValue() / medianVolume.floatValue())).intValue());
+      } else if (datatype == Double.class) {
+        neededSplits.add(((Double) (volume.doubleValue() / medianVolume.doubleValue())).intValue());
+      }
+    }
+    metricsUpdater.finish(dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName);
+    return neededSplits;
+  }
+
+  @Override
+  public PartitionReaderFactory createReaderFactory() {
+    return new TileDBPartitionReaderFactory(tileDBDataSourceOptions.getLegacyReader());
   }
 }

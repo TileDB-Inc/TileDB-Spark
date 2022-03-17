@@ -2,11 +2,11 @@ package io.tiledb.spark;
 
 import java.net.URI;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.sources.v2.writer.DataWriter;
-import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
+import org.apache.spark.sql.connector.write.DataWriter;
+import org.apache.spark.sql.connector.write.DataWriterFactory;
 import org.apache.spark.sql.types.StructType;
 
-public class TileDBDataWriterFactory implements DataWriterFactory<InternalRow> {
+public class TileDBDataWriterFactory implements DataWriterFactory {
 
   private URI uri;
   private StructType sparkSchema;
@@ -19,7 +19,7 @@ public class TileDBDataWriterFactory implements DataWriterFactory<InternalRow> {
   }
 
   @Override
-  public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
+  public DataWriter<InternalRow> createWriter(int partitionId, long taskId) {
     return new TileDBDataWriter(uri, sparkSchema, options);
   }
 }

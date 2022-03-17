@@ -58,8 +58,8 @@ sourceSets {
 }
 
 dependencies {
-    compile 'org.apache.spark:spark-sql_2.12:2.4.4'
-    compile 'org.apache.spark:spark-core_2.12:2.4.4'
+    compile 'org.apache.spark:spark-sql_2.12:3.2.0'
+    compile 'org.apache.spark:spark-core_2.12:3.2.0'
 
     compile 'io.tiledb:tiledb-java:0.8.1'
 

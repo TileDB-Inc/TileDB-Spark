@@ -66,7 +66,7 @@ public class TestReadWriteNDDense extends SharedJavaSparkSession {
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", arrayURI).load();

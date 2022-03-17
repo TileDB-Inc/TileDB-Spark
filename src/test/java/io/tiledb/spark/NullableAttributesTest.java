@@ -85,7 +85,6 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     // a character on "a1" and a vector of two floats on "a2".
     Attribute a1 = new Attribute(ctx, "a1", Float.class);
     Attribute a2 = new Attribute(ctx, "a2", Integer.class);
-    a2.setCellValNum(1);
 
     a1.setNullable(true);
     a2.setNullable(true);
@@ -436,7 +435,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfRead =
@@ -487,7 +486,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfRead =
@@ -535,6 +534,8 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
 
     Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", denseURI).load();
 
+    dfRead.show();
+
     StructField[] structFields =
         new StructField[] {
           new StructField("rows", DataTypes.IntegerType, false, Metadata.empty()),
@@ -568,7 +569,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .option("schema.dim.1.extent", 2)
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfReadSecond =
