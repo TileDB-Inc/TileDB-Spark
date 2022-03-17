@@ -1,40 +1,59 @@
 package io.tiledb.spark;
 
-import io.tiledb.java.api.*;
+import io.tiledb.java.api.Array;
+import io.tiledb.java.api.ArraySchema;
+import io.tiledb.java.api.ArrayType;
+import io.tiledb.java.api.Attribute;
+import io.tiledb.java.api.Context;
+import io.tiledb.java.api.Dimension;
+import io.tiledb.java.api.Domain;
+import io.tiledb.java.api.FilterList;
+import io.tiledb.java.api.Layout;
+import io.tiledb.java.api.Pair;
+import io.tiledb.java.api.TileDBError;
+import io.tiledb.java.api.TileDBObject;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
-import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
-import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
+import org.apache.spark.sql.connector.write.BatchWrite;
+import org.apache.spark.sql.connector.write.DataWriterFactory;
+import org.apache.spark.sql.connector.write.LogicalWriteInfo;
+import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
+import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
-public class TileDBDataSourceWriter implements DataSourceWriter {
-  public final URI uri;
-  public final StructType sparkSchema;
+public class TileDBBatchWrite implements BatchWrite {
+  private final Map<String, String> properties;
+  private final TileDBDataSourceOptions tileDBDataSourceOptions;
   public final SaveMode saveMode;
-  public final TileDBDataSourceOptions options;
+  private final URI uri;
+  private final LogicalWriteInfo logicalWriteInfo;
+  private final StructType sparkSchema;
 
-  public TileDBDataSourceWriter(
-      URI uri, StructType schema, SaveMode mode, TileDBDataSourceOptions options) {
-    this.uri = uri;
-    this.sparkSchema = schema;
-    this.saveMode = mode;
-    this.options = options;
+  public TileDBBatchWrite(
+      Map<String, String> properties, LogicalWriteInfo info, SaveMode saveMode) {
+    this.properties = properties;
+    this.tileDBDataSourceOptions =
+        new TileDBDataSourceOptions(new DataSourceOptions(info.options()));
+    this.uri = util.tryGetArrayURI(tileDBDataSourceOptions);
+    this.logicalWriteInfo = info;
+    this.sparkSchema = this.logicalWriteInfo.schema();
+    this.saveMode = saveMode;
   }
 
   @Override
-  public DataWriterFactory<InternalRow> createWriterFactory() {
+  public DataWriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
     boolean isOkToWrite = tryWriteArraySchema();
     if (!isOkToWrite) {
       throw new RuntimeException(
           "Writing to an existing array: '" + uri + "' with save mode " + saveMode);
     }
-    return new TileDBDataWriterFactory(uri, sparkSchema, options);
+    return new TileDBDataWriterFactory(
+        this.uri, this.logicalWriteInfo.schema(), tileDBDataSourceOptions);
   }
 
   @Override
@@ -43,7 +62,7 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
   @Override
   public void abort(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
-      try (Context ctx = new Context(options.getTileDBConfigMap(false))) {
+      try (Context ctx = new Context(tileDBDataSourceOptions.getTileDBConfigMap(false))) {
         TileDBObject.remove(ctx, uri.toString());
       } catch (TileDBError err) {
         throw new RuntimeException(
@@ -56,33 +75,23 @@ public class TileDBDataSourceWriter implements DataSourceWriter {
   }
 
   private boolean tryWriteArraySchema() {
-    try (Context ctx = new Context(options.getTileDBConfigMap(false))) {
+    try (Context ctx = new Context(tileDBDataSourceOptions.getTileDBConfigMap(false))) {
       boolean arrayExists = Array.exists(ctx, uri.toString());
       if (saveMode == SaveMode.Append) {
-        if (!arrayExists) {
-          writeArraySchema(ctx, uri, sparkSchema, options);
-        }
-        return true;
+        throw new RuntimeException(
+            "Append is not currently supported by TileDB. URI '"
+                + uri
+                + "' with save mode "
+                + saveMode
+                + ". Use  '"
+                + SaveMode.Overwrite
+                + "' mode instead.");
       } else if (saveMode == SaveMode.Overwrite) {
         if (arrayExists) {
           TileDBObject.remove(ctx, uri.toString());
         }
-        writeArraySchema(ctx, uri, sparkSchema, options);
+        writeArraySchema(ctx, uri, sparkSchema, tileDBDataSourceOptions);
         return true;
-      } else if (saveMode == SaveMode.ErrorIfExists) {
-        if (!arrayExists) {
-          writeArraySchema(ctx, uri, sparkSchema, options);
-          return true;
-        } else {
-          return false;
-        }
-      } else if (saveMode == SaveMode.Ignore) {
-        if (!arrayExists) {
-          writeArraySchema(ctx, uri, sparkSchema, options);
-          return true;
-        } else {
-          return false;
-        }
       }
     } catch (TileDBError err) {
       err.printStackTrace();

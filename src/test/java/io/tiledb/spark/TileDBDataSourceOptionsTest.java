@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.junit.Assert;
 import org.junit.Test;
 

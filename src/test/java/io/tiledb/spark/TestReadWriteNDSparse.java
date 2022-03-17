@@ -44,26 +44,6 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
     return "file://".concat(arraysPath.toAbsolutePath().toString());
   }
 
-  @Test(expected = RuntimeException.class)
-  public void testReadWriteExistingErrors() {
-    String writeArrayURI = writeArrayURI();
-    Dataset<Row> dfReadFirst =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
-    dfReadFirst.show();
-    dfReadFirst
-        .write()
-        .format("io.tiledb.spark")
-        .option("uri", testArrayURIString("quickstart_sparse_array"))
-        .option("schema.dim.0", "rows")
-        .option("schema.dim.1", "cols")
-        .mode(SaveMode.ErrorIfExists)
-        .save();
-  }
-
   @Test
   public void testReadWriteQuickStartSparse() {
     String writeArrayURI = writeArrayURI();
@@ -90,7 +70,7 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
-        .mode(SaveMode.ErrorIfExists)
+        .mode("overwrite")
         .save();
 
     Dataset<Row> dfRead =
@@ -147,7 +127,7 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
             .option("schema.cell_order", "row-major")
             .option("schema.tile_order", "row-major")
             .option("schema.capacity", 3)
-            .mode(SaveMode.ErrorIfExists);
+            .mode("overwrite");
 
     try {
       writer.save();
@@ -189,7 +169,7 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
             .option("schema.cell_order", "row-major")
             .option("schema.tile_order", "row-major")
             .option("schema.capacity", 3)
-            .mode(SaveMode.ErrorIfExists);
+            .mode("overwrite");
 
     try {
       writer.save();
@@ -234,7 +214,7 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
             .option("schema.tile_order", "row-major")
             .option("schema.capacity", 3)
             .option("write_buffer_size", 10000)
-            .mode(SaveMode.ErrorIfExists);
+            .mode("overwrite");
 
     try {
       writer.save();

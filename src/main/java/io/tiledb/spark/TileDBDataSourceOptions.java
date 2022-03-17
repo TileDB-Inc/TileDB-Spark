@@ -8,7 +8,6 @@ import java.net.URISyntaxException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
 
 public class TileDBDataSourceOptions implements Serializable {
 

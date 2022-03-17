@@ -1,51 +1,36 @@
 package io.tiledb.spark;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Optional;
+import java.util.Map;
 import org.apache.log4j.Logger;
-import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
-import org.apache.spark.sql.sources.v2.DataSourceV2;
-import org.apache.spark.sql.sources.v2.ReadSupport;
-import org.apache.spark.sql.sources.v2.WriteSupport;
-import org.apache.spark.sql.sources.v2.reader.*;
-import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
+import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.TableProvider;
+import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class TileDBDataSource implements DataSourceV2, ReadSupport, WriteSupport {
+public class TileDBDataSource implements TableProvider {
 
   static Logger log = Logger.getLogger(TileDBDataSource.class.getName());
 
   @Override
-  public DataSourceReader createReader(DataSourceOptions options) {
-    TileDBDataSourceOptions tiledbOptions = new TileDBDataSourceOptions(options);
-    URI arrayURI = tryGetArrayURI(tiledbOptions);
-    log.trace("Creating TileDBDataSourceReader for " + arrayURI);
-    return new TileDBDataSourceReader(arrayURI, tiledbOptions);
+  public StructType inferSchema(CaseInsensitiveStringMap options) {
+    TileDBDataSourceOptions tiledbOptions =
+        new TileDBDataSourceOptions(new DataSourceOptions(options));
+
+    TileDBReadSchema tileDBReadSchema = null;
+    tileDBReadSchema = new TileDBReadSchema(util.tryGetArrayURI(tiledbOptions), tiledbOptions);
+    assert tileDBReadSchema != null;
+    return tileDBReadSchema.getSparkSchema();
   }
 
   @Override
-  public Optional<DataSourceWriter> createWriter(
-      String writeUUID, StructType schema, SaveMode mode, DataSourceOptions options) {
-    TileDBDataSourceOptions tiledbOptions = new TileDBDataSourceOptions(options);
-    URI arrayURI = tryGetArrayURI(tiledbOptions);
-    log.trace("Creating TileDBDataSourceWriter for " + arrayURI);
-    TileDBDataSourceWriter writer =
-        new TileDBDataSourceWriter(arrayURI, schema, mode, tiledbOptions);
-    return Optional.of(writer);
+  public Table getTable(
+      StructType schema, Transform[] partitioning, Map<String, String> properties) {
+    return new TileDBTable(schema, properties);
   }
 
-  private URI tryGetArrayURI(TileDBDataSourceOptions tiledbOptions) {
-    Optional<URI> arrayURI;
-    try {
-      arrayURI = tiledbOptions.getArrayURI();
-    } catch (URISyntaxException ex) {
-      throw new RuntimeException("Error parsing array URI option: " + ex.getMessage());
-    }
-    if (!arrayURI.isPresent()) {
-      throw new RuntimeException("TileDB URI option required");
-    }
-    return arrayURI.get();
+  @Override
+  public boolean supportsExternalMetadata() {
+    return true;
   }
 }

@@ -26,9 +26,8 @@ public class TileDBDataSourceReadTestBufferSizes extends SharedJavaSparkSession 
             .read()
             .format("io.tiledb.spark")
             .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .option("read_buffer_size", 8)
+            .option("read_buffer_size", 12)
             .load();
-    dfRead.show();
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
     Assert.assertEquals(3, rows.size());

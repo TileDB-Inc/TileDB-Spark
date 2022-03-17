@@ -3,8 +3,11 @@ package io.tiledb.spark;
 import io.tiledb.java.api.Datatype;
 import io.tiledb.java.api.TileDBError;
 import io.tiledb.java.api.Util;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.apache.arrow.vector.BaseValueVector;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.ValueVector;
@@ -52,6 +55,19 @@ public class util {
       default:
         throw new TileDBError("Unsupported TileDB Datatype enum: " + type);
     }
+  }
+
+  public static URI tryGetArrayURI(TileDBDataSourceOptions tiledbOptions) {
+    Optional<URI> arrayURI;
+    try {
+      arrayURI = tiledbOptions.getArrayURI();
+    } catch (URISyntaxException ex) {
+      throw new RuntimeException("Error parsing array URI option: " + ex.getMessage());
+    }
+    if (!arrayURI.isPresent()) {
+      throw new RuntimeException("TileDB URI option required");
+    }
+    return arrayURI.get();
   }
 
   /**

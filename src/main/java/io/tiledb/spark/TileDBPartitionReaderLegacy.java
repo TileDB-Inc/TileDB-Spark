@@ -36,17 +36,17 @@ import java.util.stream.Collectors;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBReadMetricsUpdater;
+import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
-import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import oshi.hardware.HardwareAbstractionLayer;
 
 @Deprecated
-public class TileDBDataReaderPartitionScanLegacy implements InputPartitionReader<ColumnarBatch> {
+public class TileDBPartitionReaderLegacy implements PartitionReader<ColumnarBatch> {
 
-  static Logger log = Logger.getLogger(TileDBDataReaderPartitionScanLegacy.class.getName());
+  static Logger log = Logger.getLogger(TileDBPartitionReaderLegacy.class.getName());
 
   // Filter pushdown to this partition
   private final List<List<Range>> allRanges;
@@ -97,7 +97,7 @@ public class TileDBDataReaderPartitionScanLegacy implements InputPartitionReader
    */
   private ArrayList<Pair<NativeArray, NativeArray>> queryBuffers;
 
-  public TileDBDataReaderPartitionScanLegacy(
+  public TileDBPartitionReaderLegacy(
       URI uri,
       TileDBReadSchema schema,
       TileDBDataSourceOptions options,
