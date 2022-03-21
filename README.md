@@ -39,7 +39,7 @@ Optionally include the `read_buffer_size` to set the off heap tiledb buffer size
 
 To write to TileDB from an existing dataframe, you need to specify a URI and the column(s) which map to sparse array dimensions.  For now only sparse array writes are supported.
 
-    scala > val sampleDF.write()
+    scala > val sampleDF.write
                         .format("io.tiledb.spark")
                         .option("uri", "file:///path/to/tiledb/array_new")                          
                         .option("schema.dim.0.name", "rows")
