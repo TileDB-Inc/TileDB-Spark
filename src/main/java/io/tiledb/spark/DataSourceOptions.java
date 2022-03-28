@@ -9,8 +9,12 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * An immutable string-to-string map in which keys are case-insensitive. This is used to represent
- * data source options.
+ * This code was copied from Apache-Spark v2.4.4:
+ * https://spark.apache.org/docs/2.4.0/api/java/org/apache/spark/sql/sources/v2/DataSourceOptions.html
+ * and is under the Apache Licence 2.0: https://github.com/apache/spark/blob/master/LICENSE
+ *
+ * <p>An immutable string-to-string map in which keys are case-insensitive. This is used to
+ * represent data source options.
  *
  * <p>Each data source implementation can define its own options and teach its users how to set
  * them. Spark doesn't have any restrictions about what options a data source should or should not

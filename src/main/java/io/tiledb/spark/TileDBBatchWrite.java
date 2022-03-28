@@ -78,14 +78,10 @@ public class TileDBBatchWrite implements BatchWrite {
     try (Context ctx = new Context(tileDBDataSourceOptions.getTileDBConfigMap(false))) {
       boolean arrayExists = Array.exists(ctx, uri.toString());
       if (saveMode == SaveMode.Append) {
-        throw new RuntimeException(
-            "Append is not currently supported by TileDB. URI '"
-                + uri
-                + "' with save mode "
-                + saveMode
-                + ". Use  '"
-                + SaveMode.Overwrite
-                + "' mode instead.");
+        if (!arrayExists) {
+          writeArraySchema(ctx, uri, sparkSchema, tileDBDataSourceOptions);
+        }
+        return true;
       } else if (saveMode == SaveMode.Overwrite) {
         if (arrayExists) {
           TileDBObject.remove(ctx, uri.toString());

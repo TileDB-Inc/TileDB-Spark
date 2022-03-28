@@ -17,9 +17,8 @@ public class TileDBDataSource implements TableProvider {
     TileDBDataSourceOptions tiledbOptions =
         new TileDBDataSourceOptions(new DataSourceOptions(options));
 
-    TileDBReadSchema tileDBReadSchema = null;
+    TileDBReadSchema tileDBReadSchema;
     tileDBReadSchema = new TileDBReadSchema(util.tryGetArrayURI(tiledbOptions), tiledbOptions);
-    assert tileDBReadSchema != null;
     return tileDBReadSchema.getSparkSchema();
   }
 

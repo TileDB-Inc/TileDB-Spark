@@ -23,7 +23,6 @@ import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBWriteMetricsUpdater;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.StructField;
@@ -857,13 +856,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   }
 
   @Override
-  public CustomTaskMetric[] currentMetricsValues() {
-    // todo
-    return DataWriter.super.currentMetricsValues();
-  }
-
-  @Override
   public void close() throws IOException {
-    // todo
+    closeTileDBResources();
   }
 }

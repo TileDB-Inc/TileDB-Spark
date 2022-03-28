@@ -3,6 +3,7 @@ package io.tiledb.spark;
 import static io.tiledb.spark.util.addEpsilon;
 import static io.tiledb.spark.util.generateAllSubarrays;
 import static io.tiledb.spark.util.subtractEpsilon;
+import static org.apache.log4j.Priority.ERROR;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceBuildRangeFromFilterTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceCheckAndMergeRangesTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName;
@@ -17,8 +18,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.IntStream;
+import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBReadMetricsUpdater;
 import org.apache.spark.sql.connector.read.Batch;
@@ -37,18 +38,15 @@ import org.apache.spark.sql.sources.Or;
 
 public class TileDBBatch implements Batch {
   private final TileDBReadSchema tileDBReadSchema;
-  private final Map<String, String> properties;
   private final TileDBDataSourceOptions tileDBDataSourceOptions;
   private final TileDBReadMetricsUpdater metricsUpdater;
   private final Filter[] pushedFilters;
 
+  static Logger log = Logger.getLogger(TileDBBatch.class.getName());
+
   public TileDBBatch(
-      TileDBReadSchema tileDBReadSchema,
-      Map<String, String> properties,
-      TileDBDataSourceOptions options,
-      Filter[] pushedFilters) {
+      TileDBReadSchema tileDBReadSchema, TileDBDataSourceOptions options, Filter[] pushedFilters) {
     this.tileDBReadSchema = tileDBReadSchema;
-    this.properties = properties;
     this.tileDBDataSourceOptions = options;
     this.metricsUpdater = new TileDBReadMetricsUpdater(TaskContext.get());
     this.pushedFilters = pushedFilters;
@@ -194,7 +192,7 @@ public class TileDBBatch implements Batch {
       domain.close();
       return partitionsArray;
     } catch (TileDBError tileDBError) {
-      //      log.log(ERROR, tileDBError.getMessage()); TODO
+      log.log(ERROR, tileDBError.getMessage());
       metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
     }
     return null;

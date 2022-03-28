@@ -1,6 +1,11 @@
 package io.tiledb.spark;
 
-import java.util.Map;
+import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceReadSchemaTimerName;
+
+import java.net.URI;
+import org.apache.log4j.Logger;
+import org.apache.spark.TaskContext;
+import org.apache.spark.metrics.TileDBReadMetricsUpdater;
 import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
@@ -11,28 +16,29 @@ import org.apache.spark.sql.types.StructType;
 
 public class TileDBScan implements Scan {
   private final TileDBReadSchema tileDBReadSchema;
-  private final Map<String, String> properties;
   private final TileDBDataSourceOptions options;
   private final Filter[] pushedFilters;
+  private final URI uri;
+
+  private final TileDBReadMetricsUpdater metricsUpdater;
+  static Logger log = Logger.getLogger(TileDBScan.class.getName());
 
   public TileDBScan(
-      TileDBReadSchema tileDBReadSchema,
-      Map<String, String> properties,
-      TileDBDataSourceOptions options,
-      Filter[] pushedFilters) {
+      TileDBReadSchema tileDBReadSchema, TileDBDataSourceOptions options, Filter[] pushedFilters) {
     this.tileDBReadSchema = tileDBReadSchema;
-    this.properties = properties;
     this.options = options;
     this.pushedFilters = pushedFilters;
+    this.metricsUpdater = new TileDBReadMetricsUpdater(TaskContext.get());
+    this.uri = util.tryGetArrayURI(options);
   }
 
   @Override
   public StructType readSchema() {
-    //    metricsUpdater.startTimer(dataSourceReadSchemaTimerName);
-    //    log.trace("Reading schema for " + uri);
-    //    StructType schema = tileDBReadSchema.getSparkSchema();
-    //    log.trace("Read schema for " + uri + ": " + schema);
-    //    metricsUpdater.finish(dataSourceReadSchemaTimerName); TODO add
+    metricsUpdater.startTimer(dataSourceReadSchemaTimerName);
+    log.trace("Reading schema for " + uri);
+    StructType schema = tileDBReadSchema.getSparkSchema();
+    log.trace("Read schema for " + uri + ": " + schema);
+    metricsUpdater.finish(dataSourceReadSchemaTimerName);
     return tileDBReadSchema.getSparkSchema();
   }
 
@@ -43,7 +49,7 @@ public class TileDBScan implements Scan {
 
   @Override
   public Batch toBatch() {
-    return new TileDBBatch(tileDBReadSchema, properties, options, pushedFilters);
+    return new TileDBBatch(tileDBReadSchema, options, pushedFilters);
   }
 
   @Override
