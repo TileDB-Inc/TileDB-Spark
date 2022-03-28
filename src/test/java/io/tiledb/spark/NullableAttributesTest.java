@@ -97,6 +97,8 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     schema.addAttribute(a2);
 
     Array.create(denseURI, schema);
+    schema.close();
+    domain.close();
   }
 
   public void denseArrayWrite() throws Exception {
@@ -191,6 +193,8 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     schema.addAttribute(a1);
 
     Array.create(variableAttURI, schema);
+    schema.close();
+    domain.close();
   }
 
   public void denseArrayVarAttWrite() throws Exception {
@@ -289,6 +293,8 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     schema.addAttribute(a2);
 
     Array.create(sparseURI, schema);
+    schema.close();
+    domain.close();
   }
 
   public void sparseArrayWrite() throws TileDBError {

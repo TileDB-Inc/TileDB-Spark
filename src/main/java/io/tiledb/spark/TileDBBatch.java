@@ -189,6 +189,9 @@ public class TileDBBatch implements Batch {
       metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
       InputPartition[] partitionsArray = new InputPartition[readerPartitions.size()];
       partitionsArray = readerPartitions.toArray(partitionsArray);
+      array.close();
+      ctx.close();
+      domain.close();
       return partitionsArray;
     } catch (TileDBError tileDBError) {
       //      log.log(ERROR, tileDBError.getMessage()); TODO
