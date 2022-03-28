@@ -32,7 +32,7 @@ jobs:
       - run: unset SYSTEM; ./gradlew assemble;
         shell: bash
         name: assemble
-      - run: unset SYSTEM; ./gradlew test;
+      - run: unset SYSTEM; ./gradlew test --stacktrace;
         name: test
         shell: bash
 

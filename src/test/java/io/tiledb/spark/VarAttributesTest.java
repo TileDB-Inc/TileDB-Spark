@@ -69,6 +69,8 @@ public class VarAttributesTest extends SharedJavaSparkSession {
     schema.addAttribute(a3);
 
     Array.create(URI, schema);
+    domain.close();
+    schema.close();
   }
 
   public void arrayWrite() throws Exception {
