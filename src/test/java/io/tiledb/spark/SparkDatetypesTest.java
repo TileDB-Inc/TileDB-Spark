@@ -455,96 +455,95 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
    *
    * @throws TileDBError
    */
-  //  @Test
-  //  public void testDateTypesDenseAppend() throws TileDBError {
-  //    long randomMil = 1082039767000L;
-  //    Timestamp randomDate = new Timestamp(randomMil);
-  //    sparseArrayCreate();
-  //    sparseArrayWrite();
-  //
-  //    StructField[] structFields =
-  //        new StructField[] {
-  //          new StructField("d1", DataTypes.IntegerType, false, Metadata.empty()),
-  //          new StructField("a1", DataTypes.IntegerType, false, Metadata.empty()),
-  //          new StructField("SEC", DataTypes.TimestampType, false, Metadata.empty()),
-  //          new StructField("WEEK", DataTypes.TimestampType, false, Metadata.empty()),
-  //          new StructField(
-  //              "DAY", DataTypes.DateType, false, Metadata.empty()) // days need to be DateType!
-  //        };
-  //    List<Row> rows = new ArrayList<>();
-  //    rows.add(RowFactory.create(3, 2, randomDate, randomDate, new Date(randomMil)));
-  //    StructType structType = new StructType(structFields);
-  //    Dataset<Row> dfToAppend = session().createDataFrame(rows, structType);
-  //    dfToAppend.show();
-  //
-  //    dfToAppend
-  //        .write()
-  //        .format("io.tiledb.spark")
-  //        .option("uri", sparseURI)
-  //        .option("schema.dim.0.name", "rows")
-  //        .option("schema.dim.0.min", 1)
-  //        .option("schema.dim.0.max", 8)
-  //        .option("schema.dim.0.extent", 2)
-  //        .option("schema.cell_order", "row-major")
-  //        .option("schema.tile_order", "row-major")
-  //        .mode("overwrite")
-  //        .save();
-  //
-  //    Dataset<Row> dfRead =
-  //        session().read().format("io.tiledb.spark").option("uri", sparseURI).load();
-  //    dfRead.show();
-  //    dfRead.createOrReplaceTempView("tmp");
-  //    List<Row> rowsOfnew = session().sql("SELECT * FROM tmp").collectAsList();
-  //    // original rows were 2, so we expect 3 since we appended 1 line
-  //    Assert.assertEquals(3, rowsOfnew.size());
-  //
-  //    Timestamp dateNow = new Timestamp(timeNowMil);
-  //    // 1st row
-  //    Row row = rowsOfnew.get(0);
-  //    Assert.assertEquals(1, row.getInt(0));
-  //    Assert.assertEquals(1, row.getInt(1));
-  //    Assert.assertEquals(
-  //        dateNow.toLocalDateTime().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")),
-  //        row.getTimestamp(2)
-  //            .toLocalDateTime()
-  //            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
-  //    // Less accuracy is needed for weeks. The beginning of a week might be in month X-1. However
-  // the
-  //    // current month might be X. That will fail the test.
-  //    Assert.assertEquals(
-  //        dateNow.toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")),
-  //        row.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")));
-  //
-  //    // 2nd row
-  //    row = rowsOfnew.get(1);
-  //    Assert.assertEquals(2, row.getInt(0));
-  //    Assert.assertEquals(4, row.getInt(1));
-  //    Assert.assertEquals(
-  //        new Timestamp(0)
-  //            .toLocalDateTime()
-  //            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")),
-  //        row.getTimestamp(2)
-  //            .toLocalDateTime()
-  //            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
-  //    Assert.assertEquals(
-  //        new Timestamp(0).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")),
-  //        row.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")));
-  //
-  //    // 3rd row
-  //    row = rowsOfnew.get(2);
-  //    Assert.assertEquals(3, row.getInt(0));
-  //    Assert.assertEquals(2, row.getInt(1));
-  //    Assert.assertEquals(
-  //        randomDate.toLocalDateTime().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")),
-  //        row.getTimestamp(2)
-  //            .toLocalDateTime()
-  //            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
-  //    Assert.assertEquals(
-  //        randomDate.toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")),
-  //        row.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")));
-  //
-  //    if (Array.exists(ctx, writeURI)) {
-  //      TileDBObject.remove(ctx, writeURI);
-  //    }
-  //  }
+  @Test
+  public void testDateTypesDenseAppend() throws TileDBError {
+    long randomMil = 1082039767000L;
+    Timestamp randomDate = new Timestamp(randomMil);
+    sparseArrayCreate();
+    sparseArrayWrite();
+
+    StructField[] structFields =
+        new StructField[] {
+          new StructField("d1", DataTypes.IntegerType, false, Metadata.empty()),
+          new StructField("a1", DataTypes.IntegerType, false, Metadata.empty()),
+          new StructField("SEC", DataTypes.TimestampType, false, Metadata.empty()),
+          new StructField("WEEK", DataTypes.TimestampType, false, Metadata.empty()),
+          new StructField(
+              "DAY", DataTypes.DateType, false, Metadata.empty()) // days need to be DateType!
+        };
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(3, 2, randomDate, randomDate, new Date(randomMil)));
+    StructType structType = new StructType(structFields);
+    Dataset<Row> dfToAppend = session().createDataFrame(rows, structType);
+    dfToAppend.show();
+
+    dfToAppend
+        .write()
+        .format("io.tiledb.spark")
+        .option("uri", sparseURI)
+        .option("schema.dim.0.name", "rows")
+        .option("schema.dim.0.min", 1)
+        .option("schema.dim.0.max", 8)
+        .option("schema.dim.0.extent", 2)
+        .option("schema.cell_order", "row-major")
+        .option("schema.tile_order", "row-major")
+        .mode("append")
+        .save();
+
+    Dataset<Row> dfRead =
+        session().read().format("io.tiledb.spark").option("uri", sparseURI).load();
+    dfRead.show();
+    dfRead.createOrReplaceTempView("tmp");
+    List<Row> rowsOfnew = session().sql("SELECT * FROM tmp").collectAsList();
+    // original rows were 2, so we expect 3 since we appended 1 line
+    Assert.assertEquals(3, rowsOfnew.size());
+
+    Timestamp dateNow = new Timestamp(timeNowMil);
+    // 1st row
+    Row row = rowsOfnew.get(0);
+    Assert.assertEquals(1, row.getInt(0));
+    Assert.assertEquals(1, row.getInt(1));
+    Assert.assertEquals(
+        dateNow.toLocalDateTime().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")),
+        row.getTimestamp(2)
+            .toLocalDateTime()
+            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
+    // Less accuracy is needed for weeks. The beginning of a week might be in month X-1. However the
+    // current month might be X. That will fail the test.
+    Assert.assertEquals(
+        dateNow.toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")),
+        row.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy")));
+
+    // 2nd row
+    row = rowsOfnew.get(1);
+    Assert.assertEquals(2, row.getInt(0));
+    Assert.assertEquals(4, row.getInt(1));
+    Assert.assertEquals(
+        new Timestamp(0)
+            .toLocalDateTime()
+            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")),
+        row.getTimestamp(2)
+            .toLocalDateTime()
+            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
+    Assert.assertEquals(
+        new Timestamp(0).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")),
+        row.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")));
+
+    // 3rd row
+    row = rowsOfnew.get(2);
+    Assert.assertEquals(3, row.getInt(0));
+    Assert.assertEquals(2, row.getInt(1));
+    Assert.assertEquals(
+        randomDate.toLocalDateTime().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")),
+        row.getTimestamp(2)
+            .toLocalDateTime()
+            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
+    Assert.assertEquals(
+        randomDate.toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")),
+        row.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("MM-yyyy")));
+
+    if (Array.exists(ctx, writeURI)) {
+      TileDBObject.remove(ctx, writeURI);
+    }
+  }
 }

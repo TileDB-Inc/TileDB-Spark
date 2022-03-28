@@ -29,14 +29,13 @@ public class TileDBPartitionReaderFactory implements PartitionReaderFactory {
           tileDBDataInputPartition.getTiledbOptions(),
           tileDBDataInputPartition.getDimensionRanges(),
           tileDBDataInputPartition.getAttributeRanges());
-    } else {
-      return new TileDBPartitionReader(
-          tileDBDataInputPartition.getUri(),
-          tileDBDataInputPartition.getTileDBReadSchema(),
-          tileDBDataInputPartition.getTiledbOptions(),
-          tileDBDataInputPartition.getDimensionRanges(),
-          tileDBDataInputPartition.getAttributeRanges());
     }
+    return new TileDBPartitionReader(
+        tileDBDataInputPartition.getUri(),
+        tileDBDataInputPartition.getTileDBReadSchema(),
+        tileDBDataInputPartition.getTiledbOptions(),
+        tileDBDataInputPartition.getDimensionRanges(),
+        tileDBDataInputPartition.getAttributeRanges());
   }
 
   @Override

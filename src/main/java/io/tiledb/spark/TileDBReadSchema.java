@@ -27,7 +27,8 @@ public class TileDBReadSchema implements Serializable {
     this.dimensionName = new HashMap<>();
     this.attributeName = new HashMap<>();
     this.columnTypes = new HashMap<>();
-    this.getSparkSchema();
+    this.tiledbSparkSchema = this.getSparkSchema();
+    if (this.tiledbSparkSchema == null) throw new RuntimeException("Unable to create Spark Schema");
   }
 
   public TileDBReadSchema setPushDownSchema(StructType pushDownSchema) {
