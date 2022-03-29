@@ -170,12 +170,16 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       isArray = a.getCellValNum() > 1;
       isNullable = a.getNullable();
       datatype = a.getType();
+      a.close();
     } else {
-      Dimension d = arraySchema.getDomain().getDimension(column);
+      Domain domain = arraySchema.getDomain();
+      Dimension d = domain.getDimension(column);
       isVarLen = d.isVar();
       isArray = d.getCellValNum() > 1;
       isNullable = false;
       datatype = d.getType();
+      d.close();
+      domain.close();
     }
 
     switch (datatype) {
@@ -590,10 +594,11 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           QueryCondition cond3 = cond1.combine(cond2, TILEDB_AND);
           if (finalCondition == null) finalCondition = cond3;
           else finalCondition = finalCondition.combine(cond3, TILEDB_AND);
+
+          att.close();
         }
         attIndex++;
       }
-
       if (finalCondition != null) query.setCondition(finalCondition);
     }
 
@@ -683,10 +688,13 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     metricsUpdater.startTimer(queryAllocBufferTimerName);
     // Create coordinate buffers
     int minDimDize = Integer.MAX_VALUE;
-    for (Dimension dimension : arraySchema.getDomain().getDimensions()) {
+    Domain domain = arraySchema.getDomain();
+    for (Dimension dimension : domain.getDimensions()) {
       int nativeSize = dimension.getType().getNativeSize();
       if (nativeSize < minDimDize) minDimDize = nativeSize;
+      dimension.close();
     }
+    domain.close();
 
     releaseArrowVectors();
 

@@ -66,6 +66,8 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     schema.check();
 
     Array.create(DENSE_ARRAY_URI, schema);
+    schema.close();
+    domain.close();
   }
 
   public void sparseHeterogeneousArrayCreate(List<Dimension> dimensions) throws TileDBError {
@@ -83,6 +85,8 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     schema.addAttribute(a1);
 
     Array.create(SPARSE_ARRAY_URI, schema);
+    schema.close();
+    domain.close();
   }
 
   public void sparseHeterogeneousArrayCreate2A(List<Dimension> dimensions) throws TileDBError {
@@ -102,6 +106,8 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
     schema.addAttribute(a2);
 
     Array.create(SPARSE_ARRAY_URI, schema);
+    schema.close();
+    domain.close();
   }
 
   public void sparseHeterogeneousArrayWrite(List<Pair<String, Pair<NativeArray, NativeArray>>> data)

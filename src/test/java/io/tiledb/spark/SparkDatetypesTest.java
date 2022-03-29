@@ -130,6 +130,8 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
     schema.addAttribute(a11);
 
     Array.create(URI, schema);
+    schema.close();
+    domain.close();
   }
 
   /**
@@ -410,6 +412,8 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
     schema.addAttribute(a4);
 
     Array.create(sparseURI, schema);
+    schema.close();
+    domain.close();
   }
 
   /**
