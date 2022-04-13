@@ -1,9 +1,9 @@
 # TileDB-Spark
 ![TileDB-Spark CI](https://github.com/TileDB-Inc/TileDB-Spark/actions/workflows/github_actions.yml/badge.svg)
 
-Spark DatasourceV2 to the TileDB storage manager.
+Currently works for Spark (v3.2.0).
 
-Currently works for the latest Spark stable release (v2.4).
+We also provide a stable version for Spark (v2.4.4) in [this branch.](https://github.com/TileDB-Inc/TileDB-Spark/tree/Spark-2.4.4-Stable) 
 
 ## Build / Test
 
@@ -17,7 +17,7 @@ To build and install
     ./gradlew test
 ```
 
-This will create a `build/libs/TileDB-Spark-0.0.5-SNAPSHOT.jar` JAR as well as build a TileDB-Java Jar that
+This will create a `build/libs/TileDB-Spark-X.X.X-SNAPSHOT.jar` JAR as well as build a TileDB-Java Jar that
 
 ### Amazon-Linux / EMR
 
@@ -26,7 +26,7 @@ This will create a `build/libs/TileDB-Spark-0.0.5-SNAPSHOT.jar` JAR as well as b
 To load the TileDB Spark Datasource reader, 
 you need to specify the path to built project jar with `--jars` to upload to the Spark cluster.
 
-    $ spark-shell --jars build/libs/TileDB-Spark-0.0.5-SNAPSHOT.jar,/path/to/TileDB-Java-0.2.4.jar
+    $ spark-shell --jars build/libs/TileDB-Spark-X.X.X-SNAPSHOT.jar,/path/to/TileDB-Java-0.X.X.jar
 
 To read TileDB data to a dataframe in the TileDB format, specify the `format` and `uri` option.
 Optionally include the `read_buffer_size` to set the off heap tiledb buffer sizes per attribute (include coordinates).
