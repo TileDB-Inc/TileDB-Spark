@@ -127,6 +127,44 @@ public class TileDBDataSourceOptions implements Serializable {
     return Optional.of(schemaDimensions);
   }
 
+  /**
+   * Returns the timestamp start necessary for time travelling in intervals.
+   *
+   * @return the start timestamp.
+   */
+  public Optional<Long> getTimestampStart() {
+    String key = "timestamp_start";
+    if (!optionMap.containsKey(key)) {
+      return Optional.empty();
+    }
+    Long val;
+    try {
+      val = Long.parseLong(optionMap.get(key));
+    } catch (NumberFormatException err) {
+      return Optional.empty();
+    }
+    return Optional.of(val);
+  }
+
+  /**
+   * Returns the timestamp end necessary for time travelling.
+   *
+   * @return the end timestamp.
+   */
+  public Optional<Long> getTimestampEnd() {
+    String key = "timestamp_end";
+    if (!optionMap.containsKey(key)) {
+      return Optional.empty();
+    }
+    Long val;
+    try {
+      val = Long.parseLong(optionMap.get(key));
+    } catch (NumberFormatException err) {
+      return Optional.empty();
+    }
+    return Optional.of(val);
+  }
+
   public Optional<Long> getSchemaDimensionMinDomainLong(int dimIdx) {
     String dimExtentKey = "schema.dim." + dimIdx + ".min";
     return tryParseOptionKeyLong(optionMap, dimExtentKey);

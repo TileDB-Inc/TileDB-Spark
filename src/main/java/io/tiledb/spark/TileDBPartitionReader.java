@@ -15,6 +15,7 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryReadTimerTaskNam
 import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmitTimerName;
 
 import io.tiledb.java.api.*;
+import java.math.BigInteger;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -298,7 +299,7 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
     try {
       // Init TileDB resources
       ctx = new Context(options.getTileDBConfigMap(true));
-      array = new Array(ctx, arrayURI.toString(), QueryType.TILEDB_READ);
+      array = openArray(ctx, arrayURI, QueryType.TILEDB_READ, options);
       arraySchema = array.getSchema();
       domain = arraySchema.getDomain();
 
@@ -345,6 +346,37 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
     } catch (TileDBError tileDBError) {
       tileDBError.printStackTrace();
     }
+  }
+
+  /**
+   * Opens a TileDB array and checks if time travelling is requested.
+   *
+   * @param ctx The context
+   * @param arrayURI the array URI
+   * @param queryType the query type
+   * @param options the TileDB options
+   * @return An opened array
+   * @throws TileDBError
+   */
+  private Array openArray(
+      Context ctx, URI arrayURI, QueryType queryType, TileDBDataSourceOptions options)
+      throws TileDBError {
+    Optional<Long> timestampStart = options.getTimestampStart();
+    Optional<Long> timestampEnd = options.getTimestampEnd();
+
+    if (timestampStart.isPresent() && timestampEnd.isPresent()) {
+      return new Array(
+          ctx,
+          arrayURI.toString(),
+          queryType,
+          BigInteger.valueOf(timestampStart.get()),
+          BigInteger.valueOf(timestampEnd.get()));
+    }
+    if (timestampEnd.isPresent()) {
+      return new Array(ctx, arrayURI.toString(), queryType, BigInteger.valueOf(timestampEnd.get()));
+    }
+
+    return new Array(ctx, arrayURI.toString(), queryType);
   }
 
   @Override
