@@ -86,6 +86,8 @@ to `$SPARK_HOME/jars/`.
 * `read_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
 * `allow_read_buffer_realloc` (optional): If the read buffer size is too small allow reallocation. Default: True
 * `legacy_reader` (optional): Use the legacy reader that does not use Apache Arrow Buffers: False
+* `timestamp_start`(optional): The start timestamp at which to open the array
+* `timestamp_end`(optional): The end timestamp at which to open the array
 
 ### Write options
 * `write_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
