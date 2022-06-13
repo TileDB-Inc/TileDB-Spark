@@ -52,12 +52,6 @@ jobs:
           java-version: '11'
           check-latest: true
 
-      - uses: notlmn/release-with-changelog@v2
-        with:
-          header: 'Changes:'
-          include-hash: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Create-Jars
         run: unset SYSTEM; set +e; ./gradlew assemble; ./gradlew shadowJar; mkdir jars/; cp ./build/libs/*.jar jars/
 
