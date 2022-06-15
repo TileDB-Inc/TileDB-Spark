@@ -22,18 +22,16 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
     persistedDF
         .write()
         .format("io.tiledb.spark")
-        .option("uri", arrayURI)
         .option("schema.dim.0.name", dimensionName)
         .mode("overwrite")
-        .save();
+        .save(arrayURI);
 
     Dataset<Row> inputDF =
         session()
             .read()
             .format("io.tiledb.spark")
             .option("partition_count", partitions)
-            .option("uri", arrayURI)
-            .load();
+            .load(arrayURI);
 
     inputDF.show();
 
@@ -46,19 +44,17 @@ public class SparkPartitioningTest extends SharedJavaSparkSession implements Ser
     persistedDF
         .write()
         .format("io.tiledb.spark")
-        .option("uri", arrayURI)
         .option("schema.dim.0.name", "a1")
         .option("schema.dim.1.name", "a2")
         .mode("overwrite")
-        .save();
+        .save(arrayURI);
 
     Dataset<Row> inputDF =
         session()
             .read()
             .format("io.tiledb.spark")
             .option("partition_count", partitions)
-            .option("uri", arrayURI)
-            .load();
+            .load(arrayURI);
 
     if (where.isPresent()) inputDF = inputDF.where(where.get());
 

@@ -11,7 +11,6 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryWriteTimerName;
 
 import io.tiledb.java.api.*;
 import java.io.IOException;
-import java.net.URI;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -34,7 +33,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
 
   private final TileDBWriteMetricsUpdater metricsUpdater;
   private final TaskContext task;
-  private URI uri;
+  private String uri;
   private StructType sparkSchema;
 
   private Context ctx;
@@ -63,7 +62,7 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
   private static final OffsetDateTime zeroDateTime =
       new Timestamp(0).toLocalDateTime().atOffset(ZoneOffset.UTC);
 
-  public TileDBDataWriter(URI uri, StructType schema, TileDBDataSourceOptions options) {
+  public TileDBDataWriter(String uri, StructType schema, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.sparkSchema = schema;
     // set write options

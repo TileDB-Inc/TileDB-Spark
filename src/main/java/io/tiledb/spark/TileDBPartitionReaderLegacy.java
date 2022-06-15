@@ -20,7 +20,6 @@ import static org.apache.spark.metrics.TileDBMetricsSource.queryReadTimerTaskNam
 import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmitTimerName;
 
 import io.tiledb.java.api.*;
-import java.net.URI;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -60,7 +59,7 @@ public class TileDBPartitionReaderLegacy implements PartitionReader<ColumnarBatc
   private long read_query_buffer_size;
 
   // array resource URI (dense or sparse)
-  private URI arrayURI;
+  private String arrayURI;
 
   // spark options
   private TileDBDataSourceOptions options;
@@ -98,7 +97,7 @@ public class TileDBPartitionReaderLegacy implements PartitionReader<ColumnarBatc
   private ArrayList<Pair<NativeArray, NativeArray>> queryBuffers;
 
   public TileDBPartitionReaderLegacy(
-      URI uri,
+      String uri,
       TileDBReadSchema schema,
       TileDBDataSourceOptions options,
       List<List<Range>> dimensionRanges,
@@ -135,7 +134,7 @@ public class TileDBPartitionReaderLegacy implements PartitionReader<ColumnarBatc
     try {
       // Init TileDB resources
       ctx = new Context(options.getTileDBConfigMap(false));
-      array = new Array(ctx, arrayURI.toString(), QueryType.TILEDB_READ);
+      array = new Array(ctx, arrayURI, QueryType.TILEDB_READ);
       arraySchema = array.getSchema();
       domain = arraySchema.getDomain();
 

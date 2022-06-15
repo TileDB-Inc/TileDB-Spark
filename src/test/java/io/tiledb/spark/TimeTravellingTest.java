@@ -164,8 +164,7 @@ public class TimeTravellingTest extends SharedJavaSparkSession {
         .format("io.tiledb.spark")
         .option("timestamp_start", timestamp_start)
         .option("timestamp_end", timestamp_end)
-        .option("uri", arrayURI)
-        .load();
+        .load(arrayURI);
   }
 
   public void arrayCreate() throws Exception {

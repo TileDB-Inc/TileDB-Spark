@@ -25,13 +25,12 @@ public class WriteSparkDataTypesTest extends SharedJavaSparkSession implements S
     dfWrite
         .write()
         .format("io.tiledb.spark")
-        .option("uri", arrayURI)
         .option("schema.dim.0.name", "id")
         .mode("overwrite")
-        .save();
+        .save(arrayURI);
 
     // read saved byte dataset
-    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", arrayURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(arrayURI);
     dfRead.show();
     Assert.assertEquals(dfWrite.count(), dfRead.count());
     Assert.assertTrue(assertDataFrameEquals(dfWrite, dfRead));

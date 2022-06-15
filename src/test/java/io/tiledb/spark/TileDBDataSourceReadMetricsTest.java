@@ -26,9 +26,8 @@ public class TileDBDataSourceReadMetricsTest extends SharedJavaSparkSession {
         session()
             .read()
             .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
             .option("spark.metrics.conf", metricConfigFile())
-            .load();
+            .load(testArrayURIString("quickstart_sparse_array"));
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
     Assert.assertEquals(3, rows.size());

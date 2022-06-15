@@ -3,7 +3,6 @@ package io.tiledb.spark;
 import io.tiledb.java.api.Datatype;
 import io.tiledb.java.api.TileDBError;
 import io.tiledb.java.api.Util;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,15 +56,15 @@ public class util {
     }
   }
 
-  public static URI tryGetArrayURI(TileDBDataSourceOptions tiledbOptions) {
-    Optional<URI> arrayURI;
+  public static String tryGetArrayURI(TileDBDataSourceOptions tiledbOptions) {
+    Optional<String> arrayURI;
     try {
       arrayURI = tiledbOptions.getArrayURI();
     } catch (URISyntaxException ex) {
       throw new RuntimeException("Error parsing array URI option: " + ex.getMessage());
     }
     if (!arrayURI.isPresent()) {
-      throw new RuntimeException("TileDB URI option required");
+      throw new RuntimeException("TileDB URI required");
     }
     return arrayURI.get();
   }

@@ -155,8 +155,7 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
         session()
             .read()
             .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
+            .load(testArrayURIString("quickstart_sparse_array"));
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
     Assert.assertEquals(3, rows.size());
@@ -188,10 +187,9 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
           session()
               .read()
               .format("io.tiledb.spark")
-              .option("uri", DENSE_ARRAY_URI)
               .option("order", order)
               .option("partition_count", 1)
-              .load();
+              .load(DENSE_ARRAY_URI);
       dfRead.createOrReplaceTempView("tmp");
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
       int[] expectedRows = new int[] {1, 1, 2, 2, 3, 3, 4, 4};
@@ -236,10 +234,9 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
           session()
               .read()
               .format("io.tiledb.spark")
-              .option("uri", SPARSE_ARRAY_URI)
               .option("order", order)
               .option("partition_count", 1)
-              .load();
+              .load(SPARSE_ARRAY_URI);
       dfRead.createOrReplaceTempView("tmp");
       dfRead.show();
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
@@ -284,10 +281,9 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
           session()
               .read()
               .format("io.tiledb.spark")
-              .option("uri", SPARSE_ARRAY_URI)
               .option("order", order)
               .option("partition_count", 1)
-              .load();
+              .load(SPARSE_ARRAY_URI);
       dfRead.createOrReplaceTempView("tmp");
       dfRead.show();
       List<Row> rows1 = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();
@@ -405,10 +401,9 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
           session()
               .read()
               .format("io.tiledb.spark")
-              .option("uri", SPARSE_ARRAY_URI)
               .option("order", order)
               .option("partition_count", 1)
-              .load();
+              .load(SPARSE_ARRAY_URI);
       dfRead.createOrReplaceTempView("tmp");
       dfRead.show();
       List<Row> rows = dfRead.sqlContext().sql("SELECT * FROM tmp").collectAsList();

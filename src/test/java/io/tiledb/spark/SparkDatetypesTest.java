@@ -198,7 +198,7 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
    */
   @Test
   public void testDateTypesDenseRead() {
-    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", denseURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(denseURI);
     dfRead.show();
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
@@ -315,7 +315,6 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
     dfReadFirst
         .write()
         .format("io.tiledb.spark")
-        .option("uri", tempWrite)
         .option("schema.dim.0.name", "rows")
         .option("schema.dim.0.min", 1)
         .option("schema.dim.0.max", 4)
@@ -324,10 +323,9 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
         .mode("overwrite")
-        .save();
+        .save(tempWrite);
 
-    Dataset<Row> dfRead =
-        session().read().format("io.tiledb.spark").option("uri", tempWrite).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(tempWrite);
     dfReadFirst.show();
     dfRead.show();
     Dataset<Row> dfReadConverted =
@@ -352,15 +350,13 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
    */
   @Test
   public void testDateTypesDenseReadWrite() throws TileDBError {
-    Dataset<Row> dfReadFirst =
-        session().read().format("io.tiledb.spark").option("uri", denseURI).load();
+    Dataset<Row> dfReadFirst = session().read().format("io.tiledb.spark").load(denseURI);
 
     dfReadFirst.cache();
 
     dfReadFirst
         .write()
         .format("io.tiledb.spark")
-        .option("uri", writeURI)
         .option("schema.dim.0.name", "rows")
         .option("schema.dim.0.min", 1)
         .option("schema.dim.0.max", 2)
@@ -368,9 +364,9 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
         .mode("overwrite")
-        .save();
+        .save(writeURI);
 
-    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", writeURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(writeURI);
 
     dfRead.show();
     Assert.assertTrue(assertDataFrameEquals(dfReadFirst, dfRead));
@@ -480,7 +476,6 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
     dfToAppend
         .write()
         .format("io.tiledb.spark")
-        .option("uri", sparseURI)
         .option("schema.dim.0.name", "rows")
         .option("schema.dim.0.min", 1)
         .option("schema.dim.0.max", 8)
@@ -488,10 +483,9 @@ public class SparkDatetypesTest extends SharedJavaSparkSession {
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
         .mode("append")
-        .save();
+        .save(sparseURI);
 
-    Dataset<Row> dfRead =
-        session().read().format("io.tiledb.spark").option("uri", sparseURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(sparseURI);
     dfRead.show();
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rowsOfnew = session().sql("SELECT * FROM tmp").collectAsList();

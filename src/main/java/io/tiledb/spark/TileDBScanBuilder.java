@@ -3,7 +3,6 @@ package io.tiledb.spark;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePruneColumnsTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePushFiltersTimerName;
 
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Map;
@@ -30,7 +29,7 @@ public class TileDBScanBuilder
   private final TileDBReadMetricsUpdater metricsUpdater;
   private final TileDBReadSchema tileDBReadSchema;
   private Filter[] pushedFilters;
-  private URI uri;
+  private String uri;
 
   static Logger log = Logger.getLogger(TileDBScanBuilder.class.getName());
 

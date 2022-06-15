@@ -14,6 +14,7 @@ public class TileDBDataSource implements TableProvider {
 
   @Override
   public StructType inferSchema(CaseInsensitiveStringMap options) {
+
     TileDBDataSourceOptions tiledbOptions =
         new TileDBDataSourceOptions(new DataSourceOptions(options));
 
