@@ -1,6 +1,5 @@
 package io.tiledb.spark;
 
-import java.net.URI;
 import java.util.List;
 import org.apache.spark.sql.connector.read.InputPartition;
 
@@ -8,12 +7,12 @@ public class TileDBDataInputPartition implements InputPartition {
 
   private final List<List<Range>> dimensionRanges;
   private final List<List<Range>> attributeRanges;
-  private URI uri;
+  private String uri;
   private TileDBReadSchema tileDBReadSchema;
   private TileDBDataSourceOptions tiledbOptions;
 
   public TileDBDataInputPartition(
-      URI uri,
+      String uri,
       TileDBReadSchema schema,
       TileDBDataSourceOptions options,
       List<List<Range>> dimensionRanges,
@@ -33,7 +32,7 @@ public class TileDBDataInputPartition implements InputPartition {
     return attributeRanges;
   }
 
-  public URI getUri() {
+  public String getUri() {
     return uri;
   }
 

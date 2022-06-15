@@ -131,7 +131,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
   public void denseArrayReadTest() throws Exception {
     denseArrayCreate();
     denseArrayWrite();
-    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", denseURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(denseURI);
 
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
@@ -221,8 +221,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
   public void denseArrayVarAttReadTest() throws Exception {
     denseArrayVarAttCreate();
     denseArrayVarAttWrite();
-    Dataset<Row> dfRead =
-        session().read().format("io.tiledb.spark").option("uri", variableAttURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(variableAttURI);
     // dfRead.show();
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
@@ -339,8 +338,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
   public void sparseArrayReadTest() throws Exception {
     sparseArrayCreate();
     sparseArrayWrite();
-    Dataset<Row> dfRead =
-        session().read().format("io.tiledb.spark").option("uri", sparseURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(sparseURI);
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
     Assert.assertEquals(5, rows.size());
@@ -432,7 +430,6 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     dfReadFirst
         .write()
         .format("io.tiledb.spark")
-        .option("uri", writeArrayURI)
         .option("schema.dim.0.name", "d1")
         .option("schema.dim.0.min", 1)
         .option("schema.dim.0.max", 8)
@@ -442,10 +439,9 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
         .mode("overwrite")
-        .save();
+        .save(writeArrayURI);
 
-    Dataset<Row> dfRead =
-        session().read().format("io.tiledb.spark").option("uri", writeArrayURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(writeArrayURI);
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
     Assert.assertEquals(5, rows.size());
@@ -483,7 +479,6 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     dfReadFirst
         .write()
         .format("io.tiledb.spark")
-        .option("uri", writeArrayURI)
         .option("schema.dim.0.name", "d1")
         .option("schema.dim.0.min", 1)
         .option("schema.dim.0.max", 8)
@@ -493,7 +488,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
         .mode("overwrite")
-        .save();
+        .save(writeArrayURI);
 
     Dataset<Row> dfRead =
         session().read().format("io.tiledb.spark").option("uri", writeArrayURI).load();
@@ -538,7 +533,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     denseArrayCreate();
     denseArrayWrite();
 
-    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", denseURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(denseURI);
 
     dfRead.show();
 
@@ -578,8 +573,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .mode("overwrite")
         .save();
 
-    Dataset<Row> dfReadSecond =
-        session().read().format("io.tiledb.spark").option("uri", tempWrite).load();
+    Dataset<Row> dfReadSecond = session().read().format("io.tiledb.spark").load(tempWrite);
 
     Assert.assertTrue(assertDataFrameEquals(expected, dfReadSecond));
 

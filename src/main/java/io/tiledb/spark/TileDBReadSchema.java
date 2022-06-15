@@ -2,14 +2,13 @@ package io.tiledb.spark;
 
 import io.tiledb.java.api.*;
 import java.io.Serializable;
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Optional;
 import org.apache.spark.sql.types.*;
 
 public class TileDBReadSchema implements Serializable {
 
-  private URI uri;
+  private String uri;
   private TileDBDataSourceOptions options;
   private StructType pushDownSparkSchema;
   private StructType tiledbSparkSchema;
@@ -19,7 +18,7 @@ public class TileDBReadSchema implements Serializable {
   public HashMap<Integer, String> attributeName;
   public HashMap<Integer, Datatype> columnTypes;
 
-  public TileDBReadSchema(URI uri, TileDBDataSourceOptions options) {
+  public TileDBReadSchema(String uri, TileDBDataSourceOptions options) {
     this.uri = uri;
     this.options = options;
     this.dimensionIndex = new HashMap<>();

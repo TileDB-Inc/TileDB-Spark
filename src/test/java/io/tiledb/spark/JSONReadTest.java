@@ -60,12 +60,11 @@ public class JSONReadTest extends SharedJavaSparkSession {
 
     ds.write()
         .format("io.tiledb.spark")
-        .option("uri", URI)
         .option("schema.dim.0.name", "study_id")
         .mode("overwrite")
-        .save();
+        .save(URI);
 
-    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", URI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(URI);
     // use default buffer read size
 
     // Spark dataframes are lazy which means that since we do not check the data of the dataframes

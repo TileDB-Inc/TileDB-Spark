@@ -2,8 +2,6 @@ package io.tiledb.spark;
 
 import io.tiledb.java.api.Layout;
 import io.tiledb.java.api.Pair;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,22 +18,14 @@ public class TileDBDataSourceOptionsTest {
     Assert.assertFalse(options.getArrayURI().isPresent());
   }
 
-  @Test(expected = URISyntaxException.class)
-  public void testArrayURIInvalid() throws Exception {
-    HashMap<String, String> optionMap = new HashMap<>();
-    optionMap.put("uri", "s3://$%foo/baz/");
-    TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
-    Optional<URI> uri = options.getArrayURI();
-  }
-
   @Test
   public void testArrayURIOption() throws Exception {
     HashMap<String, String> optionMap = new HashMap<>();
     optionMap.put("uri", "s3://foo/bar");
     TileDBDataSourceOptions options = new TileDBDataSourceOptions(new DataSourceOptions(optionMap));
-    Optional<URI> uri = options.getArrayURI();
+    Optional<String> uri = options.getArrayURI();
     Assert.assertTrue(uri.isPresent());
-    Assert.assertEquals(URI.create("s3://foo/bar"), uri.get());
+    Assert.assertEquals("s3://foo/bar", uri.get());
   }
 
   @Test

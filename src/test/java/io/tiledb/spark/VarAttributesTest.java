@@ -113,7 +113,7 @@ public class VarAttributesTest extends SharedJavaSparkSession {
   public void denseArrayReadTest() throws Exception {
     arrayCreate();
     arrayWrite();
-    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").option("uri", URI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(URI);
     dfRead.show();
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();

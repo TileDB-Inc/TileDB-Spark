@@ -51,13 +51,11 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
         session()
             .read()
             .format("io.tiledb.spark")
-            .option("uri", testArrayURIString("quickstart_sparse_array"))
-            .load();
+            .load(testArrayURIString("quickstart_sparse_array"));
     dfReadFirst.show();
     dfReadFirst
         .write()
         .format("io.tiledb.spark")
-        .option("uri", writeArrayURI)
         .option("schema.dim.0.name", "rows")
         .option("schema.dim.0.min", 1)
         .option("schema.dim.0.max", 2)
@@ -71,10 +69,9 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
         .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
         .mode("overwrite")
-        .save();
+        .save(writeArrayURI);
 
-    Dataset<Row> dfRead =
-        session().read().format("io.tiledb.spark").option("uri", writeArrayURI).load();
+    Dataset<Row> dfRead = session().read().format("io.tiledb.spark").load(writeArrayURI);
 
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
@@ -121,7 +118,6 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
     DataFrameWriter<Row> writer =
         df.write()
             .format("io.tiledb.spark")
-            .option("uri", arrayURI)
             .option("schema.dim.0.name", "d1")
             .option("schema.dim.0.extent", 2)
             .option("schema.cell_order", "row-major")
@@ -130,13 +126,13 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
             .mode("overwrite");
 
     try {
-      writer.save();
+      writer.save(arrayURI);
       Assert.fail(
           "Duplicate dimensions should not be allowed if set_allows_dups parameter is not set.");
     } catch (Exception e) {
     }
 
-    writer.option("schema.set_allows_dups", true).save();
+    writer.option("schema.set_allows_dups", true).save(arrayURI);
   }
 
   @Test
@@ -163,7 +159,6 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
     DataFrameWriter<Row> writer =
         df.write()
             .format("io.tiledb.spark")
-            .option("uri", arrayURI)
             .option("schema.dim.0.name", "d1")
             .option("schema.dim.0.extent", 2)
             .option("schema.cell_order", "row-major")
@@ -172,13 +167,13 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
             .mode("overwrite");
 
     try {
-      writer.save();
+      writer.save(arrayURI);
       Assert.fail(
           "Duplicate dimensions should not be allowed if set_allows_dups parameter is not set.");
     } catch (Exception e) {
     }
 
-    writer.option("schema.set_allows_dups", true).save();
+    writer.option("schema.set_allows_dups", true).save(arrayURI);
   }
 
   @Test
@@ -207,7 +202,6 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
     DataFrameWriter<Row> writer =
         df.write()
             .format("io.tiledb.spark")
-            .option("uri", arrayURI)
             .option("schema.dim.0.name", "d1")
             .option("schema.dim.0.extent", 2)
             .option("schema.cell_order", "row-major")
@@ -217,12 +211,12 @@ public class TestReadWriteNDSparse extends SharedJavaSparkSession {
             .mode("overwrite");
 
     try {
-      writer.save();
+      writer.save(arrayURI);
       Assert.fail(
           "Duplicate dimensions should not be allowed if set_allows_dups parameter is not set.");
     } catch (Exception e) {
     }
 
-    writer.option("schema.set_allows_dups", true).save();
+    writer.option("schema.set_allows_dups", true).save(arrayURI);
   }
 }

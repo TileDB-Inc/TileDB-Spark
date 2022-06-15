@@ -60,7 +60,7 @@ public class TileDBBatch implements Batch {
     try {
       Context ctx = new Context(tileDBDataSourceOptions.getTileDBConfigMap(true));
       // Fetch the array and load its metadata
-      Array array = new Array(ctx, util.tryGetArrayURI(tileDBDataSourceOptions).toString());
+      Array array = new Array(ctx, util.tryGetArrayURI(tileDBDataSourceOptions));
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
       Domain domain = array.getSchema().getDomain();
 

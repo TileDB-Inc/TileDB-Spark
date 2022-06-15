@@ -16,7 +16,6 @@ import static org.apache.spark.metrics.TileDBMetricsSource.tileDBReadQuerySubmit
 
 import io.tiledb.java.api.*;
 import java.math.BigInteger;
-import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.sql.Timestamp;
@@ -75,7 +74,7 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
   private long read_query_buffer_size;
 
   // array resource URI (dense or sparse)
-  private URI arrayURI;
+  private String arrayURI;
 
   // spark options
   private TileDBDataSourceOptions options;
@@ -262,7 +261,7 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
   }
 
   public TileDBPartitionReader(
-      URI uri,
+      String uri,
       TileDBReadSchema schema,
       TileDBDataSourceOptions options,
       List<List<Range>> dimensionRanges,
@@ -359,7 +358,7 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
    * @throws TileDBError
    */
   private Array openArray(
-      Context ctx, URI arrayURI, QueryType queryType, TileDBDataSourceOptions options)
+      Context ctx, String arrayURI, QueryType queryType, TileDBDataSourceOptions options)
       throws TileDBError {
     Optional<Long> timestampStart = options.getTimestampStart();
     Optional<Long> timestampEnd = options.getTimestampEnd();
@@ -367,16 +366,16 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
     if (timestampStart.isPresent() && timestampEnd.isPresent()) {
       return new Array(
           ctx,
-          arrayURI.toString(),
+          arrayURI,
           queryType,
           BigInteger.valueOf(timestampStart.get()),
           BigInteger.valueOf(timestampEnd.get()));
     }
     if (timestampEnd.isPresent()) {
-      return new Array(ctx, arrayURI.toString(), queryType, BigInteger.valueOf(timestampEnd.get()));
+      return new Array(ctx, arrayURI, queryType, BigInteger.valueOf(timestampEnd.get()));
     }
 
-    return new Array(ctx, arrayURI.toString(), queryType);
+    return new Array(ctx, arrayURI, queryType);
   }
 
   @Override

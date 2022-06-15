@@ -3,7 +3,6 @@ package io.tiledb.spark;
 import io.tiledb.java.api.Layout;
 import io.tiledb.java.api.Pair;
 import java.io.Serializable;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -33,9 +32,15 @@ public class TileDBDataSourceOptions implements Serializable {
    * @return Optional URI to TileDB array resource
    * @throws URISyntaxException A URISyntaxException exception
    */
-  public Optional<URI> getArrayURI() throws URISyntaxException {
+  public Optional<String> getArrayURI() throws URISyntaxException {
+    if (optionMap.containsKey("path")) {
+      return Optional.of(optionMap.get("path"));
+    }
+    // the following 'if' should enable passing the uri as an option as it was implemented
+    // originally. The 'spark' way requires the uri to be inside the 'load()' method call.
+    // this is left here for backwards compatibility.
     if (optionMap.containsKey("uri")) {
-      return Optional.of(new URI(optionMap.get("uri")));
+      return Optional.of(optionMap.get("uri"));
     }
     return Optional.empty();
   }

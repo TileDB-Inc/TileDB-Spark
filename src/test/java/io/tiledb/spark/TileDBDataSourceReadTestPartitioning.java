@@ -23,8 +23,7 @@ public class TileDBDataSourceReadTestPartitioning extends SharedJavaSparkSession
             .read()
             .format("io.tiledb.spark")
             .option("partition_count", 11)
-            .option("uri", testArrayURIString("sparse_large_dimension_1_4000"))
-            .load();
+            .load(testArrayURIString("sparse_large_dimension_1_4000"));
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp ORDER BY rows, cols").collectAsList();
     Assert.assertEquals(8, rows.size());
@@ -79,8 +78,7 @@ public class TileDBDataSourceReadTestPartitioning extends SharedJavaSparkSession
             .read()
             .format("io.tiledb.spark")
             .option("partition_count", 11)
-            .option("uri", testArrayURIString("sparse_large_dimension_1_4000"))
-            .load();
+            .load(testArrayURIString("sparse_large_dimension_1_4000"));
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows =
         session()
@@ -139,8 +137,7 @@ public class TileDBDataSourceReadTestPartitioning extends SharedJavaSparkSession
             .read()
             .format("io.tiledb.spark")
             .option("partition_count", 1)
-            .option("uri", testArrayURIString("sparse_large_dimension_1_4000"))
-            .load();
+            .load(testArrayURIString("sparse_large_dimension_1_4000"));
     dfRead.createOrReplaceTempView("tmp");
     List<Row> rows = session().sql("SELECT * FROM tmp").collectAsList();
     Assert.assertEquals(8, rows.size());

@@ -2,7 +2,6 @@ package io.tiledb.spark;
 
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceReadSchemaTimerName;
 
-import java.net.URI;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBReadMetricsUpdater;
@@ -18,7 +17,7 @@ public class TileDBScan implements Scan {
   private final TileDBReadSchema tileDBReadSchema;
   private final TileDBDataSourceOptions options;
   private final Filter[] pushedFilters;
-  private final URI uri;
+  private final String uri;
 
   private final TileDBReadMetricsUpdater metricsUpdater;
   static Logger log = Logger.getLogger(TileDBScan.class.getName());

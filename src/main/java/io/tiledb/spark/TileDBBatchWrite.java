@@ -12,7 +12,6 @@ import io.tiledb.java.api.Layout;
 import io.tiledb.java.api.Pair;
 import io.tiledb.java.api.TileDBError;
 import io.tiledb.java.api.TileDBObject;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +29,7 @@ public class TileDBBatchWrite implements BatchWrite {
   private final Map<String, String> properties;
   private final TileDBDataSourceOptions tileDBDataSourceOptions;
   public final SaveMode saveMode;
-  private final URI uri;
+  private final String uri;
   private final LogicalWriteInfo logicalWriteInfo;
   private final StructType sparkSchema;
 
@@ -97,7 +96,7 @@ public class TileDBBatchWrite implements BatchWrite {
   }
 
   private static void writeArraySchema(
-      Context ctx, URI uri, StructType sparkSchema, TileDBDataSourceOptions options)
+      Context ctx, String uri, StructType sparkSchema, TileDBDataSourceOptions options)
       throws TileDBError {
     ArrayType type = ArrayType.TILEDB_SPARSE;
     try (ArraySchema arraySchema = new ArraySchema(ctx, type);
@@ -160,7 +159,7 @@ public class TileDBBatchWrite implements BatchWrite {
         arraySchema.setAllowDups(1);
 
       arraySchema.check();
-      Array.create(uri.toString(), arraySchema);
+      Array.create(uri, arraySchema);
     }
   }
 }
