@@ -33,20 +33,18 @@ Optionally include the `read_buffer_size` to set the off heap tiledb buffer size
  
     scala> val sampleDF = spark.read
                                .format("io.tiledb.spark")
-                               .option("uri", "file:///path/to/tiledb/array")
                                .option("read_buffer_size", 100*1024*1024)
-                               .load()
+                               .load("file:///path/to/tiledb/array")
 
 To write to TileDB from an existing dataframe, you need to specify a URI and the column(s) which map to sparse array dimensions.  For now only sparse array writes are supported.
 
     scala > val sampleDF.write
                         .format("io.tiledb.spark")
-                        .option("uri", "file:///path/to/tiledb/array_new")                          
                         .option("schema.dim.0.name", "rows")
                         .option("schema.dim.1.name", "cols")
                         .option("write_buffer_size", 100*1024*1024)
                         .mode(SaveMode.ErrorIfExists)
-                        .save();
+                        .save("file:///path/to/tiledb/array_new");
 
 ## Metrics
 
@@ -76,7 +74,7 @@ to `$SPARK_HOME/jars/`.
 ## Options
 
 ### Read/Write options
-* `uri` (required): URI to TileDB sparse or dense array
+* `uri` (legacy): URI to TileDB sparse or dense array. URI should be a parameter of load()/save() instead.
 * `tiledb.` (optional): Set a TileDB config option, ex: `option("tiledb.vfs.num_threads", 4)`.  Multiple tiledb config options can be
    specified.  See the
   [full list of configuration options](https://docs.tiledb.io/en/latest/tutorials/config.html?highlight=config#summary-of-parameters).
