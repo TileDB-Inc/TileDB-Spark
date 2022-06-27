@@ -69,6 +69,14 @@ public class TileDBDataSourceOptions implements Serializable {
     return false;
   }
 
+  /** @return True if only the array metadata is requested * */
+  public boolean printMetadata() {
+    if (optionMap.containsKey("print_array_metadata")) {
+      return Boolean.parseBoolean(optionMap.get("print_array_metadata"));
+    }
+    return false;
+  }
+
   /** @return partition count * */
   public int getPartitionCount() {
     if (optionMap.containsKey("partition_count")) {

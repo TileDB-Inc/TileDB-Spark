@@ -9,6 +9,8 @@ import static io.tiledb.java.api.QueryType.TILEDB_WRITE;
 import static io.tiledb.spark.TestDataFrame.assertDataFrameEquals;
 
 import io.tiledb.java.api.*;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -109,6 +111,9 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     // Create query
     try (Array array = new Array(ctx, denseURI, TILEDB_WRITE);
         Query query = new Query(array)) {
+
+      array.putMetadata("one", new int[] {100});
+      array.putMetadata("two", new float[] {99f});
       query.setLayout(TILEDB_ROW_MAJOR);
       NativeArray a1Bytemap = new NativeArray(ctx, new short[] {0, 1, 1, 0}, Datatype.TILEDB_UINT8);
       NativeArray a2Bytemap = new NativeArray(ctx, new short[] {1, 1, 0, 1}, Datatype.TILEDB_UINT8);
@@ -165,6 +170,34 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     Assert.assertNull(row.get(2));
     Assert.assertEquals(2, row.getInt(3));
     return;
+  }
+
+  @Test
+  public void printMetadataTest() throws Exception {
+    // Create a stream to hold the output
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    PrintStream ps = new PrintStream(baos);
+    // Save the old System.out!
+    PrintStream old = System.out;
+    // Tell Java to use your special stream
+    System.setOut(ps);
+
+    denseArrayCreate();
+    denseArrayWrite();
+    // Since Spark reads lazily, the code below will not actually read the array to improve
+    // performance. However, the metadata is printed.
+    Dataset<Row> dfRead =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("print_array_metadata", true)
+            .load(denseURI);
+
+    // Put things back
+    System.out.flush();
+    System.setOut(old);
+    // Check output
+    Assert.assertEquals("<one, 100>\n<two, 99.0>\n", baos.toString());
   }
 
   /**
