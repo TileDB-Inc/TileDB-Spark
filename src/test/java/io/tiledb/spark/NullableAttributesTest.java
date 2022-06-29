@@ -112,8 +112,8 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     try (Array array = new Array(ctx, denseURI, TILEDB_WRITE);
         Query query = new Query(array)) {
 
-      array.putMetadata("one", new int[] {100});
-      array.putMetadata("two", new float[] {99f});
+      array.putMetadata("one", new NativeArray(ctx, new int[] {100}, Datatype.TILEDB_INT32));
+      array.putMetadata("two", new NativeArray(ctx, new float[] {99.0f}, Datatype.TILEDB_FLOAT32));
       query.setLayout(TILEDB_ROW_MAJOR);
       NativeArray a1Bytemap = new NativeArray(ctx, new short[] {0, 1, 1, 0}, Datatype.TILEDB_UINT8);
       NativeArray a2Bytemap = new NativeArray(ctx, new short[] {1, 1, 0, 1}, Datatype.TILEDB_UINT8);
@@ -173,7 +173,13 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
   }
 
   @Test
-  public void printMetadataTest() throws Exception {
+  public void denseArrayMetadataCheck() throws Exception {
+    denseArrayCreate();
+    denseArrayWrite();
+    metadataCheck(denseURI, "<one, 100>\n<two, 99.0>\n");
+  }
+
+  public void metadataCheck(String uri, String expectedResult) throws Exception {
     // Create a stream to hold the output
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     PrintStream ps = new PrintStream(baos);
@@ -182,22 +188,16 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     // Tell Java to use your special stream
     System.setOut(ps);
 
-    denseArrayCreate();
-    denseArrayWrite();
     // Since Spark reads lazily, the code below will not actually read the array to improve
     // performance. However, the metadata is printed.
     Dataset<Row> dfRead =
-        session()
-            .read()
-            .format("io.tiledb.spark")
-            .option("print_array_metadata", true)
-            .load(denseURI);
+        session().read().format("io.tiledb.spark").option("print_array_metadata", true).load(uri);
 
     // Put things back
     System.out.flush();
     System.setOut(old);
     // Check output
-    Assert.assertEquals("<one, 100>\n<two, 99.0>\n", baos.toString());
+    Assert.assertEquals(expectedResult, baos.toString());
   }
 
   /**
@@ -603,12 +603,29 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .option("schema.dim.1.extent", 2)
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
+        .option("metadata_value.key1", 15)
+        .option("metadata_type.key1", "TILEDB_INT32")
+        .option("metadata_value.key2", 25.0f)
+        .option("metadata_type.key2", "TILEDB_FLOAT32")
+        // .option("metadata_value.key3", "String25")
+        // .option("metadata_type.key3", "TILEDB_STRING_ASCII")
+        // ASCII metadata values are supported but because the NativeArray class from TileDB does
+        // not have a toString() method, only the object reference is printed. This will be fixed in
+        // the next version of TileDB-Java
         .mode("overwrite")
         .save();
 
-    Dataset<Row> dfReadSecond = session().read().format("io.tiledb.spark").load(tempWrite);
+    Dataset<Row> dfReadSecond =
+        session()
+            .read()
+            .format("io.tiledb.spark")
+            .option("print_array_metadata", true)
+            .load(tempWrite);
 
     Assert.assertTrue(assertDataFrameEquals(expected, dfReadSecond));
+
+    // metadata check
+    metadataCheck(tempWrite, "<key1, 15>\n<key2, 25.0>\n");
 
     if (Array.exists(ctx, "temp_write")) {
       TileDBObject.remove(ctx, "temp_write");

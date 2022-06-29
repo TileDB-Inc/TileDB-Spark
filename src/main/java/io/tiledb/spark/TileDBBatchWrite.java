@@ -5,11 +5,14 @@ import io.tiledb.java.api.ArraySchema;
 import io.tiledb.java.api.ArrayType;
 import io.tiledb.java.api.Attribute;
 import io.tiledb.java.api.Context;
+import io.tiledb.java.api.Datatype;
 import io.tiledb.java.api.Dimension;
 import io.tiledb.java.api.Domain;
 import io.tiledb.java.api.FilterList;
 import io.tiledb.java.api.Layout;
+import io.tiledb.java.api.NativeArray;
 import io.tiledb.java.api.Pair;
+import io.tiledb.java.api.QueryType;
 import io.tiledb.java.api.TileDBError;
 import io.tiledb.java.api.TileDBObject;
 import java.util.Arrays;
@@ -51,8 +54,52 @@ public class TileDBBatchWrite implements BatchWrite {
       throw new RuntimeException(
           "Writing to an existing array: '" + uri + "' with save mode " + saveMode);
     }
+
+    // Write metadata if present
+    Map<String, String> metadata = tileDBDataSourceOptions.getMetadata();
+    Map<String, String> metadataTypes = tileDBDataSourceOptions.getMetadataTypes();
+    if (!metadata.isEmpty()) {
+      try (Array array = new Array(new Context(), uri, QueryType.TILEDB_WRITE)) {
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+          String metaDatatype = metadataTypes.get(entry.getKey());
+          if (metaDatatype == null)
+            throw new TileDBError(
+                "Please include the 'metadata_type' option for metadata." + entry.getKey());
+          NativeArray valueNativeArray = metadataValueToNativeArray(entry.getValue(), metaDatatype);
+          array.putMetadata(entry.getKey(), valueNativeArray);
+        }
+      } catch (TileDBError e) {
+        throw new RuntimeException(e);
+      }
+    }
     return new TileDBDataWriterFactory(
         this.uri, this.logicalWriteInfo.schema(), tileDBDataSourceOptions);
+  }
+
+  /**
+   * @param stringValue
+   * @param metaDatatype
+   * @return
+   */
+  private NativeArray metadataValueToNativeArray(String stringValue, String metaDatatype)
+      throws TileDBError {
+    try (Context context = new Context()) {
+      switch (metaDatatype) {
+        case "TILEDB_INT32":
+          int intValue = Integer.parseInt(stringValue);
+          return new NativeArray(context, new int[] {intValue}, Datatype.TILEDB_INT32);
+        case "TILEDB_FLOAT32":
+          float floatValue = Float.parseFloat(stringValue);
+          return new NativeArray(context, new float[] {floatValue}, Datatype.TILEDB_FLOAT32);
+        case "TILEDB_STRING_ASCII":
+          return new NativeArray(context, stringValue, Datatype.TILEDB_STRING_ASCII);
+        default:
+          throw new TileDBError(
+              "Metadata type: " + metaDatatype + " is not supported in TileDB-Spark.");
+      }
+    } catch (TileDBError e) {
+      throw e;
+    }
   }
 
   @Override

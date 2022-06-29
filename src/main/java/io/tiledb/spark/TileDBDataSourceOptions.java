@@ -140,6 +140,20 @@ public class TileDBDataSourceOptions implements Serializable {
     return Optional.of(schemaDimensions);
   }
 
+  /** @return A map with the metadata keys and values */
+  public Map<String, String> getMetadata() {
+    Map<String, String> results =
+        collectOptionsWithKeyPrefixSuffixMap(optionMap, "metadata_value.", null);
+    return results;
+  }
+
+  /** @return A map with the metadata keys and datatypes */
+  public Map<String, String> getMetadataTypes() {
+    Map<String, String> results =
+        collectOptionsWithKeyPrefixSuffixMap(optionMap, "metadata_type.", null);
+    return results;
+  }
+
   /**
    * Returns the timestamp start necessary for time travelling in intervals.
    *
@@ -441,6 +455,41 @@ public class TileDBDataSourceOptions implements Serializable {
               strippedKeyPrefix.substring(0, strippedKeyPrefix.length() - suffix.length());
           if (strippedKeySuffix.length() > 0) {
             results.add(new Pair<>(strippedKeySuffix, val));
+          }
+        }
+      }
+    }
+    return results;
+  }
+
+  private static Map<String, String> collectOptionsWithKeyPrefixSuffixMap(
+      Map<String, String> options, String prefix, String suffix) {
+    Map<String, String> results = new HashMap<>();
+    boolean hasPrefix = (prefix != null && prefix.length() > 0);
+    boolean hasSuffix = (suffix != null && suffix.length() > 0);
+    if (options.isEmpty() || !hasPrefix) {
+      return results;
+    }
+    Iterator<Map.Entry<String, String>> entries = options.entrySet().iterator();
+    while (entries.hasNext()) {
+      Map.Entry<String, String> entry = entries.next();
+      String key = entry.getKey();
+      String val = entry.getValue();
+      if (key.startsWith(prefix)) {
+        String strippedKeyPrefix = key.substring(prefix.length());
+        if (strippedKeyPrefix.length() == 0) {
+          continue;
+        }
+        if (!hasSuffix) {
+          results.put(strippedKeyPrefix, val);
+          continue;
+        }
+        // check suffix
+        if (key.endsWith(suffix)) {
+          String strippedKeySuffix =
+              strippedKeyPrefix.substring(0, strippedKeyPrefix.length() - suffix.length());
+          if (strippedKeySuffix.length() > 0) {
+            results.put(strippedKeySuffix, val);
           }
         }
       }
