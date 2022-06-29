@@ -86,19 +86,22 @@ to `$SPARK_HOME/jars/`.
 * `legacy_reader` (optional): Use the legacy reader that does not use Apache Arrow Buffers: False
 * `timestamp_start`(optional): The start timestamp at which to open the array
 * `timestamp_end`(optional): The end timestamp at which to open the array
+* `print_array_metadata`(optional): Prints the array metadata to the console
 
 ### Write options
 * `write_buffer_size` (optional): Set the TileDB read buffer size in bytes per attribute/coordinates. Defaults to 10MB
-* `schema.dim.<N>.name` (requried): Specify which of the spark dataframe columns names are dimensions.
-* `schema.dim.<N>.min` (optional): Specify the lower bound for the TileDB array schema.
-* `schema.dim.<N>.max` (optional): Specify the upper bound for the TileDB array schema.
-* `schema.dim.<N>.extent` (optional): Specify the schema dimension domain extent (tile size).
+* `schema.dim.<N>.name` (requried): Specify which of the spark dataframe columns names are dimensions
+* `schema.dim.<N>.min` (optional): Specify the lower bound for the TileDB array schema
+* `schema.dim.<N>.max` (optional): Specify the upper bound for the TileDB array schema
+* `schema.dim.<N>.extent` (optional): Specify the schema dimension domain extent (tile size)
 * `schema.attr.<NAME>.filter_list` (optional): Specfify filter list for attribute NAME.  Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
-* `schema.capacity` (optional): Specify the sparse array tile capacity.
+* `schema.capacity` (optional): Specify the sparse array tile capacity
 * `schema.cell_order` (optional): Specify the cell order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
 * `schema.tile_order` (optional): Specify the tile order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
-* `schema.coords_filter_list` (optional): Specify the coordinate filter list.
-* `schema.offsets_filter_list` (optional): Specify the offsets filter list.
+* `schema.coords_filter_list` (optional): Specify the coordinate filter list
+* `schema.offsets_filter_list` (optional): Specify the offsets filter list
+* `metadata_value.<KEY>` (optional): The metadata value for a given key
+* `metadata_type.<KEY>` (optional): The metadata datatype for a given key
 
 ## Semantics
 
