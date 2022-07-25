@@ -214,7 +214,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     Domain domain = new Domain(ctx);
     domain.addDimension(rows);
 
-    Attribute a1 = new Attribute(ctx, "a1", Datatype.TILEDB_CHAR);
+    Attribute a1 = new Attribute(ctx, "a1", Datatype.TILEDB_STRING_ASCII);
     a1.setCellValNum(TILEDB_VAR_NUM);
 
     a1.setNullable(true);
@@ -232,7 +232,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
 
   public void denseArrayVarAttWrite() throws Exception {
 
-    NativeArray a1_data = new NativeArray(ctx, "aabbccddeeffgghh", Datatype.TILEDB_CHAR);
+    NativeArray a1_data = new NativeArray(ctx, "aabbccddeeffgghh", Datatype.TILEDB_STRING_ASCII);
     NativeArray a1_off =
         new NativeArray(ctx, new long[] {0, 3, 4, 6, 7, 10, 13, 14}, Datatype.TILEDB_UINT64);
 
