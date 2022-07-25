@@ -80,7 +80,7 @@ public class VarAttributesTest extends SharedJavaSparkSession {
         new NativeArray(
             ctx, new long[] {99L, 991L, 992L, 993L, 994L, 995L, 996L, 997L}, Long.class);
     NativeArray buffer_var_a3 =
-        new NativeArray(ctx, "hhhh" + "ff" + "a" + "bb", Datatype.TILEDB_CHAR);
+        new NativeArray(ctx, "hhhh" + "ff" + "a" + "bb", Datatype.TILEDB_STRING_ASCII);
     NativeArray a3_offsets = new NativeArray(ctx, new long[] {0, 4, 6, 7}, Datatype.TILEDB_UINT64);
 
     NativeArray a2Bytemap = new NativeArray(ctx, new short[] {1, 0, 1, 0}, Datatype.TILEDB_UINT8);
