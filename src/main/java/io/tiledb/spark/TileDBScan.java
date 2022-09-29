@@ -2,6 +2,8 @@ package io.tiledb.spark;
 
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceReadSchemaTimerName;
 
+import io.tiledb.java.api.TileDBError;
+import java.net.URISyntaxException;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
 import org.apache.spark.metrics.TileDBReadMetricsUpdater;
@@ -48,7 +50,11 @@ public class TileDBScan implements Scan {
 
   @Override
   public Batch toBatch() {
-    return new TileDBBatch(tileDBReadSchema, options, pushedFilters);
+    try {
+      return new TileDBBatch(tileDBReadSchema, options, pushedFilters);
+    } catch (TileDBError | URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override

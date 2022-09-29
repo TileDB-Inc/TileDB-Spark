@@ -1,23 +1,19 @@
 package io.tiledb.spark;
 
+import static io.tiledb.libtiledb.tiledb_query_condition_combination_op_t.TILEDB_AND;
+import static io.tiledb.libtiledb.tiledb_query_condition_combination_op_t.TILEDB_OR;
+import static io.tiledb.libtiledb.tiledb_query_condition_op_t.*;
 import static io.tiledb.spark.util.addEpsilon;
 import static io.tiledb.spark.util.generateAllSubarrays;
 import static io.tiledb.spark.util.subtractEpsilon;
-import static org.apache.log4j.Priority.ERROR;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceBuildRangeFromFilterTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceCheckAndMergeRangesTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceComputeNeededSplitsToReduceToMedianVolumeTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePlanBatchInputPartitionsTimerName;
 
-import io.tiledb.java.api.Array;
-import io.tiledb.java.api.Context;
-import io.tiledb.java.api.Domain;
-import io.tiledb.java.api.Pair;
-import io.tiledb.java.api.TileDBError;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
+import io.tiledb.java.api.*;
+import java.net.URISyntaxException;
+import java.util.*;
 import java.util.stream.IntStream;
 import org.apache.log4j.Logger;
 import org.apache.spark.TaskContext;
@@ -41,15 +37,31 @@ public class TileDBBatch implements Batch {
   private final TileDBDataSourceOptions tileDBDataSourceOptions;
   private final TileDBReadMetricsUpdater metricsUpdater;
   private final Filter[] pushedFilters;
+  private final Context ctx;
+
+  private Array array;
+
+  private ArraySchema arraySchema;
 
   static Logger log = Logger.getLogger(TileDBBatch.class.getName());
 
+  /**
+   * This is the master query condition which is calculated after combining all filters based on
+   * their priority.
+   */
+  public static QueryCondition finalQueryCondition;
+
   public TileDBBatch(
-      TileDBReadSchema tileDBReadSchema, TileDBDataSourceOptions options, Filter[] pushedFilters) {
+      TileDBReadSchema tileDBReadSchema, TileDBDataSourceOptions options, Filter[] pushedFilters)
+      throws TileDBError, URISyntaxException {
     this.tileDBReadSchema = tileDBReadSchema;
     this.tileDBDataSourceOptions = options;
     this.metricsUpdater = new TileDBReadMetricsUpdater(TaskContext.get());
     this.pushedFilters = pushedFilters;
+    ctx = new Context(tileDBDataSourceOptions.getTileDBConfigMap(true));
+    array = new Array(ctx, options.getArrayURI().get(), QueryType.TILEDB_READ);
+    arraySchema = array.getSchema();
+    finalQueryCondition = null;
   }
 
   @Override
@@ -58,7 +70,6 @@ public class TileDBBatch implements Batch {
     ArrayList<InputPartition> readerPartitions = new ArrayList<>();
 
     try {
-      Context ctx = new Context(tileDBDataSourceOptions.getTileDBConfigMap(true));
       // Fetch the array and load its metadata
       Array array = new Array(ctx, util.tryGetArrayURI(tileDBDataSourceOptions));
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
@@ -77,7 +88,26 @@ public class TileDBBatch implements Batch {
       // Build range from all pushed filters
       if (pushedFilters != null) {
         for (Filter filter : pushedFilters) {
-          List<List<Range>> allRanges = buildRangeFromFilter(filter, nonEmptyDomain).getFirst();
+          // apply filter and return the ranges and the corresponding Query Condition
+          Pair<Pair<List<List<Range>>, Class>, QueryCondition> appliedConditions =
+              buildRangeFromFilter(filter, nonEmptyDomain);
+          List<List<Range>> allRanges = appliedConditions.getFirst().getFirst();
+
+          // grab the Query Condition
+          QueryCondition currentQueryCondition = appliedConditions.getSecond();
+
+          // Combine the query condition from this filter with all previous Query Conditions. In
+          // this case the new condition will be combined with TILEDB_AND. This is because Spark can
+          // sometimes parse an AND (e.g. a1 > 5 AND a2 > 10) filter as two separate filters instead
+          // of a single AND filter. In the case of ORs Spark always returns one filter, the OR
+          // filter. Thus, when there are two filters we are certain that they should be combined
+          // with an AND.
+          if (finalQueryCondition == null) finalQueryCondition = currentQueryCondition;
+          else if (currentQueryCondition != null) {
+            finalQueryCondition = currentQueryCondition.combine(finalQueryCondition, TILEDB_AND);
+            currentQueryCondition.close();
+          }
+
           for (int i = 0; i < allRanges.size(); i++) {
             ranges.get(i).addAll(allRanges.get(i));
           }
@@ -168,7 +198,8 @@ public class TileDBBatch implements Batch {
           i < domain.getNDim() + array.getSchema().getAttributeNum();
           i++) {
         attributeRanges.add(ranges.get(i));
-      }
+      } // TODO this is not needed after the QC changes from Dimitris. Will be removed in a future
+      // PR
 
       for (SubArrayRanges subarray : subarrays) {
         // In the future we will be smarter about combining ranges to have partitions work on more
@@ -191,8 +222,8 @@ public class TileDBBatch implements Batch {
       ctx.close();
       domain.close();
       return partitionsArray;
-    } catch (TileDBError tileDBError) {
-      log.log(ERROR, tileDBError.getMessage());
+    } catch (Exception e) {
+      e.printStackTrace();
       metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
     }
     return null;
@@ -205,9 +236,11 @@ public class TileDBBatch implements Batch {
    * @param nonEmptyDomain
    * @throws TileDBError
    */
-  private Pair<List<List<Range>>, Class> buildRangeFromFilter(
+  private Pair<Pair<List<List<Range>>, Class>, QueryCondition> buildRangeFromFilter(
       Filter filter, HashMap<String, Pair> nonEmptyDomain) throws TileDBError {
     metricsUpdater.startTimer(dataSourceBuildRangeFromFilterTimerName);
+    String[] filterReferences = filter.references();
+    QueryCondition finalQc = null; // the query condition created by each filter
     Class filterType = filter.getClass();
     // Map<String, Integer> dimensionIndexing = new HashMap<>();
     List<List<Range>> ranges = new ArrayList<>();
@@ -222,60 +255,99 @@ public class TileDBBatch implements Batch {
     // First handle filter that are AND this is something like dim1 >= 1 AND dim1 <= 10
     // Could also be dim1 between 1 and 10
     if (filter instanceof And) {
-      Pair<List<List<Range>>, Class> left =
+      Pair<Pair<List<List<Range>>, Class>, QueryCondition> left =
           buildRangeFromFilter(((And) filter).left(), nonEmptyDomain);
-      Pair<List<List<Range>>, Class> right =
+      Pair<Pair<List<List<Range>>, Class>, QueryCondition> right =
           buildRangeFromFilter(((And) filter).right(), nonEmptyDomain);
 
-      int dimIndex =
-          IntStream.range(0, left.getFirst().size())
-              .filter(e -> left.getFirst().get(e).size() > 0)
+      // Get the Query Conditions that consist each branch of the expression. If they are not null
+      // (they should never be null) combine them and create a new Query Condition to return.
+      QueryCondition leftQc = left.getSecond();
+      QueryCondition rightQc = right.getSecond();
+      if (leftQc != null && rightQc != null) {
+        finalQc = leftQc.combine(rightQc, TILEDB_OR);
+        // close unneeded query conditions
+        leftQc.close();
+        rightQc.close();
+      }
+
+      // Get the index from the list of ranges to see where is the range for the left part of the
+      // expression
+      int leftIndex =
+          IntStream.range(0, left.getFirst().getFirst().size())
+              .filter(e -> left.getFirst().getFirst().get(e).size() > 0)
+              .findFirst()
+              .getAsInt();
+
+      // Get the index from the list of ranges to see where is the range for the right part of the
+      // expression
+      int rightIndex =
+          IntStream.range(0, right.getFirst().getFirst().size())
+              .filter(e -> right.getFirst().getFirst().get(e).size() > 0)
               .findFirst()
               .getAsInt();
 
       // Create return constructed ranges
       List<List<Range>> constructedRanges = new ArrayList<>();
-      for (int i = 0; i < Math.max(left.getFirst().size(), right.getFirst().size()); i++)
-        constructedRanges.add(new ArrayList<>());
+      for (int i = 0;
+          i < Math.max(left.getFirst().getFirst().size(), right.getFirst().getFirst().size());
+          i++) constructedRanges.add(new ArrayList<>());
 
       // Switch on the left side to see if it is the greater than or less than clause and set
       // appropriate position
       Pair<Object, Object> newPair = new Pair<>(null, null);
-      if (left.getSecond() == GreaterThan.class || left.getSecond() == GreaterThanOrEqual.class) {
-        newPair.setFirst(left.getFirst().get(dimIndex).get(0).getFirst());
-      } else if (left.getSecond() == LessThan.class || left.getSecond() == LessThanOrEqual.class) {
-        newPair.setSecond(left.getFirst().get(dimIndex).get(0).getSecond());
+      if (left.getFirst().getSecond() == GreaterThan.class
+          || left.getFirst().getSecond() == GreaterThanOrEqual.class) {
+        newPair.setFirst(left.getFirst().getFirst().get(leftIndex).get(0).getFirst());
+      } else if (left.getFirst().getSecond() == LessThan.class
+          || left.getFirst().getSecond() == LessThanOrEqual.class) {
+        newPair.setSecond(left.getFirst().getFirst().get(leftIndex).get(0).getSecond());
       }
 
       // Next switch on the right side to see if it is the greater than or less than clause and set
       // appropriate position
-      if (right.getSecond() == GreaterThan.class || right.getSecond() == GreaterThanOrEqual.class) {
-        newPair.setFirst(right.getFirst().get(dimIndex).get(0).getFirst());
-      } else if (right.getSecond() == LessThan.class
-          || right.getSecond() == LessThanOrEqual.class) {
-        newPair.setSecond(right.getFirst().get(dimIndex).get(0).getSecond());
+      if (right.getFirst().getSecond() == GreaterThan.class
+          || right.getFirst().getSecond() == GreaterThanOrEqual.class) {
+        newPair.setFirst(right.getFirst().getFirst().get(rightIndex).get(0).getFirst());
+      } else if (right.getFirst().getSecond() == LessThan.class
+          || right.getFirst().getSecond() == LessThanOrEqual.class) {
+        newPair.setSecond(right.getFirst().getFirst().get(rightIndex).get(0).getSecond());
       }
 
       // Set the range
       List<Range> constructedRange = new ArrayList<Range>();
       constructedRange.add(new Range(newPair));
 
-      constructedRanges.set(dimIndex, constructedRange);
+      constructedRanges.set(leftIndex, constructedRange);
 
-      return new Pair<>(constructedRanges, filterType);
+      Pair<List<List<Range>>, Class> pair = new Pair<>(ranges, filterType);
+      return new Pair<>(pair, finalQc);
       // Handle Or clauses as recursive calls
     } else if (filter instanceof Or) {
-      Pair<List<List<Range>>, Class> left =
+      Pair<Pair<List<List<Range>>, Class>, QueryCondition> left =
           buildRangeFromFilter(((Or) filter).left(), nonEmptyDomain);
-      Pair<List<List<Range>>, Class> right =
+      Pair<Pair<List<List<Range>>, Class>, QueryCondition> right =
           buildRangeFromFilter(((Or) filter).right(), nonEmptyDomain);
-      for (int i = 0; i < left.getFirst().size(); i++) {
-        while (right.getFirst().size() < i) {
-          right.getFirst().add(new ArrayList<>());
+
+      // Get the Query Conditions that consist each branch of the expression. If they are not null
+      // (they should never be null) combine them and create a new Query Condition to return.
+      QueryCondition leftQc = left.getSecond();
+      QueryCondition rightQc = right.getSecond();
+      if (leftQc != null && rightQc != null) {
+        finalQc = leftQc.combine(rightQc, TILEDB_OR);
+        // close unneeded query conditions
+        leftQc.close();
+        rightQc.close();
+      }
+
+      for (int i = 0; i < left.getFirst().getFirst().size(); i++) {
+        while (right.getFirst().getFirst().size() < i) {
+          right.getFirst().getFirst().add(new ArrayList<>());
         }
 
-        right.getFirst().get(i).addAll(left.getFirst().get(i));
+        right.getFirst().getFirst().get(i).addAll(left.getFirst().getFirst().get(i));
       }
+      right.setSecond(finalQc);
 
       return right;
       // Equal and EqualNullSafe are just straight dim1 = 1 fields. Set both side of range to single
@@ -284,11 +356,23 @@ public class TileDBBatch implements Batch {
       EqualNullSafe f = (EqualNullSafe) filter;
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), f.value())));
+
+      // for qc
+      if (arraySchema.hasAttribute(filterReferences[0])) {
+        Attribute att = arraySchema.getAttribute(filterReferences[0]);
+        finalQc =
+            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_EQ);
+      }
     } else if (filter instanceof EqualTo) {
       EqualTo f = (EqualTo) filter;
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), f.value())));
 
+      if (arraySchema.hasAttribute(filterReferences[0])) {
+        Attribute att = arraySchema.getAttribute(filterReferences[0]);
+        finalQc =
+            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_EQ);
+      }
       // GreaterThan is ranges which are in the form of `dim > 1`
     } else if (filter instanceof GreaterThan) {
       GreaterThan f = (GreaterThan) filter;
@@ -297,14 +381,16 @@ public class TileDBBatch implements Batch {
         second = nonEmptyDomain.get(f.attribute()).getSecond();
       else second = getMaxValue(f.value().getClass());
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
-      ranges
-          .get(columnIndex)
-          .add(
-              new Range(
-                  new Pair<>(
-                      addEpsilon(
-                          (Number) f.value(), this.tileDBReadSchema.columnTypes.get(columnIndex)),
-                      second)));
+      Number lowerBound =
+          addEpsilon((Number) f.value(), this.tileDBReadSchema.columnTypes.get(columnIndex));
+      ranges.get(columnIndex).add(new Range(new Pair<>(lowerBound, second)));
+
+      // for qc
+      if (arraySchema.hasAttribute(filterReferences[0])) {
+        Attribute att = arraySchema.getAttribute(filterReferences[0]);
+        finalQc =
+            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_GT);
+      }
     } else if (filter instanceof GreaterThanOrEqual) {
       GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
       Object second;
@@ -313,6 +399,13 @@ public class TileDBBatch implements Batch {
       else second = getMaxValue(f.value().getClass());
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), second)));
+
+      // for qc
+      if (arraySchema.hasAttribute(filterReferences[0])) {
+        Attribute att = arraySchema.getAttribute(filterReferences[0]);
+        finalQc =
+            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_GE);
+      }
 
       // For in filters we will add every value as ranges of 1. `dim IN (1, 2, 3)`
     } else if (filter instanceof In) {
@@ -340,6 +433,13 @@ public class TileDBBatch implements Batch {
                       subtractEpsilon(
                           (Number) f.value(),
                           this.tileDBReadSchema.columnTypes.get(columnIndex)))));
+      // for qc
+      if (arraySchema.hasAttribute(filterReferences[0])) {
+        Attribute att = arraySchema.getAttribute(filterReferences[0]);
+        finalQc =
+            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_LT);
+      }
+
       // LessThanOrEqual is ranges which are in the form of `dim <= 1`
     } else if (filter instanceof LessThanOrEqual) {
       LessThanOrEqual f = (LessThanOrEqual) filter;
@@ -349,11 +449,19 @@ public class TileDBBatch implements Batch {
       else first = getMinValue(f.value().getClass());
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges.get(columnIndex).add(new Range(new Pair<>(first, f.value())));
+
+      // for qc
+      if (arraySchema.hasAttribute(filterReferences[0])) {
+        Attribute att = arraySchema.getAttribute(filterReferences[0]);
+        finalQc =
+            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_LE);
+      }
     } else {
       throw new TileDBError("Unsupported filter type");
     }
     metricsUpdater.finish(dataSourceBuildRangeFromFilterTimerName);
-    return new Pair<>(ranges, filterType);
+    Pair<List<List<Range>>, Class> pair = new Pair<>(ranges, filterType);
+    return new Pair<>(pair, finalQc);
   }
 
   /**
@@ -486,6 +594,13 @@ public class TileDBBatch implements Batch {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
+    closeResources();
     return new TileDBPartitionReaderFactory(tileDBDataSourceOptions.getLegacyReader());
+  }
+
+  private void closeResources() {
+    array.close();
+    arraySchema.close();
+    ctx.close();
   }
 }
