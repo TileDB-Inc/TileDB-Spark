@@ -80,6 +80,7 @@ public class TileDBScanBuilder
   }
 
   private boolean filterCanBePushedDown(Filter filter) {
+    if (!options.getTileDBFiltering()) return false;
     if (filter instanceof And) {
       And f = (And) filter;
       return filterCanBePushedDown(f.left()) && filterCanBePushedDown(f.right());

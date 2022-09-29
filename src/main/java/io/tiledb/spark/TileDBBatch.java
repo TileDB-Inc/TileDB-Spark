@@ -265,7 +265,7 @@ public class TileDBBatch implements Batch {
       QueryCondition leftQc = left.getSecond();
       QueryCondition rightQc = right.getSecond();
       if (leftQc != null && rightQc != null) {
-        finalQc = leftQc.combine(rightQc, TILEDB_OR);
+        finalQc = leftQc.combine(rightQc, TILEDB_AND);
         // close unneeded query conditions
         leftQc.close();
         rightQc.close();
