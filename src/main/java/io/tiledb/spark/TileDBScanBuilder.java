@@ -13,14 +13,7 @@ import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
-import org.apache.spark.sql.sources.And;
-import org.apache.spark.sql.sources.EqualNullSafe;
-import org.apache.spark.sql.sources.EqualTo;
-import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.sources.GreaterThan;
-import org.apache.spark.sql.sources.GreaterThanOrEqual;
-import org.apache.spark.sql.sources.LessThan;
-import org.apache.spark.sql.sources.LessThanOrEqual;
+import org.apache.spark.sql.sources.*;
 import org.apache.spark.sql.types.StructType;
 
 public class TileDBScanBuilder
@@ -89,9 +82,7 @@ public class TileDBScanBuilder
   private boolean filterCanBePushedDown(Filter filter) {
     if (filter instanceof And) {
       And f = (And) filter;
-      if (filterCanBePushedDown(f.left()) && filterCanBePushedDown(f.right())) {
-        return true;
-      }
+      return filterCanBePushedDown(f.left()) && filterCanBePushedDown(f.right());
     } else if (filter instanceof EqualNullSafe) {
       return true;
     } else if (filter instanceof EqualTo) {
@@ -104,6 +95,9 @@ public class TileDBScanBuilder
       return true;
     } else if (filter instanceof LessThanOrEqual) {
       return true;
+    } else if (filter instanceof Or) {
+      Or f = (Or) filter;
+      return filterCanBePushedDown(f.left()) && filterCanBePushedDown(f.right());
     }
     return false;
   }

@@ -3,9 +3,6 @@ package io.tiledb.spark;
 import static io.tiledb.java.api.QueryStatus.TILEDB_COMPLETED;
 import static io.tiledb.java.api.QueryStatus.TILEDB_INCOMPLETE;
 import static io.tiledb.java.api.QueryStatus.TILEDB_UNINITIALIZED;
-import static io.tiledb.libtiledb.tiledb_query_condition_combination_op_t.TILEDB_AND;
-import static io.tiledb.libtiledb.tiledb_query_condition_op_t.TILEDB_GE;
-import static io.tiledb.libtiledb.tiledb_query_condition_op_t.TILEDB_LE;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryAllocBufferTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryGetTimerName;
 import static org.apache.spark.metrics.TileDBMetricsSource.queryInitTimerName;
@@ -581,16 +578,15 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
     query = new Query(array, QueryType.TILEDB_READ);
 
     // Pushdown any ranges
-    QueryCondition finalCondition = null;
     if (allRanges.size() > 0) {
       // the first element of the allranges list is a list of the dimension ranges. The remaining
-      // elements are singleton lists of the attribute ranges.
+      // elements are lists of the attribute ranges.
       List<Range> dimensionRanges = allRanges.get(0);
-      List<List<Range>> attributeRanges = allRanges.subList(1, allRanges.size());
 
       int dimIndex = 0;
       for (Range range : dimensionRanges) {
         if (range.getFirst() == null || range.getSecond() == null) {
+          dimIndex++;
           continue;
         }
         if (arraySchema.getDomain().getDimension(dimIndex).isVar())
@@ -599,39 +595,9 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
         dimIndex++;
       }
 
-      int attIndex = 0;
-      for (List<Range> ranges : attributeRanges) {
-        for (Range range : ranges) {
-          if (range.getFirst() == null || range.getSecond() == null) {
-            continue;
-          }
-          Object lowBound;
-          Object highBound;
-          Attribute att = arraySchema.getAttribute(attIndex);
-          boolean isString = att.getType().javaClass().equals(String.class);
-          if (isString) {
-            highBound = range.getSecond().toString().getBytes();
-            lowBound = range.getFirst().toString().getBytes();
-          } else {
-            highBound = range.getSecond();
-            lowBound = range.getFirst();
-          }
-          QueryCondition cond1 =
-              new QueryCondition(
-                  ctx, att.getName(), lowBound, att.getType().javaClass(), TILEDB_GE);
-          QueryCondition cond2 =
-              new QueryCondition(
-                  ctx, att.getName(), highBound, att.getType().javaClass(), TILEDB_LE);
-          QueryCondition cond3 = cond1.combine(cond2, TILEDB_AND);
-          if (finalCondition == null) finalCondition = cond3;
-          else finalCondition = finalCondition.combine(cond3, TILEDB_AND);
-
-          att.close();
-        }
-        attIndex++;
-      }
-
-      if (finalCondition != null) query.setCondition(finalCondition);
+      // use the master condition for attributes which is calculated in the TileDBBatch class.
+      if (TileDBBatch.finalQueryCondition != null)
+        query.setCondition(TileDBBatch.finalQueryCondition);
     }
 
     // set query read layout
