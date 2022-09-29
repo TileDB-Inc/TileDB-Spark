@@ -61,6 +61,14 @@ public class TileDBDataSourceOptions implements Serializable {
     return true;
   }
 
+  /** @return Disable filtering by TileDB's Query Condition * */
+  public boolean getTileDBFiltering() {
+    if (optionMap.containsKey("tiledb_filtering")) {
+      return Boolean.parseBoolean(optionMap.get("tiledb_filtering"));
+    }
+    return true;
+  }
+
   /** @return True if the legacy non-arrow reader is requested * */
   public boolean getLegacyReader() {
     if (optionMap.containsKey("legacy_reader")) {
