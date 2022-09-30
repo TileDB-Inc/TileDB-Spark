@@ -233,7 +233,7 @@ public class TileDBDataSourceOptions implements Serializable {
     return tryParseOptionKeyDouble(optionMap, dimExtentKey);
   }
 
-  public Optional<List<Pair<String, Integer>>> getAttributeFilterList(String attrName) {
+  public Optional<List<Pair<String, Object[]>>> getAttributeFilterList(String attrName) {
     String filterListKey = "schema.attr." + attrName + ".filter_list";
     if (!optionMap.containsKey(filterListKey)) {
       return Optional.empty();
@@ -241,7 +241,7 @@ public class TileDBDataSourceOptions implements Serializable {
     return tryParseFilterList(optionMap.get(filterListKey));
   }
 
-  public Optional<List<Pair<String, Integer>>> getSchemaCoordsFilterList() {
+  public Optional<List<Pair<String, Object[]>>> getSchemaCoordsFilterList() {
     String filterListKey = "schema.coords_filter_list";
     if (!optionMap.containsKey(filterListKey)) {
       return Optional.empty();
@@ -249,7 +249,7 @@ public class TileDBDataSourceOptions implements Serializable {
     return tryParseFilterList(optionMap.get(filterListKey));
   }
 
-  public Optional<List<Pair<String, Integer>>> getSchemaOffsetsFilterList() {
+  public Optional<List<Pair<String, Object[]>>> getSchemaOffsetsFilterList() {
     String filterListKey = "schema.offsets_filter_list";
     if (!optionMap.containsKey(filterListKey)) {
       return Optional.empty();
@@ -330,21 +330,18 @@ public class TileDBDataSourceOptions implements Serializable {
     return Optional.empty();
   }
 
-  public static Optional<List<Pair<String, Integer>>> tryParseFilterList(String csvList)
+  public static Optional<List<Pair<String, Object[]>>> tryParseFilterList(String csvList)
       throws IllegalArgumentException {
     // filter lists are in the form "(filter, option), (filter, option), etc.")
-    List<Pair<String, Integer>> filterResults = new ArrayList<>();
+    List<Pair<String, Object[]>> filterResults = new ArrayList<>();
     // String[] splitVals = csvList.split("\\s*,\\s*");
     Pattern filterListRegex = Pattern.compile("\\(\\s?(.*?)\\s?,\\s?(.*?)\\s?\\)");
     Matcher filterListMatcher = filterListRegex.matcher(csvList);
     while (filterListMatcher.find()) {
-      String filterString = filterListMatcher.group();
-      String[] filterPair = filterString.split("\\s*,\\s*");
-      if (filterPair.length != 2) {
-        throw new IllegalArgumentException("Unknown TileDB filter syntax " + filterString);
-      }
       // remove parens
-      String filterName = filterPair[0].substring(1);
+      String filterString = filterListMatcher.group().replace(")", "").replace("(", "");
+      String[] filterWithOptions = filterString.split("\\s*,\\s*");
+      String filterName = filterWithOptions[0];
       if (filterName.equalsIgnoreCase("NONE") || filterName.equalsIgnoreCase("NOOP")) {
       } else if (filterName.equalsIgnoreCase("GZIP")) {
       } else if (filterName.equalsIgnoreCase("ZSTD")) {
@@ -356,22 +353,24 @@ public class TileDBDataSourceOptions implements Serializable {
       } else if (filterName.equalsIgnoreCase("BITSHUFFLE")) {
       } else if (filterName.equalsIgnoreCase("BYTESHUFFLE")) {
       } else if (filterName.equalsIgnoreCase("POSITIVE_DELTA")) {
+      } else if (filterName.equalsIgnoreCase("SCALE_FLOAT")) {
       } else {
         throw new IllegalArgumentException("Unknown TileDB filter string value: " + filterName);
       }
-      Integer filterOption = -1;
-      if (filterPair.length == 2) {
-        // remove parens
-        String filterOptionStr = filterPair[1];
-        filterOptionStr = filterOptionStr.substring(0, filterOptionStr.length() - 1);
+      Object[] filterOptions = new Object[filterWithOptions.length - 1]; // without name
+      if (filterWithOptions.length > 1) { // if options present
         try {
-          filterOption = Integer.parseInt(filterOptionStr);
+          int j = 0;
+          for (int i = 1; i < filterWithOptions.length; i++) {
+            filterOptions[j] = filterWithOptions[i];
+            j++;
+          }
         } catch (NumberFormatException err) {
           throw new IllegalArgumentException(
-              "Cannot parse filter option value for " + filterName + ": " + filterOptionStr);
+              "Cannot parse filter options for filter: " + filterName);
         }
       }
-      filterResults.add(new Pair<>(filterName, filterOption));
+      filterResults.add(new Pair<>(filterName, filterOptions));
     }
     if (filterResults.isEmpty()) {
       return Optional.empty();
