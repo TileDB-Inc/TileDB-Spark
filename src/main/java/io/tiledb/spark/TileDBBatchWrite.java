@@ -181,14 +181,14 @@ public class TileDBBatchWrite implements BatchWrite {
         arraySchema.setTileOrder(schemaTileOrder.get());
       }
       // schema filters
-      Optional<List<Pair<String, Integer>>> coordsFilters = options.getSchemaCoordsFilterList();
+      Optional<List<Pair<String, Object[]>>> coordsFilters = options.getSchemaCoordsFilterList();
       if (coordsFilters.isPresent()) {
         try (FilterList filterList =
             TileDBWriteSchema.createTileDBFilterList(ctx, coordsFilters.get())) {
           arraySchema.setCoodsFilterList(filterList);
         }
       }
-      Optional<List<Pair<String, Integer>>> offsetsFilters = options.getSchemaOffsetsFilterList();
+      Optional<List<Pair<String, Object[]>>> offsetsFilters = options.getSchemaOffsetsFilterList();
       if (coordsFilters.isPresent()) {
         try (FilterList filterList =
             TileDBWriteSchema.createTileDBFilterList(ctx, offsetsFilters.get())) {

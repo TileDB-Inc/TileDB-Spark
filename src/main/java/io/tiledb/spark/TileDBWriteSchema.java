@@ -255,7 +255,7 @@ public class TileDBWriteSchema {
       throw new TileDBError(
           "Spark DataType not supported for TileDB schema conversion: " + dataType.toString());
     }
-    Optional<List<Pair<String, Integer>>> filterListDesc =
+    Optional<List<Pair<String, Object[]>>> filterListDesc =
         options.getAttributeFilterList(field.name());
     try {
       if (filterListDesc.isPresent()) {
@@ -272,56 +272,86 @@ public class TileDBWriteSchema {
   }
 
   public static FilterList createTileDBFilterList(
-      Context ctx, List<Pair<String, Integer>> filterListDesc) throws TileDBError {
+      Context ctx, List<Pair<String, Object[]>> filterListDesc) throws TileDBError {
     FilterList filterList = new FilterList(ctx);
     try {
-      for (Pair<String, Integer> filterDesc : filterListDesc) {
+      for (Pair<String, Object[]> filterDesc : filterListDesc) {
         String filterName = filterDesc.getFirst();
-        Integer filterOption = filterDesc.getSecond();
-        if (filterName.equalsIgnoreCase("NONE")) {
-          try (Filter filter = new NoneFilter(ctx)) {
-            filterList.addFilter(filter);
+        Object[] filterOptions = filterDesc.getSecond();
+        try {
+          if (filterName.equalsIgnoreCase("NONE")) {
+            try (Filter filter = new NoneFilter(ctx)) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("GZIP")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter = new GzipFilter(ctx, Integer.parseInt((String) filterOptions[0]))) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("ZSTD")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter = new ZstdFilter(ctx, Integer.parseInt((String) filterOptions[0]))) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("LZ4")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter = new LZ4Filter(ctx, Integer.parseInt((String) filterOptions[0]))) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("RLE")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter = new LZ4Filter(ctx, Integer.parseInt((String) filterOptions[0]))) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("BZIP2")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter =
+                new Bzip2Filter(ctx, Integer.parseInt((String) filterOptions[0]))) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("DOUBLE_DELTA")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter =
+                new DoubleDeltaFilter(ctx, Integer.parseInt((String) filterOptions[0]))) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("BIT_WIDTH_REDUCTION")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter =
+                new BitWidthReductionFilter(ctx, Integer.parseInt((String) filterOptions[0]))) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("BITSHUFFLE")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter = new BitShuffleFilter(ctx)) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("BYTESHUFFLE")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter = new ByteShuffleFilter(ctx)) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("POSITIVE_DELTA")) {
+            checkOptionsNumber(filterName, filterOptions, 1);
+            try (Filter filter = new ByteShuffleFilter(ctx)) {
+              filterList.addFilter(filter);
+            }
+          } else if (filterName.equalsIgnoreCase("SCALE_FLOAT")) {
+            checkOptionsNumber(filterName, filterOptions, 3);
+            try (Filter filter =
+                new FloatScalingFilter(
+                    ctx,
+                    Double.parseDouble((String) filterOptions[0]),
+                    Double.parseDouble((String) filterOptions[1]),
+                    Long.parseLong((String) filterOptions[2]))) {
+              filterList.addFilter(filter);
+            }
           }
-        } else if (filterName.equalsIgnoreCase("GZIP")) {
-          try (Filter filter = new GzipFilter(ctx, filterOption)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("ZSTD")) {
-          try (Filter filter = new ZstdFilter(ctx, filterOption)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("LZ4")) {
-          try (Filter filter = new LZ4Filter(ctx, filterOption)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("RLE")) {
-          try (Filter filter = new LZ4Filter(ctx, filterOption)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("BZIP2")) {
-          try (Filter filter = new Bzip2Filter(ctx, filterOption)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("DOUBLE_DELTA")) {
-          try (Filter filter = new DoubleDeltaFilter(ctx, filterOption)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("BIT_WIDTH_REDUCTION")) {
-          try (Filter filter = new BitWidthReductionFilter(ctx, filterOption)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("BITSHUFFLE")) {
-          try (Filter filter = new BitShuffleFilter(ctx)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("BYTESHUFFLE")) {
-          try (Filter filter = new ByteShuffleFilter(ctx)) {
-            filterList.addFilter(filter);
-          }
-        } else if (filterName.equalsIgnoreCase("POSITIVE_DELTA")) {
-          try (Filter filter = new ByteShuffleFilter(ctx)) {
-            filterList.addFilter(filter);
-          }
+        } catch (ClassCastException exception) {
+          throw new TileDBError(
+              "There was an datatype error in the options given for filter: "
+                  + filterName
+                  + ". Please see the README file for a detailed breakdown of all filters and their options.");
         }
       }
     } catch (TileDBError err) {
@@ -329,5 +359,15 @@ public class TileDBWriteSchema {
       throw err;
     }
     return filterList;
+  }
+
+  private static void checkOptionsNumber(
+      String filterName, Object[] filterOptions, int expectedNumberOfOptions) throws TileDBError {
+    if (filterOptions.length != expectedNumberOfOptions) {
+      throw new TileDBError(
+          "Wrong number of options given for filter "
+              + filterName
+              + ". Please see the README file.");
+    }
   }
 }

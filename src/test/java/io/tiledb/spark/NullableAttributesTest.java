@@ -418,15 +418,15 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
     StructField[] structFields =
         new StructField[] {
           new StructField("d1", DataTypes.IntegerType, false, Metadata.empty()),
-          new StructField("a1", DataTypes.IntegerType, true, Metadata.empty()),
+          new StructField("a1", DataTypes.FloatType, true, Metadata.empty()),
           new StructField("a2", DataTypes.StringType, true, Metadata.empty()),
         };
     List<Row> rows = new ArrayList<>();
     rows.add(RowFactory.create(1, null, "a"));
     rows.add(RowFactory.create(2, null, "b"));
     rows.add(RowFactory.create(3, null, "c"));
-    rows.add(RowFactory.create(4, 4, null));
-    rows.add(RowFactory.create(5, 5, null));
+    rows.add(RowFactory.create(4, 4.0f, null));
+    rows.add(RowFactory.create(5, 5.0f, null));
     StructType structType = new StructType(structFields);
     Dataset<Row> df = ss.createDataFrame(rows, structType);
     return df;
@@ -467,7 +467,7 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
         .option("schema.dim.0.min", 1)
         .option("schema.dim.0.max", 8)
         .option("schema.dim.0.extent", 2)
-        .option("schema.attr.a1.filter_list", "(byteshuffle, -1), (gzip, -10)")
+        .option("schema.attr.a1.filter_list", "(scale_float, 1.0, 1.0, 8)")
         .option("schema.cell_order", "row-major")
         .option("schema.tile_order", "row-major")
         .option("schema.capacity", 3)
@@ -496,12 +496,12 @@ public class NullableAttributesTest extends SharedJavaSparkSession {
 
     row = rows.get(3);
     Assert.assertEquals(4, row.get(0));
-    Assert.assertEquals(4, row.get(1));
+    Assert.assertEquals(4.0f, row.get(1));
     Assert.assertNull(row.get(2));
 
     row = rows.get(4);
     Assert.assertEquals(5, row.get(0));
-    Assert.assertEquals(5, row.get(1));
+    Assert.assertEquals(5.0f, row.get(1));
     Assert.assertNull(row.get(2));
   }
 
