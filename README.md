@@ -70,7 +70,6 @@ A dedicated jar `tiledb-spark-metrics-$version.jar` is built by default to
 allow a user to place this in the class path. Typically this jar can be copied
 to `$SPARK_HOME/jars/`.
 
-
 ## Options
 
 ### Read/Write options
@@ -100,9 +99,10 @@ to `$SPARK_HOME/jars/`.
 * `schema.tile_order` (optional): Specify the tile order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
 * `schema.coords_filter_list` (optional): Specify the coordinate filter list
 * `schema.offsets_filter_list` (optional): Specify the offsets filter list
+* `schema.<ATT_NAME>.filter_list` (optional): Specify the attribute filter list
 * `metadata_value.<KEY>` (optional): The metadata value for a given key
 * `metadata_type.<KEY>` (optional): The metadata datatype for a given key
-
+  <br /><br /> Note: Filters are passed as options as shown [here](https://github.com/TileDB-Inc/TileDB-Spark/blob/abcbce41950d105a609aeed5d2d498f64945f2bc/src/test/java/io/tiledb/spark/NullableAttributesTest.java#L519). Each filter needs to have at least one parameter. Use -1 if the filter in use does not take any parameters (e.g (byteshuffle, -1))
 ## Semantics
 
 ### Type Mapping
