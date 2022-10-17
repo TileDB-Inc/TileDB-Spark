@@ -12,6 +12,7 @@ import static org.apache.spark.metrics.TileDBMetricsSource.dataSourceComputeNeed
 import static org.apache.spark.metrics.TileDBMetricsSource.dataSourcePlanBatchInputPartitionsTimerName;
 
 import io.tiledb.java.api.*;
+import io.tiledb.libtiledb.tiledb_query_condition_op_t;
 import java.net.URISyntaxException;
 import java.util.*;
 import java.util.stream.IntStream;
@@ -357,22 +358,15 @@ public class TileDBBatch implements Batch {
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), f.value())));
 
-      // for qc
-      if (arraySchema.hasAttribute(filterReferences[0])) {
-        Attribute att = arraySchema.getAttribute(filterReferences[0]);
-        finalQc =
-            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_EQ);
-      }
+      finalQc = createBaseQueryCondition(filterReferences[0], f.value(), TILEDB_EQ);
+
     } else if (filter instanceof EqualTo) {
       EqualTo f = (EqualTo) filter;
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), f.value())));
 
-      if (arraySchema.hasAttribute(filterReferences[0])) {
-        Attribute att = arraySchema.getAttribute(filterReferences[0]);
-        finalQc =
-            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_EQ);
-      }
+      finalQc = createBaseQueryCondition(filterReferences[0], f.value(), TILEDB_EQ);
+
       // GreaterThan is ranges which are in the form of `dim > 1`
     } else if (filter instanceof GreaterThan) {
       GreaterThan f = (GreaterThan) filter;
@@ -385,12 +379,8 @@ public class TileDBBatch implements Batch {
           addEpsilon((Number) f.value(), this.tileDBReadSchema.columnTypes.get(columnIndex));
       ranges.get(columnIndex).add(new Range(new Pair<>(lowerBound, second)));
 
-      // for qc
-      if (arraySchema.hasAttribute(filterReferences[0])) {
-        Attribute att = arraySchema.getAttribute(filterReferences[0]);
-        finalQc =
-            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_GT);
-      }
+      finalQc = createBaseQueryCondition(filterReferences[0], f.value(), TILEDB_GT);
+
     } else if (filter instanceof GreaterThanOrEqual) {
       GreaterThanOrEqual f = (GreaterThanOrEqual) filter;
       Object second;
@@ -400,12 +390,7 @@ public class TileDBBatch implements Batch {
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges.get(columnIndex).add(new Range(new Pair<>(f.value(), second)));
 
-      // for qc
-      if (arraySchema.hasAttribute(filterReferences[0])) {
-        Attribute att = arraySchema.getAttribute(filterReferences[0]);
-        finalQc =
-            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_GE);
-      }
+      finalQc = createBaseQueryCondition(filterReferences[0], f.value(), TILEDB_GE);
 
       // For in filters we will add every value as ranges of 1. `dim IN (1, 2, 3)`
     } else if (filter instanceof In) {
@@ -433,12 +418,8 @@ public class TileDBBatch implements Batch {
                       subtractEpsilon(
                           (Number) f.value(),
                           this.tileDBReadSchema.columnTypes.get(columnIndex)))));
-      // for qc
-      if (arraySchema.hasAttribute(filterReferences[0])) {
-        Attribute att = arraySchema.getAttribute(filterReferences[0]);
-        finalQc =
-            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_LT);
-      }
+
+      finalQc = createBaseQueryCondition(filterReferences[0], f.value(), TILEDB_LT);
 
       // LessThanOrEqual is ranges which are in the form of `dim <= 1`
     } else if (filter instanceof LessThanOrEqual) {
@@ -450,18 +431,45 @@ public class TileDBBatch implements Batch {
       int columnIndex = this.tileDBReadSchema.getColumnId(f.attribute()).get();
       ranges.get(columnIndex).add(new Range(new Pair<>(first, f.value())));
 
-      // for qc
-      if (arraySchema.hasAttribute(filterReferences[0])) {
-        Attribute att = arraySchema.getAttribute(filterReferences[0]);
-        finalQc =
-            new QueryCondition(ctx, att.getName(), f.value(), att.getType().javaClass(), TILEDB_LE);
-      }
+      finalQc = createBaseQueryCondition(filterReferences[0], f.value(), TILEDB_LE);
+
     } else {
       throw new TileDBError("Unsupported filter type");
     }
     metricsUpdater.finish(dataSourceBuildRangeFromFilterTimerName);
     Pair<List<List<Range>>, Class> pair = new Pair<>(ranges, filterType);
     return new Pair<>(pair, finalQc);
+  }
+
+  /**
+   * Create the base query condition. When this method is called we have reached the bottom of the
+   * condition tree.
+   *
+   * @param attributeName the attributeName to apply the QC
+   * @param filterValue the value to use for the QC
+   * @param OP The QC OP
+   * @return The base QC
+   */
+  public QueryCondition createBaseQueryCondition(
+      String attributeName, Object filterValue, tiledb_query_condition_op_t OP) throws TileDBError {
+    // for qc
+    try {
+      if (arraySchema.hasAttribute(attributeName)) {
+        Attribute att = arraySchema.getAttribute(attributeName);
+        QueryCondition finalQc =
+            new QueryCondition(ctx, att.getName(), filterValue, att.getType().javaClass(), OP);
+        att.close();
+        return finalQc;
+      }
+    } catch (TileDBError e) {
+      throw new RuntimeException(e);
+    }
+
+    if (!arraySchema.getDomain().hasDimension(attributeName)) {
+      throw new TileDBError(
+          "You are applying a filter in a non existing attribute: " + attributeName);
+    }
+    return null;
   }
 
   /**
