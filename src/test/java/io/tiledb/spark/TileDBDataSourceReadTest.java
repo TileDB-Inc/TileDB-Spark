@@ -310,9 +310,14 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
               .sqlContext()
               .sql("SELECT * FROM tmp WHERE (d2 > 20 AND a1 > 9) OR a2 = 100")
               .collectAsList(); // is pushed down
+      List<Row> rows6 =
+          dfRead
+              .sqlContext()
+              .sql("SELECT * FROM tmp WHERE (a1 > 20 AND a1 < 30) OR (a2 > 250 AND a2 < 2000)")
+              .collectAsList(); // is pushed down
 
       //      for (int i = 0; i < rows3.size(); i++) {
-      //        System.out.println(rows3.get(i).getInt(3));
+      //        System.out.println(rows6.get(i).getInt(3));
       //      }
 
       String[] d1 = new String[] {"object1", "object2", "object3"};
@@ -374,6 +379,18 @@ public class TileDBDataSourceReadTest extends SharedJavaSparkSession {
         Assert.assertEquals(d2[i], rows5.get(i).getInt(1));
         Assert.assertEquals(a1[i], rows5.get(i).getInt(2));
         Assert.assertEquals(a2[i], rows5.get(i).getInt(3));
+      }
+
+      d1 = new String[] {"object2", "object3"};
+      d2 = new int[] {40, 50};
+      a1 = new int[] {23, 30};
+      a2 = new int[] {230, 300};
+      Assert.assertEquals(rows6.size(), d1.length);
+      for (int i = 0; i < rows6.size(); i++) {
+        Assert.assertEquals(d1[i], rows6.get(i).getString(0));
+        Assert.assertEquals(d2[i], rows6.get(i).getInt(1));
+        Assert.assertEquals(a1[i], rows6.get(i).getInt(2));
+        Assert.assertEquals(a2[i], rows6.get(i).getInt(3));
       }
     }
   }
