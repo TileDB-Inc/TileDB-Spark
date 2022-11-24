@@ -880,8 +880,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
     numValues = putValuesOfAtt(name, dataType, index);
     if (nullable) { // if the attribute is nullable, check the validity map and act accordingly.
       validityByteMap = query.getValidityByteMap(name);
-      for (int i = 0; i < validityByteMap.length; i++) {
-        if (validityByteMap[i] == 0) resultVectors[index].putNull(i);
+      if (resultVectors.length > 0) {
+        for (int i = 0; i < validityByteMap.length; i++) {
+          if (validityByteMap[i] == 0) resultVectors[index].putNull(i);
+        }
       }
     }
     metricsUpdater.finish(queryGetScalarAttributeTimerName);
@@ -906,16 +908,20 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         {
           float[] buff = (float[]) query.getBuffer(name);
           bufferLength = buff.length;
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putFloats(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putFloats(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_FLOAT64:
         {
           double[] buff = (double[]) query.getBuffer(name);
           bufferLength = buff.length;
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putDoubles(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putDoubles(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_INT8:
@@ -927,8 +933,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         {
           byte[] buff = (byte[]) query.getBuffer(name);
           bufferLength = buff.length;
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putBytes(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putBytes(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_INT16:
@@ -936,8 +944,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         {
           short[] buff = (short[]) query.getBuffer(name);
           bufferLength = buff.length;
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putShorts(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putShorts(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_INT32:
@@ -945,8 +955,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         {
           int[] buff = (int[]) query.getBuffer(name);
           bufferLength = buff.length;
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putInts(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putInts(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_INT64:
@@ -956,8 +968,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
         {
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_MS:
@@ -965,8 +979,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000).toArray();
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_AS:
@@ -974,8 +990,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000000000L).toArray();
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_FS:
@@ -983,8 +1001,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000000).toArray();
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_PS:
@@ -992,8 +1012,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000000).toArray();
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_NS:
@@ -1001,8 +1023,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           long[] buffConverted = Arrays.stream(buff).map(i -> i / 1000).toArray();
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_SEC:
@@ -1010,8 +1034,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000000).toArray();
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_MIN:
@@ -1019,8 +1045,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000000000).toArray();
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_HR:
@@ -1028,8 +1056,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
           long[] buff = (long[]) query.getBuffer(name);
           bufferLength = buff.length;
           long[] buffConverted = Arrays.stream(buff).map(i -> i * 1000000000000L).toArray();
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buffConverted, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_DAY:
@@ -1040,8 +1070,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             ms = zeroDateTime.plusDays(buff[i]);
             buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
           }
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_WEEK:
@@ -1052,8 +1084,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             ms = zeroDateTime.plusWeeks(buff[i]);
             buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
           }
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_MONTH:
@@ -1064,8 +1098,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             ms = zeroDateTime.plusMonths(buff[i]);
             buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
           }
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          }
           break;
         }
       case TILEDB_DATETIME_YEAR:
@@ -1076,8 +1112,10 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
             ms = zeroDateTime.plusYears(buff[i]);
             buff[i] = ChronoUnit.MICROS.between(zeroDateTime, ms);
           }
-          resultVectors[index].getChild(0).reserve(bufferLength);
-          resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          if (resultVectors.length > 0) {
+            resultVectors[index].getChild(0).reserve(bufferLength);
+            resultVectors[index].getChild(0).putLongs(0, bufferLength, buff, 0);
+          }
           break;
         }
       default:
@@ -1115,13 +1153,17 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       }
     }
 
-    resultVectors[index].reset();
-    resultVectors[index].getChild(0).reset();
+    if (resultVectors.length > 0) {
+      resultVectors[index].reset();
+      resultVectors[index].getChild(0).reset();
+    }
     bufferLength = putValuesOfAttVar(name, dataType, index);
     if (nullable) {
       validityByteMap = query.getValidityByteMap(name);
-      for (int i = 0; i < validityByteMap.length; i++) { // check for null values.
-        if (validityByteMap[i] == 0) resultVectors[index].putNull(i);
+      if (resultVectors.length > 0) {
+        for (int i = 0; i < validityByteMap.length; i++) { // check for null values.
+          if (validityByteMap[i] == 0) resultVectors[index].putNull(i);
+        }
       }
     }
 
@@ -1132,17 +1174,21 @@ public class TileDBDataReaderPartitionScan implements InputPartitionReader<Colum
       // number of bytes per (scalar) element in
       int typeSize = dataType.getNativeSize();
       long numBytes = bufferLength * typeSize;
-      for (int j = 0; j < numValues; j++) {
-        int off1 = Math.toIntExact(offsets[j] / typeSize);
-        int off2 = Math.toIntExact((j < numValues - 1 ? offsets[j + 1] : numBytes) / typeSize);
-        resultVectors[index].putArray(j, off1, off2 - off1);
+      if (resultVectors.length > 0) {
+        for (int j = 0; j < numValues; j++) {
+          int off1 = Math.toIntExact(offsets[j] / typeSize);
+          int off2 = Math.toIntExact((j < numValues - 1 ? offsets[j + 1] : numBytes) / typeSize);
+          resultVectors[index].putArray(j, off1, off2 - off1);
+        }
       }
     } else {
       // fixed sized array attribute
       int cellNum = (int) cellValNum;
       numValues = bufferLength / cellNum;
-      for (int j = 0; j < numValues; j++) {
-        resultVectors[index].putArray(j, cellNum * j, cellNum);
+      if (resultVectors.length > 0) {
+        for (int j = 0; j < numValues; j++) {
+          resultVectors[index].putArray(j, cellNum * j, cellNum);
+        }
       }
     }
     metricsUpdater.finish(queryGetVariableLengthAttributeTimerName);
