@@ -69,14 +69,6 @@ public class TileDBDataSourceOptions implements Serializable {
     return true;
   }
 
-  /** @return True if the legacy non-arrow reader is requested * */
-  public boolean getLegacyReader() {
-    if (optionMap.containsKey("legacy_reader")) {
-      return Boolean.parseBoolean(optionMap.get("legacy_reader"));
-    }
-    return false;
-  }
-
   /** @return True if only the array metadata is requested * */
   public boolean printMetadata() {
     if (optionMap.containsKey("print_array_metadata")) {
