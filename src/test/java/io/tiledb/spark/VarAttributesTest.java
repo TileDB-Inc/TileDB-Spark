@@ -94,9 +94,15 @@ public class VarAttributesTest extends SharedJavaSparkSession {
         Query query = new Query(array)) {
       query.setLayout(TILEDB_ROW_MAJOR);
 
-      query.setBuffer("a1", a1);
-      query.setBufferNullable("a2", a2_offsets, a2, a2Bytemap);
-      query.setBufferNullable("a3", a3_offsets, buffer_var_a3, a3Bytemap);
+      query.setDataBuffer("a1", a1);
+
+      query.setDataBuffer("a2", a2);
+      query.setValidityBuffer("a2", a2Bytemap);
+      query.setOffsetsBuffer("a2", a2_offsets);
+
+      query.setDataBuffer("a3", buffer_var_a3);
+      query.setValidityBuffer("a3", a3Bytemap);
+      query.setOffsetsBuffer("a3", a3_offsets);
 
       // Submit query
       query.submit();

@@ -462,6 +462,8 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
             for (int j = 0; j < nRows; j++) {
               if (validityByteBuffer.getByte(j) == (byte) 0) {
                 BitVectorHelper.setValidityBit(arrowBufValidity, j, 0);
+              } else {
+                BitVectorHelper.setValidityBit(arrowBufValidity, j, 1);
               }
             }
           }
@@ -584,16 +586,19 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
       List<Range> dimensionRanges = allRanges.get(0);
 
       int dimIndex = 0;
+      SubArray subArray = new SubArray(ctx, array);
       for (Range range : dimensionRanges) {
         if (range.getFirst() == null || range.getSecond() == null) {
           dimIndex++;
           continue;
         }
         if (arraySchema.getDomain().getDimension(dimIndex).isVar())
-          query.addRangeVar(dimIndex, range.getFirst().toString(), range.getSecond().toString());
-        else query.addRange(dimIndex, range.getFirst(), range.getSecond());
+          subArray.addRangeVar(dimIndex, range.getFirst().toString(), range.getSecond().toString());
+        else subArray.addRange(dimIndex, range.getFirst(), range.getSecond(), null);
+
         dimIndex++;
       }
+      if (dimensionRanges.size() > 0) query.setSubarray(subArray);
 
       // use the master condition for attributes which is calculated in the TileDBBatch class.
       if (TileDBBatch.finalQueryCondition != null)
@@ -705,7 +710,7 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
       ArrowType arrowType;
       ValueVector valueVector;
 
-      // In theory we could try to replace the following UInt2Vector with Uint1Vector. However,
+      // In theory, we could try to replace the following UInt2Vector with Uint1Vector. However,
       // TileDB will throw an error that more validity cells are needed for the query. This
       // happens because apache-arrow rounds up the size of the data buffers, thus making it
       // necessary for us to provide more validity cells. This implementation provides double
@@ -807,11 +812,11 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
       // offsetBuffers.
       // The validityValueVector is a help valueVector that holds the validity values in a byte
       // format which is the one expected from TileDB. The validity buffers in the main valueVector
-      // is a bitmap instead!
+      // are bitmaps instead!
       // A conversion between the two is needed when retrieving the data. See the code in the get()
       // method.
       valueVector.allocateNew();
-      validityValueVector.allocateNew();
+      if (typeInfo.isNullable) validityValueVector.allocateNew();
 
       createAndSetArrowBuffers(valueVector, validityValueVector, typeInfo, name);
     }
@@ -847,9 +852,11 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
       data = arrowData.nioBuffer(0, (int) arrowData.capacity());
     }
 
-    data.order(ByteOrder.LITTLE_ENDIAN);
+    data.order(ByteOrder.nativeOrder());
 
-    // for nulls
+    query.setDataBuffer(name, data);
+
+    // This snippet bellow is necessary for all attributes
     ArrowBuf arrowBufBitMapValidity;
     arrowBufBitMapValidity = valueVector.getValidityBuffer();
     // necessary to populate with non-null values
@@ -857,35 +864,33 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
       arrowBufBitMapValidity.setByte(j, 0xff);
     }
 
-    ArrowBuf arrowBufByteMapValidity = validityValueVector.getDataBuffer();
-    for (int j = 0; j < arrowBufByteMapValidity.capacity(); j++) {
-      arrowBufByteMapValidity.setByte(j, 0xff);
-    }
-    ByteBuffer byteBufferValidity =
-        arrowBufByteMapValidity.nioBuffer(0, (int) arrowBufByteMapValidity.capacity());
-    byteBufferValidity.order(ByteOrder.LITTLE_ENDIAN);
-    // end of nulls
-
+    // VARS
     if (typeInfo.isVarLen) {
       // Set the offsets buffer.
-
       ArrowBuf arrowOffsets = valueVector.getOffsetBuffer();
       ByteBuffer offsets = arrowOffsets.nioBuffer(0, (int) arrowOffsets.capacity());
+      offsets.order(ByteOrder.nativeOrder());
 
-      if (typeInfo.isNullable) {
-        query.setBufferNullableNIO(name, offsets, data, byteBufferValidity);
-      } else {
-        query.setBuffer(name, offsets, data);
-      }
-    } else {
-      if (typeInfo.isNullable) {
-        query.setBufferNullableNIO(name, data, byteBufferValidity);
-      } else {
-        query.setBuffer(name, data);
-      }
+      query.setOffsetsBuffer(name, offsets);
     }
+    // END OF VARS
+
+    // NULLS
+    if (typeInfo.isNullable) {
+      ArrowBuf arrowBufByteMapValidity = validityValueVector.getDataBuffer();
+      ByteBuffer byteBufferValidity =
+          arrowBufByteMapValidity.nioBuffer(0, (int) arrowBufByteMapValidity.capacity());
+      byteBufferValidity.order(ByteOrder.nativeOrder());
+      query.setValidityBuffer(name, byteBufferValidity);
+      this.validityValueVectors.add(validityValueVector);
+    } else {
+      validityValueVector.close();
+      this.validityValueVectors.add(
+          null); // no need to save validityValueVectors for non-null attributes
+    }
+    // END OF NULLS
+
     this.queryByteBuffers.add(data);
-    this.validityValueVectors.add(validityValueVector);
     this.valueVectors.add(valueVector);
   }
 
@@ -924,7 +929,7 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
   /** Closes any allocated Arrow vectors and clears the list. */
   private void releaseArrowVectors() {
     if (validityValueVectors != null) {
-      for (ValueVector v : validityValueVectors) v.close();
+      for (ValueVector v : validityValueVectors) if (v != null) v.close();
       validityValueVectors.clear();
     }
     if (valueVectors != null) {
