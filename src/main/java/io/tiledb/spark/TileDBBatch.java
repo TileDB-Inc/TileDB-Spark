@@ -603,7 +603,7 @@ public class TileDBBatch implements Batch {
   @Override
   public PartitionReaderFactory createReaderFactory() {
     closeResources();
-    return new TileDBPartitionReaderFactory(tileDBDataSourceOptions.getLegacyReader());
+    return new TileDBPartitionReaderFactory();
   }
 
   private void closeResources() {

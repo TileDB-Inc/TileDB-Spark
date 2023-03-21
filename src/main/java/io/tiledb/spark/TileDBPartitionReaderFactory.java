@@ -7,11 +7,8 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 public class TileDBPartitionReaderFactory implements PartitionReaderFactory {
-  private boolean legacyReader;
 
-  public TileDBPartitionReaderFactory(boolean legacyReader) {
-    this.legacyReader = legacyReader;
-  }
+  public TileDBPartitionReaderFactory() {}
 
   // This method should be implemented only if a row-reader is available
   @Override
@@ -22,14 +19,6 @@ public class TileDBPartitionReaderFactory implements PartitionReaderFactory {
   @Override
   public PartitionReader<ColumnarBatch> createColumnarReader(InputPartition partition) {
     TileDBDataInputPartition tileDBDataInputPartition = (TileDBDataInputPartition) partition;
-    if (legacyReader) {
-      return new TileDBPartitionReaderLegacy(
-          tileDBDataInputPartition.getUri(),
-          tileDBDataInputPartition.getTileDBReadSchema(),
-          tileDBDataInputPartition.getTiledbOptions(),
-          tileDBDataInputPartition.getDimensionRanges(),
-          tileDBDataInputPartition.getAttributeRanges());
-    }
     return new TileDBPartitionReader(
         tileDBDataInputPartition.getUri(),
         tileDBDataInputPartition.getTileDBReadSchema(),
