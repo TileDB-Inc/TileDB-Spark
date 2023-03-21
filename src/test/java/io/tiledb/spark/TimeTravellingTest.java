@@ -193,14 +193,16 @@ public class TimeTravellingTest extends SharedJavaSparkSession {
     // Prepare cell buffers
     NativeArray data = new NativeArray(ctx, dataArray, Integer.class);
 
-    NativeArray subarray = new NativeArray(ctx, new int[] {1, 4}, Integer.class);
-
     // Create query
     Array array = new Array(ctx, arrayURI, TILEDB_WRITE, BigInteger.valueOf(timestamp));
     Query query = new Query(array);
+
+    SubArray subArray = new SubArray(ctx, array);
+    subArray.addRange(0, 1, 4, null);
+
     query.setLayout(TILEDB_ROW_MAJOR);
     query.setBuffer("a", data);
-    query.setSubarray(subarray);
+    query.setSubarray(subArray);
     // Submit query
     query.submit();
     query.close();

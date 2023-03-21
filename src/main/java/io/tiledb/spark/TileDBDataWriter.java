@@ -768,45 +768,25 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
               ? new String((byte[]) javaArrayBuffers[i].get())
               : javaArrayBuffers[i].get();
 
-      if (isVar) {
-        if (nullable) {
-          query.setBufferNullable(
-              name,
-              new NativeArray(
-                  ctx,
-                  javaArrayOffsetBuffers[i],
-                  Datatype.TILEDB_UINT64,
-                  nativeArrayOffsetElements[i]),
-              new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i]),
-              new NativeArray(
-                  ctx, nativeArrayValidityByteMap[i], Datatype.TILEDB_UINT8, nRecordsBuffered));
-        } else {
-          query.setBuffer(
-              name,
-              new NativeArray(
-                  ctx,
-                  javaArrayOffsetBuffers[i],
-                  Datatype.TILEDB_UINT64,
-                  nativeArrayOffsetElements[i]),
-              new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i]));
-        }
-      } else {
-        if (nullable) {
-          query.setBufferNullable(
-              name,
-              new NativeArray(ctx, bufferData, bufferDataType, nRecordsBuffered),
-              new NativeArray(
-                  ctx,
-                  nativeArrayValidityByteMap[i],
-                  Datatype.TILEDB_UINT8,
-                  nativeArrayBufferElements[i]));
-        } else {
-          query.setBuffer(
-              name,
-              new NativeArray(ctx, bufferData, bufferDataType, nRecordsBuffered),
-              nativeArrayBufferElements[i]);
-        }
-      }
+      query.setDataBuffer(
+          name, new NativeArray(ctx, bufferData, bufferDataType, nativeArrayBufferElements[i]));
+
+      if (isVar)
+        query.setOffsetsBuffer(
+            name,
+            new NativeArray(
+                ctx,
+                javaArrayOffsetBuffers[i],
+                Datatype.TILEDB_UINT64,
+                nativeArrayOffsetElements[i]));
+      if (nullable)
+        query.setValidityBuffer(
+            name,
+            new NativeArray(
+                ctx,
+                nativeArrayValidityByteMap[i],
+                Datatype.TILEDB_UINT8,
+                nativeArrayBufferElements[i]));
     }
     QueryStatus status = query.submit();
     if (status != QueryStatus.TILEDB_COMPLETED) {
