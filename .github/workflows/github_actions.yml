@@ -53,7 +53,7 @@ jobs:
           check-latest: true
 
       - name: Create-Jars
-        run: unset SYSTEM; set +e; ./gradlew assemble; ./gradlew shadowJar; mkdir jars/; cp ./build/libs/*.jar jars/
+        run: unset SYSTEM; ./gradlew assemble; ./gradlew shadowJar; mkdir jars/; cp ./build/libs/*.jar jars/
 
       - name: Create Release
         id: create_release
