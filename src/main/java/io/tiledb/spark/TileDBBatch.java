@@ -44,6 +44,8 @@ public class TileDBBatch implements Batch {
 
   private ArraySchema arraySchema;
 
+  private Domain domain;
+
   static Logger log = Logger.getLogger(TileDBBatch.class.getName());
 
   /**
@@ -62,6 +64,7 @@ public class TileDBBatch implements Batch {
     ctx = new Context(tileDBDataSourceOptions.getTileDBConfigMap(true));
     array = new Array(ctx, options.getArrayURI().get(), QueryType.TILEDB_READ);
     arraySchema = array.getSchema();
+    domain = arraySchema.getDomain();
     finalQueryCondition = null;
   }
 
@@ -74,7 +77,6 @@ public class TileDBBatch implements Batch {
       // Fetch the array and load its metadata
       Array array = new Array(ctx, util.tryGetArrayURI(tileDBDataSourceOptions));
       HashMap<String, Pair> nonEmptyDomain = array.nonEmptyDomain();
-      Domain domain = array.getSchema().getDomain();
 
       List<List<Range>> ranges = new ArrayList<>();
       // Populate initial range list
@@ -82,7 +84,7 @@ public class TileDBBatch implements Batch {
         ranges.add(new ArrayList<>());
       }
 
-      for (int i = 0; i < array.getSchema().getAttributeNum(); i++) {
+      for (int i = 0; i < arraySchema.getAttributeNum(); i++) {
         ranges.add(new ArrayList<>());
       }
 
@@ -117,7 +119,7 @@ public class TileDBBatch implements Batch {
 
       // Add nonEmptyDomain to any dimension that does not have a range from pushdown
       // For any existing ranges we try to merge into super ranges
-      for (int i = 0; i < domain.getNDim() + array.getSchema().getAttributeNum(); i++) {
+      for (int i = 0; i < domain.getNDim() + arraySchema.getAttributeNum(); i++) {
         List<Range> range = ranges.get(i);
         if (range.isEmpty()) {
           String columnName = this.tileDBReadSchema.getColumnName(i).get();
@@ -196,7 +198,7 @@ public class TileDBBatch implements Batch {
 
       List<List<Range>> attributeRanges = new ArrayList<>();
       for (int i = ((int) domain.getNDim());
-          i < domain.getNDim() + array.getSchema().getAttributeNum();
+          i < domain.getNDim() + arraySchema.getAttributeNum();
           i++) {
         attributeRanges.add(ranges.get(i));
       } // TODO this is not needed after the QC changes from Dimitris. Will be removed in a future
@@ -219,9 +221,9 @@ public class TileDBBatch implements Batch {
       metricsUpdater.finish(dataSourcePlanBatchInputPartitionsTimerName);
       InputPartition[] partitionsArray = new InputPartition[readerPartitions.size()];
       partitionsArray = readerPartitions.toArray(partitionsArray);
+      domain.close();
       array.close();
       ctx.close();
-      domain.close();
       return partitionsArray;
     } catch (Exception e) {
       e.printStackTrace();
@@ -465,7 +467,7 @@ public class TileDBBatch implements Batch {
       throw new RuntimeException(e);
     }
 
-    if (!arraySchema.getDomain().hasDimension(attributeName)) {
+    if (domain.hasDimension(attributeName)) {
       throw new TileDBError(
           "You are applying a filter in a non existing attribute: " + attributeName);
     }
@@ -607,8 +609,13 @@ public class TileDBBatch implements Batch {
   }
 
   private void closeResources() {
-    array.close();
+    domain.close();
     arraySchema.close();
-    ctx.close();
+    try {
+      ctx.close();
+    } catch (TileDBError e) {
+      // do nothing
+    }
+    array.close();
   }
 }
