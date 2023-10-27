@@ -609,6 +609,10 @@ public class TileDBBatch implements Batch {
   private void closeResources() {
     array.close();
     arraySchema.close();
-    ctx.close();
+    try {
+      ctx.close();
+    } catch (TileDBError e) {
+      // do nothing
+    }
   }
 }

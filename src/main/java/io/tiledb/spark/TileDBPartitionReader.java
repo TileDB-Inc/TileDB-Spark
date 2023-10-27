@@ -557,7 +557,11 @@ public class TileDBPartitionReader implements PartitionReader<ColumnarBatch> {
       array.close();
     }
     if (ctx != null) {
-      ctx.close();
+      try {
+        ctx.close();
+      } catch (TileDBError e) {
+        // do nothing
+      }
     }
 
     releaseArrowVectors();

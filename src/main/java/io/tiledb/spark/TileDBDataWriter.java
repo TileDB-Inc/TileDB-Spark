@@ -802,7 +802,11 @@ public class TileDBDataWriter implements DataWriter<InternalRow> {
     this.metricsUpdater.startTimer(queryWriteCloseTileDBResourcesTimerName);
     query.close();
     array.close();
-    ctx.close();
+    try {
+      ctx.close();
+    } catch (TileDBError e) {
+      // do nothing
+    }
     this.metricsUpdater.finish(queryWriteCloseTileDBResourcesTimerName);
   }
 
