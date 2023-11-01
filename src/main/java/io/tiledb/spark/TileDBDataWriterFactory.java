@@ -1,5 +1,6 @@
 package io.tiledb.spark;
 
+import io.tiledb.java.api.TileDBError;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
@@ -20,6 +21,10 @@ public class TileDBDataWriterFactory implements DataWriterFactory {
 
   @Override
   public DataWriter<InternalRow> createWriter(int partitionId, long taskId) {
-    return new TileDBDataWriter(uri, sparkSchema, options);
+    try {
+      return new TileDBDataWriter(uri, sparkSchema, options);
+    } catch (TileDBError e) {
+      throw new RuntimeException(e);
+    }
   }
 }
