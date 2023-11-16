@@ -58,8 +58,8 @@ sourceSets {
 }
 
 dependencies {
-    compileOnly 'org.apache.spark:spark-sql_2.12:3.2.0'
-    compileOnly 'org.apache.spark:spark-core_2.12:3.2.0'
+    compileOnly 'org.apache.spark:spark-sql_2.12:3.5.0'
+    compileOnly 'org.apache.spark:spark-core_2.12:3.5.0'
 
     implementation 'io.tiledb:tiledb-java:0.19.5'
 
@@ -74,8 +74,8 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-core:2.12.3'
 
     testImplementation group: 'junit', name: 'junit', version: '4.11'
-    testImplementation 'org.apache.spark:spark-sql_2.12:3.2.0'
-    testImplementation 'org.apache.spark:spark-core_2.12:3.2.0'
+    testImplementation 'org.apache.spark:spark-sql_2.12:3.5.0'
+    testImplementation 'org.apache.spark:spark-core_2.12:3.5.0'
 }
 
 test {
