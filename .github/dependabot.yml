@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "gradle"
+    directory: "/"
+    groups:
+      spark:
+        patterns:
+          - "org.apache.spark*"
+    schedule:
+      interval: "daily"
+    allow:
+      - dependency-name: "org.apache.spark:spark-sql_2.12"
+      - dependency-name: "org.apache.spark:spark-core_2.12"
+      - dependency-name: "io.tiledb:tiledb-java"
+    reviewers:
+      - "DimitrisStaratzis"
