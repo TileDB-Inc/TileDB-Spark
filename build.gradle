@@ -61,7 +61,7 @@ dependencies {
     compileOnly 'org.apache.spark:spark-sql_2.12:3.5.1'
     compileOnly 'org.apache.spark:spark-core_2.12:3.5.1'
 
-    implementation 'io.tiledb:tiledb-java:0.22.0'
+    implementation 'io.tiledb:tiledb-java:0.23.0'
 
     implementation 'commons-beanutils:commons-beanutils:1.9.4'
 
