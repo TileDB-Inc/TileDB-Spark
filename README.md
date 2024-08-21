@@ -94,6 +94,7 @@ to `$SPARK_HOME/jars/`.
 * `schema.dim.<N>.max` (optional): Specify the upper bound for the TileDB array schema
 * `schema.dim.<N>.extent` (optional): Specify the schema dimension domain extent (tile size)
 * `schema.attr.<NAME>.filter_list` (optional): Specfify filter list for attribute NAME.  Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
+* `schema.set_allows_dups` (optional): Specify whether to allow multiple cells with the same coordinates to exist. (Sparse arrays only)
 * `schema.capacity` (optional): Specify the sparse array tile capacity
 * `schema.cell_order` (optional): Specify the cell order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
 * `schema.tile_order` (optional): Specify the tile order. Filter list is a tuple of the form `(name, option)`, ex: `"(byteshuffle, -1), (gzip, 9)"`
